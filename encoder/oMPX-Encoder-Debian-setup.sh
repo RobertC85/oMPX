@@ -363,15 +363,21 @@ echo "[SUCCESS] Directories created at ${SYS_SCRIPTS_DIR}"
 
 echo "[INFO] Updating package lists..."
 apt update
-echo "[INFO] Installing dependencies (curl, alsa-utils, ffmpeg, sox, ladspa-sdk, swh-plugins, liquidsoap)..."
-DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils ffmpeg sox ladspa-sdk swh-plugins liquidsoap || true
+echo "[INFO] Installing dependencies (curl, alsa-utils, ffmpeg, sox, ladspa-sdk, swh-plugins, liquidsoap, plus optional kernel module extras)..."
+KERNEL_EXTRA="linux-modules-extra-$(uname -r)"
+DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils ffmpeg sox ladspa-sdk swh-plugins liquidsoap "${KERNEL_EXTRA}" || true
 echo "[SUCCESS] Dependencies installed"
 # --- Ensure snd_aloop loaded and show devices ---
 echo "[INFO] Verifying snd_aloop kernel module..."
 
 if ! lsmod | grep -q snd_aloop; then 
   echo "[INFO] Attempting to load snd_aloop..."
-  modprobe snd_aloop || echo "[WARNING] Could not load snd_aloop"
+  if ! modprobe snd_aloop; then
+    echo "[WARNING] Initial snd_aloop load failed. Trying kernel extra package: ${KERNEL_EXTRA}"
+    DEBIAN_FRONTEND=noninteractive apt install -y "${KERNEL_EXTRA}" || true
+    echo "[INFO] Retrying snd_aloop load after installing kernel extras..."
+    modprobe snd_aloop || echo "[WARNING] Could not load snd_aloop after kernel package install"
+  fi
 else 
   echo "[SUCCESS] snd_aloop is loaded"
   _log "snd_aloop loaded"
