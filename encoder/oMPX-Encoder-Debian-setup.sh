@@ -249,7 +249,7 @@ mkdir -p "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${LIQUIDSOAP_CONF_DIR}"
 chown -R "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}"
 chmod 755 "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${LIQUIDSOAP_CONF_DIR}"
 apt update
-DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils linux-modules-extra-$(uname -r) ffmpeg sox ladspa-sdk swh-plugins liquidsoap || true
+DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils linux-modules-$(uname -r) linux-modules-extra-$(uname -r) alsa-modules-$(uname -r) ffmpeg sox ladspa-sdk swh-plugins liquidsoap || true
 # --- Ensure snd_aloop loaded and show devices ---
 
 if ! lsmod | grep -q snd_aloop; then modprobe snd_aloop || true; else _log "snd_aloop loaded"; fi
