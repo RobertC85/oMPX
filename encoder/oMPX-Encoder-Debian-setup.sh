@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-oMPX unified installer + ALSA asound.conf setup (192kHz / 80kHz subcarrier)
-Date: 2026-04-07
---- Configurable variables ---
+# oMPX unified installer + ALSA asound.conf setup (192kHz / 80kHz subcarrier)
+# Date: 2026-04-07
+# --- Configurable variables ---
 
 OMPX_USER="oMPX"
 OMPX_HOME="/var/lib/ompx"
@@ -23,7 +23,7 @@ ASOUND_CONF_PATH="/etc/asound.conf"
 _log(){ logger -t mpx-installer "$*"; echo "$(date +'%F %T') $*"; }
 
 if [ "$(id -u)" -ne 0 ]; then echo "Run as root: sudo $0" >&2; exit 1; fi
---- Ensure snd_aloop loads and write modprobe options ---
+# --- Ensure snd_aloop loads and write modprobe options ---
 
 cat > /etc/modules-load.d/snd-aloop.conf <<'EOF'
 snd-aloop
@@ -32,7 +32,7 @@ cat > /etc/modprobe.d/snd-aloop.conf <<'EOF'
 options snd-aloop pcm_substreams=16
 EOF
 modprobe snd_aloop || true
---- Prepare desired /etc/asound.conf content ---
+# --- Prepare desired /etc/asound.conf content ---
 
 read -r -d '' WANT_ASOUND <<'ASND'
 # /etc/asound.conf - oMPX multi-sinks at 192000 Hz + 80kHz subcarrier
@@ -151,7 +151,7 @@ hint.description "MPX Subcarrier (80kHz resampled)"
 pcm.!default { type plug; slave.pcm "sink_dmix_192k"; }
 ctl.!default { type hw; card Loopback; }
 ASND
---- Write /etc/asound.conf only if different (backup existing) ---
+# --- Write /etc/asound.conf only if different (backup existing) ---
 
 if [ -f "${ASOUND_CONF_PATH}" ]; then
 if ! cmp -s <(printf '%s' "${WANT_ASOUND}") "${ASOUND_CONF_PATH}"; then
@@ -167,7 +167,7 @@ printf '%s' "${WANT_ASOUND}" > "${ASOUND_CONF_PATH}"
 chmod 644 "${ASOUND_CONF_PATH}" || true
 _log "Wrote ${ASOUND_CONF_PATH}."
 fi
---- Check existing installation ---
+# --- Check existing installation ---
 
 found=0
 msg=""
@@ -205,7 +205,7 @@ echo "Keeping existing installation; generated files will be overwritten."
 echo "Aborting."; exit 0;;
 esac
 fi
---- Create system user if missing (with interactive shell) ---
+# --- Create system user if missing (with interactive shell) ---
 
 if ! id -u "${OMPX_USER}" >/dev/null 2>&1; then
 useradd --system --home "${OMPX_HOME}" --create-home --shell "${OMPX_SHELL}" --comment "oMPX service account" "${OMPX_USER}"
@@ -213,7 +213,7 @@ else
 _log "User ${OMPX_USER} exists; ensuring shell is ${OMPX_SHELL}."
 usermod -s "${OMPX_SHELL}" "${OMPX_USER}" || true
 fi
---- Write profile (overwrite) ---
+# --- Write profile (overwrite) ---
 
 mkdir -p "${OMPX_HOME}"
 PROFILE="${OMPX_HOME}/.profile"
@@ -226,18 +226,18 @@ RADIO2_URL="${RADIO2_URL}"
 PROFILE_WRITTEN
 chown "${OMPX_USER}:${OMPX_USER}" "$PROFILE"; chmod 644 "$PROFILE"
 _log "Wrote profile ${PROFILE}."
---- Create directories, install packages ---
+# --- Create directories, install packages ---
 
 mkdir -p "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${LIQUIDSOAP_CONF_DIR}"
 chown -R "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}"
 chmod 755 "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${LIQUIDSOAP_CONF_DIR}"
 apt update
 DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils ffmpeg sox ladspa-sdk swh-plugins liquidsoap || true
---- Ensure snd_aloop loaded and show devices ---
+# --- Ensure snd_aloop loaded and show devices ---
 
 if ! lsmod | grep -q snd_aloop; then modprobe snd_aloop || true; else _log "snd_aloop loaded"; fi
 sleep 1; _log "ALSA devices:"; aplay -l 2>/dev/null || true
---- Create FIFOs for liquidsoap outputs ---
+# --- Create FIFOs for liquidsoap outputs ---
 
 for r in 1 2; do
 fifo="${FIFOS_DIR}/radio${r}.pcm"
@@ -245,7 +245,7 @@ rm -f "$fifo" || true
 mkfifo -m 660 "$fifo"
 chown "${OMPX_USER}:${OMPX_USER}" "$fifo"
 done
---- Liquidsoap configuration files (safe templates) ---
+# --- Liquidsoap configuration files (safe templates) ---
 
 cat > "${LIQUIDSOAP_CONF_DIR}/radio1.liq" <<'L1'
 set("log.stdout", true)
@@ -280,7 +280,7 @@ s1 = convert(s1, samplerate = sample_rate, channels = 2)
 write_fifo(fifo_path, s1)
 output.null(s1)
 L2
---- Create source wrapper scripts (for liquidsoap) ---
+# --- Create source wrapper scripts (for liquidsoap) ---
 
 for n in 1 2; do
 cat > "${SYS_SCRIPTS_DIR}/source${n}.sh" <<WRAP
@@ -294,7 +294,7 @@ WRAP
 chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/source${n}.sh"
 chmod 750 "${SYS_SCRIPTS_DIR}/source${n}.sh"
 done
---- Processing script: run_processing_alsa_liquid.sh ---
+# --- Processing script: run_processing_alsa_liquid.sh ---
 
 cat > "${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh" <<'RUNP'
 #!/usr/bin/env bash
@@ -334,7 +334,7 @@ _log "run_processing_alsa_liquid.sh exiting"
 RUNP
 chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh"
 chmod 750 "${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh"
---- systemd units ---
+# --- systemd units ---
 
 cat > "${SYSTEMD_DIR}/mpx-processing-alsa.service" <<EOF
 [Unit]
@@ -384,7 +384,7 @@ done
 WD
 chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/mpx-watchdog.sh"
 chmod 750 "${SYS_SCRIPTS_DIR}/mpx-watchdog.sh"
---- stereo-tool wrapper & checker ---
+# --- stereo-tool wrapper & checker ---
 
 cat > "${STEREO_TOOL_WRAPPER}.real-check" <<'CHECK'
 #!/usr/bin/env bash
@@ -407,7 +407,7 @@ wait
 WRAPST
 chmod 755 "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check"
 chown root:root "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check"
---- ompx_add_source helper (persist radio URL, create wrapper, setup cron) ---
+# --- ompx_add_source helper (persist radio URL, create wrapper, setup cron) ---
 
 cat > "${OMPX_ADD}" <<'ADD'
 #!/usr/bin/env bash
@@ -443,7 +443,7 @@ echo "Persisted ${VAR} in ${PROFILE} and ensured cron @reboot for ${CRON_USER}."
 ADD
 chmod 750 "${OMPX_ADD}"
 chown root:root "${OMPX_ADD}"
---- start_or_shell wrapper ---
+# --- start_or_shell wrapper ---
 
 cat > "${SYS_SCRIPTS_DIR}/start_or_shell.sh" <<'STARTSH'
 #!/usr/bin/env bash
@@ -482,7 +482,7 @@ esac
 STARTSH
 chmod 750 "${SYS_SCRIPTS_DIR}/start_or_shell.sh"
 chown root:root "${SYS_SCRIPTS_DIR}/start_or_shell.sh"
---- Install @reboot cron for oMPX to start sources at boot ---
+# --- Install @reboot cron for oMPX to start sources at boot ---
 
 CRON_LINE1="@reboot sleep ${CRON_SLEEP} && ${SYS_SCRIPTS_DIR}/start_or_shell.sh --start >/var/log/radio-opus-start.log 2>&1 &"
 existing=$(crontab -u "${OMPX_USER}" -l 2>/dev/null || true)
@@ -490,7 +490,7 @@ new_cron="${existing}"
 echo "$existing" | grep -F -q "${SYS_SCRIPTS_DIR}/source1.sh" >/dev/null 2>&1 || new_cron="${new_cron}
 ${CRON_LINE1}"
 printf "%s\n" "${new_cron}" | sed '/^$/d' | crontab -u "${OMPX_USER}" -
---- Enable and start services ---
+# --- Enable and start services ---
 
 systemctl daemon-reload
 systemctl enable --now mpx-processing-alsa.service mpx-watchdog.service || true
