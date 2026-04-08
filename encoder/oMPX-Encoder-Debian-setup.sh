@@ -514,4 +514,5 @@ systemctl enable --now mpx-processing-alsa.service mpx-watchdog.service || true
 
 _log "Install complete. Profile: ${PROFILE}"
 echo "Use ${OMPX_ADD} --radio 1 --url 'https://your.stream/url' --cron-user oMPX --start-now"
+chmod +x "$0" || true
 exit 0
