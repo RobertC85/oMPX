@@ -77,6 +77,7 @@ if [ "$CONFIG_SKIP" = true ]; then
 echo "[INFO] Skipping kernel module configuration as requested"
 else
 echo "[INFO] Setting up snd_aloop kernel module..."
+mkdir -p /etc/modules-load.d /etc/modprobe.d
 if [ "$CONFIG_BACKUP" = true ] && [ -f /etc/modules-load.d/snd-aloop.conf ]; then
 cp -a /etc/modules-load.d/snd-aloop.conf /etc/modules-load.d/snd-aloop.conf.bak.$(date +%s) || true
 echo "[INFO] Backed up existing /etc/modules-load.d/snd-aloop.conf"
