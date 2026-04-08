@@ -35,7 +35,8 @@ echo "  K) Keep existing config files unchanged (skip writing new ones)"
 echo "  B) Backup existing config files and overwrite with new ones"
 echo "  O) Overwrite existing config files without backup"
 echo "  S) Skip config file setup entirely"
-read -t 30 -p "Select [K/B/O/S] (default B): " config_action || config_action="B"
+read -t 30 -p "Select [K/B/O/S] (default B): " config_action || true
+config_action="${config_action:-B}"
 config_action=${config_action^^}
 echo "[INFO] Config action selected: $config_action"
 
