@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # oMPX unified installer + ALSA asound.conf setup (192kHz / 80kHz subcarrier)
+# Requires: Debian/Ubuntu or bare metal with standard kernel (not Proxmox PVE)
+# For best results, use a standard Debian kernel (linux-image-amd64) that includes snd_aloop
 # Date: 2026-04-07
 # --- Configurable variables ---
 
@@ -31,11 +33,12 @@ EOF
 cat > /etc/modprobe.d/snd-aloop.conf <<'EOF'
 options snd-aloop pcm_substreams=16
 EOF
-if find /lib/modules/$(uname -r) -name "snd-aloop.ko*" 2>/dev/null | grep -q .; then
-    modprobe snd_aloop || true
-else
-    echo "Warning: snd_aloop module not found in kernel $(uname -r). ALSA loopback may not work. Consider switching to a Debian kernel or compiling the module."
-fi
+# Load snd_aloop kernel module (should be available in standard Debian kernels)
+modprobe snd_aloop 2>/dev/null || {
+    echo "Warning: Failed to load snd_aloop. Ensure you're running a standard Debian kernel (linux-image-amd64)."
+    echo "Audio routing will not work without this module."
+    read -p "Press Enter to continue anyway..." || true
+}
 # --- Prepare desired /etc/asound.conf content ---
 
 read -r -d '' WANT_ASOUND <<'ASND'
@@ -253,7 +256,7 @@ mkdir -p "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${LIQUIDSOAP_CONF_DIR}"
 chown -R "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}"
 chmod 755 "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${LIQUIDSOAP_CONF_DIR}"
 apt update
-DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils linux-modules-$(uname -r) linux-modules-extra-$(uname -r) alsa-modules-$(uname -r) ffmpeg sox ladspa-sdk swh-plugins liquidsoap || true
+DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils ffmpeg sox ladspa-sdk swh-plugins liquidsoap || true
 # --- Ensure snd_aloop loaded and show devices ---
 
 if ! lsmod | grep -q snd_aloop; then modprobe snd_aloop || true; else _log "snd_aloop loaded"; fi
