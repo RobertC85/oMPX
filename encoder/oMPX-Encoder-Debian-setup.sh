@@ -47,8 +47,7 @@ modprobe snd_aloop 2>/dev/null && echo "[SUCCESS] snd_aloop loaded" || {
 # --- Prepare desired /etc/asound.conf content ---
 echo "[INFO] Preparing ALSA asound.conf configuration..."
 
-read -r -d '' WANT_ASOUND <<'ASND'
-# /etc/asound.conf - oMPX multi-sinks at 192000 Hz
+WANT_ASOUND='# /etc/asound.conf - oMPX multi-sinks at 192000 Hz
 # All PCM devices operate at 192000 Hz (carrier frequency: 80kHz within 192kHz signal)
 
 pcm.format_192k {
@@ -162,8 +161,7 @@ hint.description "MPX Subcarrier (80kHz carrier in 192kHz signal)"
 }
 
 pcm.!default { type plug; slave.pcm "sink_dmix_192k"; }
-ctl.!default { type hw; card Loopback; }
-ASND
+ctl.!default { type hw; card Loopback; }'
 # --- Write /etc/asound.conf only if different (backup existing) ---
 echo "[INFO] Writing /etc/asound.conf..."
 
