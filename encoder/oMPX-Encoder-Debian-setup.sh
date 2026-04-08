@@ -27,17 +27,73 @@ ASOUND_CONF_PATH="/etc/asound.conf"
 _log(){ logger -t mpx-installer "$*"; echo "$(date +'%F %T') $*"; }
 
 if [ "$(id -u)" -ne 0 ]; then echo "Run as root: sudo $0" >&2; exit 1; fi
+
+# --- Config file handling options ---
+echo ""
+echo "How should existing configuration files be handled?"
+echo "  K) Keep existing config files unchanged (skip writing new ones)"
+echo "  B) Backup existing config files and overwrite with new ones"
+echo "  O) Overwrite existing config files without backup"
+echo "  S) Skip config file setup entirely"
+read -t 30 -p "Select [K/B/O/S] (default B): " config_action || config_action="B"
+config_action=${config_action^^}
+echo "[INFO] Config action selected: $config_action"
+
+case "$config_action" in
+K)
+echo "[INFO] Keeping existing config files unchanged"
+CONFIG_BACKUP=false
+CONFIG_OVERWRITE=false
+CONFIG_SKIP=true
+;;
+B)
+echo "[INFO] Will backup and overwrite config files"
+CONFIG_BACKUP=true
+CONFIG_OVERWRITE=true
+CONFIG_SKIP=false
+;;
+O)
+echo "[INFO] Will overwrite config files without backup"
+CONFIG_BACKUP=false
+CONFIG_OVERWRITE=true
+CONFIG_SKIP=false
+;;
+S)
+echo "[INFO] Skipping config file setup"
+CONFIG_BACKUP=false
+CONFIG_OVERWRITE=false
+CONFIG_SKIP=true
+;;
+*)
+echo "[INFO] Aborting due to invalid config action choice"
+exit 0
+;;
+esac
+
 # --- Ensure snd_aloop loads and write modprobe options ---
 
+if [ "$CONFIG_SKIP" = true ]; then
+echo "[INFO] Skipping kernel module configuration as requested"
+else
 echo "[INFO] Setting up snd_aloop kernel module..."
+if [ "$CONFIG_BACKUP" = true ] && [ -f /etc/modules-load.d/snd-aloop.conf ]; then
+cp -a /etc/modules-load.d/snd-aloop.conf /etc/modules-load.d/snd-aloop.conf.bak.$(date +%s) || true
+echo "[INFO] Backed up existing /etc/modules-load.d/snd-aloop.conf"
+fi
 cat > /etc/modules-load.d/snd-aloop.conf <<'EOF'
 snd-aloop
 EOF
 echo "[INFO] Created /etc/modules-load.d/snd-aloop.conf"
+
+if [ "$CONFIG_BACKUP" = true ] && [ -f /etc/modprobe.d/snd-aloop.conf ]; then
+cp -a /etc/modprobe.d/snd-aloop.conf /etc/modprobe.d/snd-aloop.conf.bak.$(date +%s) || true
+echo "[INFO] Backed up existing /etc/modprobe.d/snd-aloop.conf"
+fi
 cat > /etc/modprobe.d/snd-aloop.conf <<'EOF'
 options snd-aloop pcm_substreams=16
 EOF
 echo "[INFO] Created /etc/modprobe.d/snd-aloop.conf with pcm_substreams=16"
+fi
 echo "[INFO] Attempting to load snd_aloop module..."
 modprobe snd_aloop 2>/dev/null && echo "[SUCCESS] snd_aloop loaded" || {
     echo "[WARNING] Failed to load snd_aloop. Ensure you're running a standard Debian kernel (linux-image-amd64)."
@@ -162,15 +218,24 @@ hint.description "MPX Subcarrier (80kHz carrier in 192kHz signal)"
 
 pcm.!default { type plug; slave.pcm "sink_dmix_192k"; }
 ctl.!default { type hw; card Loopback; }'
-# --- Write /etc/asound.conf only if different (backup existing) ---
+# --- Write /etc/asound.conf ---
+
+if [ "$CONFIG_SKIP" = true ]; then
+echo "[INFO] Skipping ALSA configuration as requested"
+elif [ "$CONFIG_OVERWRITE" = false ]; then
+echo "[INFO] Keeping existing ALSA configuration unchanged"
+else
 echo "[INFO] Writing /etc/asound.conf..."
 
 if [ -f "${ASOUND_CONF_PATH}" ]; then
 if ! cmp -s <(printf '%s' "${WANT_ASOUND}") "${ASOUND_CONF_PATH}"; then
+if [ "$CONFIG_BACKUP" = true ]; then
 cp -a "${ASOUND_CONF_PATH}" "${ASOUND_CONF_PATH}.bak.$(date +%s)" || true
+echo "[INFO] Backed up existing ${ASOUND_CONF_PATH}"
+fi
 printf '%s' "${WANT_ASOUND}" > "${ASOUND_CONF_PATH}"
 chmod 644 "${ASOUND_CONF_PATH}" || true
-_log "Updated ${ASOUND_CONF_PATH} (backup saved)."
+_log "Updated ${ASOUND_CONF_PATH}."
 echo "[SUCCESS] ALSA config updated"
 else
 _log "${ASOUND_CONF_PATH} already matches desired content."
@@ -181,6 +246,7 @@ printf '%s' "${WANT_ASOUND}" > "${ASOUND_CONF_PATH}"
 chmod 644 "${ASOUND_CONF_PATH}" || true
 _log "Wrote ${ASOUND_CONF_PATH}."
 echo "[SUCCESS] ALSA config created"
+fi
 fi
 # --- Check existing installation ---
 echo "[INFO] Checking for existing oMPX installation..."
@@ -258,7 +324,6 @@ echo "[INFO] Aborting installation (user selected option)."
 exit 0;;
 esac
 fi
-# --- Create system user if missing (with interactive shell) ---
 echo "[INFO] Setting up oMPX system user..."
 
 if ! id -u "${OMPX_USER}" >/dev/null 2>&1; then
