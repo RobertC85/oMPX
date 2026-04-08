@@ -31,7 +31,11 @@ EOF
 cat > /etc/modprobe.d/snd-aloop.conf <<'EOF'
 options snd-aloop pcm_substreams=16
 EOF
-modprobe snd_aloop || true
+if find /lib/modules/$(uname -r) -name "snd-aloop.ko*" 2>/dev/null | grep -q .; then
+    modprobe snd_aloop || true
+else
+    echo "Warning: snd_aloop module not found in kernel $(uname -r). ALSA loopback may not work. Consider switching to a Debian kernel or compiling the module."
+fi
 # --- Prepare desired /etc/asound.conf content ---
 
 read -r -d '' WANT_ASOUND <<'ASND'
