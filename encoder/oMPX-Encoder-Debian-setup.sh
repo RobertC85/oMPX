@@ -4,6 +4,8 @@ set -euo pipefail
 # Requires: Debian/Ubuntu or bare metal with standard kernel (not Proxmox PVE)
 # For best results, use a standard Debian kernel (linux-image-amd64) that includes snd_aloop
 # Date: 2026-04-07
+
+echo "[$(date +'%F %T')] oMPX installer starting..."
 # --- Configurable variables ---
 
 OMPX_USER="oMPX"
@@ -27,19 +29,23 @@ _log(){ logger -t mpx-installer "$*"; echo "$(date +'%F %T') $*"; }
 if [ "$(id -u)" -ne 0 ]; then echo "Run as root: sudo $0" >&2; exit 1; fi
 # --- Ensure snd_aloop loads and write modprobe options ---
 
+echo "[INFO] Setting up snd_aloop kernel module..."
 cat > /etc/modules-load.d/snd-aloop.conf <<'EOF'
 snd-aloop
 EOF
+echo "[INFO] Created /etc/modules-load.d/snd-aloop.conf"
 cat > /etc/modprobe.d/snd-aloop.conf <<'EOF'
 options snd-aloop pcm_substreams=16
 EOF
-# Load snd_aloop kernel module (should be available in standard Debian kernels)
-modprobe snd_aloop 2>/dev/null || {
-    echo "Warning: Failed to load snd_aloop. Ensure you're running a standard Debian kernel (linux-image-amd64)."
-    echo "Audio routing will not work without this module."
+echo "[INFO] Created /etc/modprobe.d/snd-aloop.conf with pcm_substreams=16"
+echo "[INFO] Attempting to load snd_aloop module..."
+modprobe snd_aloop 2>/dev/null && echo "[SUCCESS] snd_aloop loaded" || {
+    echo "[WARNING] Failed to load snd_aloop. Ensure you're running a standard Debian kernel (linux-image-amd64)."
+    echo "[WARNING] Audio routing will not work without this module."
     read -p "Press Enter to continue anyway..." || true
 }
 # --- Prepare desired /etc/asound.conf content ---
+echo "[INFO] Preparing ALSA asound.conf configuration..."
 
 read -r -d '' WANT_ASOUND <<'ASND'
 # /etc/asound.conf - oMPX multi-sinks at 192000 Hz + 80kHz subcarrier
@@ -159,6 +165,7 @@ pcm.!default { type plug; slave.pcm "sink_dmix_192k"; }
 ctl.!default { type hw; card Loopback; }
 ASND
 # --- Write /etc/asound.conf only if different (backup existing) ---
+echo "[INFO] Writing /etc/asound.conf..."
 
 if [ -f "${ASOUND_CONF_PATH}" ]; then
 if ! cmp -s <(printf '%s' "${WANT_ASOUND}") "${ASOUND_CONF_PATH}"; then
@@ -166,78 +173,108 @@ cp -a "${ASOUND_CONF_PATH}" "${ASOUND_CONF_PATH}.bak.$(date +%s)" || true
 printf '%s' "${WANT_ASOUND}" > "${ASOUND_CONF_PATH}"
 chmod 644 "${ASOUND_CONF_PATH}" || true
 _log "Updated ${ASOUND_CONF_PATH} (backup saved)."
+echo "[SUCCESS] ALSA config updated"
 else
 _log "${ASOUND_CONF_PATH} already matches desired content."
+echo "[INFO] ALSA config already current"
 fi
 else
 printf '%s' "${WANT_ASOUND}" > "${ASOUND_CONF_PATH}"
 chmod 644 "${ASOUND_CONF_PATH}" || true
 _log "Wrote ${ASOUND_CONF_PATH}."
+echo "[SUCCESS] ALSA config created"
 fi
 # --- Check existing installation ---
+echo "[INFO] Checking for existing oMPX installation..."
 
 found=0
 msg=""
 if id -u "${OMPX_USER}" >/dev/null 2>&1; then found=1; msg="${msg}user:${OMPX_USER} "; fi
 if [ -d "${SYS_SCRIPTS_DIR}" ]; then found=1; msg="${msg}${SYS_SCRIPTS_DIR} "; fi
 if systemctl list-unit-files | grep -q '^mpx-processing-alsa.service'; then found=1; msg="${msg}mpx-processing-alsa.service "; fi
+[ "$found" -eq 0 ] && echo "[INFO] No existing installation detected (fresh install)" || echo "[WARNING] Existing installation found: $msg"
 
 if [ "$found" -eq 1 ]; then
-echo "Existing oMPX installation detected (${msg}). Choose action:"
+echo ""
+echo "Existing oMPX installation detected (${msg})."
+echo "Choose action:"
 echo "  K) Keep existing (overwrite generated files only)"
 echo "  R) Reinstall (clean -> fresh install)  *recommended for broken installs*"
 echo "  U) Uninstall (remove all oMPX components)"
 echo "  A) Abort (do nothing)"
+echo ""
 read -t 30 -p "Select [K/R/U/A] (default A): " choice || choice="A"
 choice=${choice^^}
+echo "[INFO] User selected: $choice"
 case "$choice" in
 R)
-echo "Performing full cleanup before reinstall..."
+echo "[INFO] Performing full cleanup before reinstall..."
+echo "[INFO] Stopping systemd services..."
 systemctl stop mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
+echo "[INFO] Disabling systemd services..."
 systemctl disable mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
 rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service"
 systemctl daemon-reload || true
+echo "[INFO] Removing old cron jobs..."
 if id -u "${OMPX_USER}" >/dev/null 2>&1; then
 crontab -u "${OMPX_USER}" -l 2>/dev/null | grep -v "${SYS_SCRIPTS_DIR}/source" | sed '/^$/d' | crontab -u "${OMPX_USER}" - 2>/dev/null || true
 fi
+echo "[INFO] Removing old files and directories..."
 rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
 rm -rf "${SYS_SCRIPTS_DIR}" "${LIQUIDSOAP_CONF_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log
 rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
+echo "[INFO] Removing oMPX user..."
 if id -u "${OMPX_USER}" >/dev/null 2>&1; then userdel -r "${OMPX_USER}" || true; fi
+echo "[INFO] Unloading snd_aloop module..."
 modprobe -r snd_aloop 2>/dev/null || true
+echo "[SUCCESS] Cleanup complete, ready for fresh install"
 ;;
 U)
-echo "Performing full uninstall..."
+echo "[INFO] Performing full uninstall..."
+echo "[INFO] Stopping systemd services..."
 systemctl stop mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
+echo "[INFO] Disabling systemd services..."
 systemctl disable mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
 rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service"
 systemctl daemon-reload || true
+echo "[INFO] Removing cron jobs..."
 if id -u "${OMPX_USER}" >/dev/null 2>&1; then
 crontab -u "${OMPX_USER}" -l 2>/dev/null | grep -v "${SYS_SCRIPTS_DIR}/source" | sed '/^$/d' | crontab -u "${OMPX_USER}" - 2>/dev/null || true
 fi
+echo "[INFO] Removing files and directories..."
 rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
 rm -rf "${SYS_SCRIPTS_DIR}" "${LIQUIDSOAP_CONF_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log
 rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
+echo "[INFO] Removing oMPX user..."
 if id -u "${OMPX_USER}" >/dev/null 2>&1; then userdel -r "${OMPX_USER}" || true; fi
+echo "[INFO] Unloading snd_aloop module..."
 modprobe -r snd_aloop 2>/dev/null || true
-echo "Uninstall complete."; exit 0
+echo "[SUCCESS] Uninstall complete."
+exit 0
 ;;
 K)
-echo "Keeping existing installation; generated files will be overwritten."
+echo "[INFO] Keeping existing installation; generated files will be overwritten."
 ;;
 *)
-echo "Aborting."; exit 0;;
+echo "[INFO] Aborting installation (user selected option)."
+exit 0;;
 esac
 fi
 # --- Create system user if missing (with interactive shell) ---
+echo "[INFO] Setting up oMPX system user..."
 
 if ! id -u "${OMPX_USER}" >/dev/null 2>&1; then
+echo "[INFO] Creating user ${OMPX_USER}..."
 useradd --system --home "${OMPX_HOME}" --create-home --shell "${OMPX_SHELL}" --comment "oMPX service account" "${OMPX_USER}"
+echo "[SUCCESS] User ${OMPX_USER} created"
 else
+echo "[INFO] User ${OMPX_USER} already exists; ensuring shell is ${OMPX_SHELL}."
 _log "User ${OMPX_USER} exists; ensuring shell is ${OMPX_SHELL}."
 usermod -s "${OMPX_SHELL}" "${OMPX_USER}" || true
+echo "[SUCCESS] User shell updated"
 fi
 # --- Write profile (overwrite) ---
+echo "[INFO] Creating user profile configuration..."
 
 mkdir -p "${OMPX_HOME}"
 PROFILE="${OMPX_HOME}/.profile"
@@ -250,26 +287,47 @@ RADIO2_URL="${RADIO2_URL}"
 PROFILE_WRITTEN
 chown "${OMPX_USER}:${OMPX_USER}" "$PROFILE"; chmod 644 "$PROFILE"
 _log "Wrote profile ${PROFILE}."
+echo "[SUCCESS] Profile configuration created"
 # --- Create directories, install packages ---
+echo "[INFO] Creating system directories..."
 
 mkdir -p "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${LIQUIDSOAP_CONF_DIR}"
 chown -R "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}"
 chmod 755 "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${LIQUIDSOAP_CONF_DIR}"
-apt update
-DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils ffmpeg sox ladspa-sdk swh-plugins liquidsoap || true
-# --- Ensure snd_aloop loaded and show devices ---
+echo "[SUCCESS] Directories created at ${SYS_SCRIPTS_DIR}"
 
-if ! lsmod | grep -q snd_aloop; then modprobe snd_aloop || true; else _log "snd_aloop loaded"; fi
-sleep 1; _log "ALSA devices:"; aplay -l 2>/dev/null || true
+echo "[INFO] Updating package lists..."
+apt update
+echo "[INFO] Installing dependencies (curl, alsa-utils, ffmpeg, sox, ladspa-sdk, swh-plugins, liquidsoap)..."
+DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils ffmpeg sox ladspa-sdk swh-plugins liquidsoap || true
+echo "[SUCCESS] Dependencies installed"
+# --- Ensure snd_aloop loaded and show devices ---
+echo "[INFO] Verifying snd_aloop kernel module..."
+
+if ! lsmod | grep -q snd_aloop; then 
+  echo "[INFO] Attempting to load snd_aloop..."
+  modprobe snd_aloop || echo "[WARNING] Could not load snd_aloop"
+else 
+  echo "[SUCCESS] snd_aloop is loaded"
+  _log "snd_aloop loaded"
+fi
+
+sleep 1
+echo "[INFO] Available ALSA devices:"
+aplay -l 2>/dev/null || echo "[WARNING] No ALSA devices found"
+_log "ALSA devices listed above"
 # --- Create FIFOs for liquidsoap outputs ---
+echo "[INFO] Creating FIFOs for radio streams..."
 
 for r in 1 2; do
 fifo="${FIFOS_DIR}/radio${r}.pcm"
 rm -f "$fifo" || true
 mkfifo -m 660 "$fifo"
 chown "${OMPX_USER}:${OMPX_USER}" "$fifo"
+echo "[SUCCESS] Created FIFO: $fifo"
 done
 # --- Liquidsoap configuration files (safe templates) ---
+echo "[INFO] Generating Liquidsoap configuration files..."
 
 cat > "${LIQUIDSOAP_CONF_DIR}/radio1.liq" <<'L1'
 set("log.stdout", true)
@@ -304,7 +362,9 @@ s1 = convert(s1, samplerate = sample_rate, channels = 2)
 write_fifo(fifo_path, s1)
 output.null(s1)
 L2
+echo "[SUCCESS] Liquidsoap configs created (radio1.liq, radio2.liq)"
 # --- Create source wrapper scripts (for liquidsoap) ---
+echo "[INFO] Creating wrapper scripts..."
 
 for n in 1 2; do
 cat > "${SYS_SCRIPTS_DIR}/source${n}.sh" <<WRAP
@@ -317,8 +377,10 @@ exec /usr/bin/liquidsoap "${LIQUIDSOAP_CONF_DIR}/radio${n}.liq"
 WRAP
 chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/source${n}.sh"
 chmod 750 "${SYS_SCRIPTS_DIR}/source${n}.sh"
+echo "[SUCCESS] Created source${n}.sh wrapper"
 done
 # --- Processing script: run_processing_alsa_liquid.sh ---
+echo "[INFO] Creating processing script..."
 
 cat > "${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh" <<'RUNP'
 #!/usr/bin/env bash
@@ -358,7 +420,9 @@ _log "run_processing_alsa_liquid.sh exiting"
 RUNP
 chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh"
 chmod 750 "${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh"
+echo "[SUCCESS] Processing script created"
 # --- systemd units ---
+echo "[INFO] Creating systemd service files..."
 
 cat > "${SYSTEMD_DIR}/mpx-processing-alsa.service" <<EOF
 [Unit]
@@ -408,7 +472,9 @@ done
 WD
 chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/mpx-watchdog.sh"
 chmod 750 "${SYS_SCRIPTS_DIR}/mpx-watchdog.sh"
+echo "[SUCCESS] Systemd service files created"
 # --- stereo-tool wrapper & checker ---
+echo "[INFO] Creating stereo-tool wrapper..."
 
 cat > "${STEREO_TOOL_WRAPPER}.real-check" <<'CHECK'
 #!/usr/bin/env bash
@@ -431,7 +497,9 @@ wait
 WRAPST
 chmod 755 "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check"
 chown root:root "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check"
+echo "[SUCCESS] Stereo-tool wrapper created"
 # --- ompx_add_source helper (persist radio URL, create wrapper, setup cron) ---
+echo "[INFO] Creating ompx_add_source helper..."
 
 cat > "${OMPX_ADD}" <<'ADD'
 #!/usr/bin/env bash
@@ -467,7 +535,9 @@ echo "Persisted ${VAR} in ${PROFILE} and ensured cron @reboot for ${CRON_USER}."
 ADD
 chmod 750 "${OMPX_ADD}"
 chown root:root "${OMPX_ADD}"
+echo "[SUCCESS] ompx_add_source helper created"
 # --- start_or_shell wrapper ---
+echo "[INFO] Creating start_or_shell wrapper..."
 
 cat > "${SYS_SCRIPTS_DIR}/start_or_shell.sh" <<'STARTSH'
 #!/usr/bin/env bash
@@ -506,7 +576,9 @@ esac
 STARTSH
 chmod 750 "${SYS_SCRIPTS_DIR}/start_or_shell.sh"
 chown root:root "${SYS_SCRIPTS_DIR}/start_or_shell.sh"
+echo "[SUCCESS] start_or_shell wrapper created"
 # --- Install @reboot cron for oMPX to start sources at boot ---
+echo "[INFO] Setting up cron jobs..."
 
 CRON_LINE1="@reboot sleep ${CRON_SLEEP} && ${SYS_SCRIPTS_DIR}/start_or_shell.sh --start >/var/log/radio-opus-start.log 2>&1 &"
 existing=$(crontab -u "${OMPX_USER}" -l 2>/dev/null || true)
@@ -514,12 +586,37 @@ new_cron="${existing}"
 echo "$existing" | grep -F -q "${SYS_SCRIPTS_DIR}/source1.sh" >/dev/null 2>&1 || new_cron="${new_cron}
 ${CRON_LINE1}"
 printf "%s\n" "${new_cron}" | sed '/^$/d' | crontab -u "${OMPX_USER}" -
+echo "[SUCCESS] Cron job configured for ${OMPX_USER}"
 # --- Enable and start services ---
+echo "[INFO] Enabling and starting systemd services..."
 
 systemctl daemon-reload
-systemctl enable --now mpx-processing-alsa.service mpx-watchdog.service || true
+echo "[INFO] Enabling mpx-processing-alsa.service..."
+systemctl enable --now mpx-processing-alsa.service || true
+echo "[INFO] Enabling mpx-watchdog.service..."
+systemctl enable --now mpx-watchdog.service || true
 
 _log "Install complete. Profile: ${PROFILE}"
-echo "Use ${OMPX_ADD} --radio 1 --url 'https://your.stream/url' --cron-user oMPX --start-now"
+echo ""
+echo "╔════════════════════════════════════════════════════════════════════════╗"
+echo "║                    INSTALLATION COMPLETE!                              ║"
+echo "╚════════════════════════════════════════════════════════════════════════╝"
+echo ""
+echo "Next steps:"
+echo "  1. Configure radio streams:"
+echo "     ${OMPX_ADD} --radio 1 --url 'https://your.stream/url' --cron-user oMPX --start-now"
+echo "     ${OMPX_ADD} --radio 2 --url 'https://your.stream/url' --cron-user oMPX --start-now"
+echo ""
+echo "  2. Check service status:"
+echo "     systemctl status mpx-processing-alsa.service"
+echo "     systemctl status mpx-watchdog.service"
+echo ""
+echo "  3. View logs:"
+echo "     journalctl -u mpx-processing-alsa.service -f"
+echo ""
+echo "  4. Access oMPX user shell:"
+echo "     sudo su - oMPX"
+echo ""
 chmod +x "$0" || true
+echo "[SUCCESS] Installation finished successfully!"
 exit 0
