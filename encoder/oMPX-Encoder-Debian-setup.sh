@@ -105,7 +105,8 @@ modprobe snd_aloop 2>/dev/null && echo "[SUCCESS] snd_aloop loaded" || {
 # --- Prepare desired /etc/asound.conf content ---
 echo "[INFO] Preparing ALSA asound.conf configuration..."
 
-WANT_ASOUND='# /etc/asound.conf - oMPX multi-sinks at 192000 Hz
+WANT_ASOUND=$(cat <<'ASND'
+# /etc/asound.conf - oMPX multi-sinks at 192000 Hz
 # All PCM devices operate at 192000 Hz (carrier frequency: 80kHz within 192kHz signal)
 
 pcm.format_192k {
@@ -219,7 +220,9 @@ hint.description "MPX Subcarrier (80kHz carrier in 192kHz signal)"
 }
 
 pcm.!default { type plug; slave.pcm "sink_dmix_192k"; }
-ctl.!default { type hw; card Loopback; }'
+ctl.!default { type hw; card Loopback; }
+ASND
+)
 # --- Write /etc/asound.conf ---
 
 if [ "$CONFIG_SKIP" = true ]; then
@@ -374,9 +377,21 @@ if ! lsmod | grep -q snd_aloop; then
   echo "[INFO] Attempting to load snd_aloop..."
   if ! modprobe snd_aloop; then
     echo "[WARNING] Initial snd_aloop load failed. Trying kernel extra package: ${KERNEL_EXTRA}"
-    DEBIAN_FRONTEND=noninteractive apt install -y "${KERNEL_EXTRA}" || true
+    if ! DEBIAN_FRONTEND=noninteractive apt install -y "${KERNEL_EXTRA}"; then
+      echo "[WARNING] Package ${KERNEL_EXTRA} could not be installed or is unavailable"
+    fi
     echo "[INFO] Retrying snd_aloop load after installing kernel extras..."
-    modprobe snd_aloop || echo "[WARNING] Could not load snd_aloop after kernel package install"
+    if modprobe snd_aloop; then
+      echo "[SUCCESS] snd_aloop loaded after installing kernel extras"
+      _log "snd_aloop loaded after kernel extras"
+    else
+      if modinfo snd_aloop >/dev/null 2>&1; then
+        echo "[WARNING] snd_aloop module is present but failed to load"
+      else
+        echo "[WARNING] snd_aloop module is not present in this kernel's module tree"
+      fi
+      echo "[WARNING] Could not load snd_aloop after kernel package install"
+    fi
   fi
 else 
   echo "[SUCCESS] snd_aloop is loaded"
