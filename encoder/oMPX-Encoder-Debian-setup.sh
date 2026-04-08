@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# oMPX unified installer + ALSA asound.conf setup (192kHz / 80kHz subcarrier)
+# oMPX unified installer + ALSA asound.conf setup (192kHz sample rate, 80kHz subcarrier frequency)
 # Requires: Debian/Ubuntu or bare metal with standard kernel (not Proxmox PVE, and yes we know Proxmox is based on Debian, but their custom kernel often lacks snd_aloop which is critical for this setup)
 # For best results, use a standard Debian kernel (linux-image-amd64) that includes snd_aloop
 # Date: 2026-04-07
@@ -48,8 +48,8 @@ modprobe snd_aloop 2>/dev/null && echo "[SUCCESS] snd_aloop loaded" || {
 echo "[INFO] Preparing ALSA asound.conf configuration..."
 
 read -r -d '' WANT_ASOUND <<'ASND'
-# /etc/asound.conf - oMPX multi-sinks at 192000 Hz + 80kHz subcarrier
-# All PCM devices operate at 192000 Hz unless noted (subcarrier at 80000 Hz)
+# /etc/asound.conf - oMPX multi-sinks at 192000 Hz
+# All PCM devices operate at 192000 Hz (carrier frequency: 80kHz within 192kHz signal)
 
 pcm.format_192k {
 type rate
@@ -73,7 +73,7 @@ pcm.subcarrier_80k_hw {
 type rate
 slave {
 pcm "hw:Loopback,0,0"
-rate 80000
+rate 192000
 channels 2
 }
 }
@@ -153,12 +153,12 @@ type plug
 slave.pcm "hw:Loopback,0,0"
 hint.description "MPX Final Playback (writes to loopback)"
 }
-# Subcarrier device: resample MPX final to 80000 Hz for the Opus subcarrier
+# Subcarrier device: MPX subcarrier at 80kHz carrier frequency within 192kHz signal
 
 pcm.mpx_subcarrier_80k {
 type plug
 slave.pcm "subcarrier_80k_hw"
-hint.description "MPX Subcarrier (80kHz resampled)"
+hint.description "MPX Subcarrier (80kHz carrier in 192kHz signal)"
 }
 
 pcm.!default { type plug; slave.pcm "sink_dmix_192k"; }
