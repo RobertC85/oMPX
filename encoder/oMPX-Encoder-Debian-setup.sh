@@ -453,12 +453,14 @@ echo "[SUCCESS] Liquidsoap configs created (radio1.liq, radio2.liq)"
 echo "[INFO] Creating wrapper scripts..."
 
 for n in 1 2; do
+VAR_NAME="RADIO${n}_URL"
+RADIO_URL_VALUE="${!VAR_NAME}"
 cat > "${SYS_SCRIPTS_DIR}/source${n}.sh" <<WRAP
 #!/usr/bin/env bash
 set -euo pipefail
 PROFILE="${OMPX_HOME}/.profile"
 [ -f "$PROFILE" ] && . "$PROFILE"
-export RADIO_URL="${RADIO${n}_URL:-}"
+export RADIO_URL="${RADIO_URL_VALUE}"
 exec /usr/bin/liquidsoap "${LIQUIDSOAP_CONF_DIR}/radio${n}.liq"
 WRAP
 chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/source${n}.sh"
