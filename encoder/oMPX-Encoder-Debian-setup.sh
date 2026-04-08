@@ -179,8 +179,9 @@ if [ "$found" -eq 1 ]; then
 echo "Existing oMPX installation detected (${msg}). Choose action:"
 echo "  K) Keep existing (overwrite generated files only)"
 echo "  R) Reinstall (clean -> fresh install)  *recommended for broken installs*"
+echo "  U) Uninstall (remove all oMPX components)"
 echo "  A) Abort (do nothing)"
-read -t 30 -p "Select [K/R/A] (default A): " choice || choice="A"
+read -t 30 -p "Select [K/R/U/A] (default A): " choice || choice="A"
 choice=${choice^^}
 case "$choice" in
 R)
@@ -197,6 +198,22 @@ rm -rf "${SYS_SCRIPTS_DIR}" "${LIQUIDSOAP_CONF_DIR}" /var/log/radio-opus1.log /v
 rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
 if id -u "${OMPX_USER}" >/dev/null 2>&1; then userdel -r "${OMPX_USER}" || true; fi
 modprobe -r snd_aloop 2>/dev/null || true
+;;
+U)
+echo "Performing full uninstall..."
+systemctl stop mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
+systemctl disable mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
+rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service"
+systemctl daemon-reload || true
+if id -u "${OMPX_USER}" >/dev/null 2>&1; then
+crontab -u "${OMPX_USER}" -l 2>/dev/null | grep -v "${SYS_SCRIPTS_DIR}/source" | sed '/^$/d' | crontab -u "${OMPX_USER}" - 2>/dev/null || true
+fi
+rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
+rm -rf "${SYS_SCRIPTS_DIR}" "${LIQUIDSOAP_CONF_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log
+rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
+if id -u "${OMPX_USER}" >/dev/null 2>&1; then userdel -r "${OMPX_USER}" || true; fi
+modprobe -r snd_aloop 2>/dev/null || true
+echo "Uninstall complete."; exit 0
 ;;
 K)
 echo "Keeping existing installation; generated files will be overwritten."
@@ -232,7 +249,7 @@ mkdir -p "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${LIQUIDSOAP_CONF_DIR}"
 chown -R "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}"
 chmod 755 "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${LIQUIDSOAP_CONF_DIR}"
 apt update
-DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils alsa-modules-$(uname -r) ffmpeg sox ladspa-sdk swh-plugins liquidsoap || true
+DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils linux-modules-extra-$(uname -r) ffmpeg sox ladspa-sdk swh-plugins liquidsoap || true
 # --- Ensure snd_aloop loaded and show devices ---
 
 if ! lsmod | grep -q snd_aloop; then modprobe snd_aloop || true; else _log "snd_aloop loaded"; fi
