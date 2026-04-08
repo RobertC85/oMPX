@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # oMPX unified installer + ALSA asound.conf setup (192kHz / 80kHz subcarrier)
-# Requires: Debian/Ubuntu or bare metal with standard kernel (not Proxmox PVE)
+# Requires: Debian/Ubuntu or bare metal with standard kernel (not Proxmox PVE, and yes we know Proxmox is based on Debian, but their custom kernel often lacks snd_aloop which is critical for this setup)
 # For best results, use a standard Debian kernel (linux-image-amd64) that includes snd_aloop
 # Date: 2026-04-07
 
