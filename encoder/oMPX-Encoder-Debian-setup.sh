@@ -17,6 +17,8 @@ LIQUIDSOAP_CONF_DIR="${SYS_SCRIPTS_DIR}/liquidsoap"
 SYSTEMD_DIR="/etc/systemd/system"
 STEREO_TOOL_WRAPPER="/usr/local/bin/stereo-tool"
 OMPX_ADD="/usr/local/sbin/ompx_add_source"
+OMPX_ENCODER_LIQ="/usr/local/bin/ompx_encoder.liq"
+OMPX_ENCODER_RUN="/usr/local/bin/ompx_encoder"
 SAMPLE_RATE=192000
 RADIO1_URL="http://example-icecast.local:8000/mount1"
 RADIO2_URL="http://example-icecast.local:8000/mount2"
@@ -449,6 +451,71 @@ write_fifo(fifo_path, s1)
 output.null(s1)
 L2
 echo "[SUCCESS] Liquidsoap configs created (radio1.liq, radio2.liq)"
+
+echo "[INFO] Creating oMPX encoder Liquidsoap script..."
+cat > "${OMPX_ENCODER_LIQ}" <<'OMPX_LIQ'
+# /usr/local/bin/ompx_encoder.liq
+# Main stereo source (dmix). Expect 2-channel with L=PROG1, R=PROG2; preserve dead channels.
+main = input.alsa(device="plughw:13,0")
+
+# Injector mono source (provide the actual device)
+injector_mono = input.alsa(device="plughw:14,0")
+
+# Ensure both sources are resampled to 192kHz first for correct filtering and mixing
+main = convert_samplerate(main, 192000)
+injector_mono = convert_samplerate(injector_mono, 192000)
+
+# If main is mono, keep it mono and append a silent channel so output stays stereo (dead channel preserved)
+main = if channels(main) == 2 then main else add_blank_channel(main) end
+
+# Band-pass the injector around ~80kHz (center 80000 Hz, narrow band e.g. ±5kHz)
+# Use highpass + lowpass to create a band-pass.
+inj = highpass(injector_mono, 75000.)
+inj = lowpass(inj, 85000.)
+
+# Convert injector to 2 channels by duplicating mono into both channels (so it adds to both L and R)
+inj_stereo = stereoize(inj)
+
+# Mix injector into main at a controlled gain (e.g., -6 dB to avoid clipping)
+inj_stereo = amplify(0.5, inj_stereo)
+
+# Add injector to main without altering original channels otherwise
+out_src = add([main, inj_stereo])
+
+# Final safety: ensure out_src is 2-channel and 192kHz
+out_src = if channels(out_src) == 2 then out_src else add_blank_channel(out_src) end
+out_src = convert_samplerate(out_src, 192000)
+
+# Stream as FLAC to Icecast
+output.icecast(
+  %flac(compression=8),
+  mount="/mpx",
+  host="127.0.0.1",
+  port=8000,
+  password="bbkrb494b3fy8qqcrym6fvbfgdxk7jcher-mpx",
+  name="MPX FLAC 192kHz (stereo with 80kHz injector)",
+  description="Native 192kHz FLAC stereo (L=PROG1, R=PROG2) with shared ~80kHz injection",
+  genre="Radio",
+  url="http://127.0.0.1:8000/mpx",
+  out_src
+)
+OMPX_LIQ
+chown "${OMPX_USER}:${OMPX_USER}" "${OMPX_ENCODER_LIQ}"
+chmod 640 "${OMPX_ENCODER_LIQ}"
+
+cat > "${OMPX_ENCODER_RUN}" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "\$(id -un)" != "${OMPX_USER}" ]; then
+  exec runuser -u "${OMPX_USER}" -- /usr/bin/liquidsoap "${OMPX_ENCODER_LIQ}"
+fi
+
+exec /usr/bin/liquidsoap "${OMPX_ENCODER_LIQ}"
+EOF
+chown root:root "${OMPX_ENCODER_RUN}"
+chmod 755 "${OMPX_ENCODER_RUN}"
+echo "[SUCCESS] Created ${OMPX_ENCODER_LIQ} and ${OMPX_ENCODER_RUN} (runs as ${OMPX_USER})"
 # --- Create source wrapper scripts (for liquidsoap) ---
 echo "[INFO] Creating wrapper scripts..."
 
