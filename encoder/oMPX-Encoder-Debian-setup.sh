@@ -344,6 +344,7 @@ pcm.hw4_out { type hw card 13 device 1 }
 pcm.prog_1_hw_in  { type plug; slave.pcm "hw1";     slave.rate 192000; slave.channels 2 }
 pcm.prog_1_hw_out { type plug; slave.pcm "hw1_out"; slave.rate 192000; slave.channels 2 }
 pcm.prog_1_in     { type plug; slave.pcm "prog_1_hw_in"; hint { show on; description "PROGRAM 1 - INPUT" } }
+pcm.program1source { type plug; slave.pcm "prog_1_in"; hint { show on; description "PROGRAM 1 SOURCE" } }
 pcm.prog_1_preview {
   type plug
   slave.pcm "hw2"
@@ -351,11 +352,13 @@ pcm.prog_1_preview {
   slave.channels 2
   hint { show on; description "PROGRAM 1 - Preview" }
 }
+pcm.program1preview { type plug; slave.pcm "prog_1_preview"; hint { show on; description "PROGRAM 1 PREVIEW" } }
 
 # Program 2 (use hw2)
 pcm.prog_2_hw_in  { type plug; slave.pcm "hw2";     slave.rate 192000; slave.channels 2 }
 pcm.prog_2_hw_out { type plug; slave.pcm "hw2_out"; slave.rate 192000; slave.channels 2 }
 pcm.prog_2_in     { type plug; slave.pcm "prog_2_hw_in"; hint { show on; description "PROGRAM 2 - INPUT" } }
+pcm.program2source { type plug; slave.pcm "prog_2_in"; hint { show on; description "PROGRAM 2 SOURCE" } }
 pcm.prog_2_preview {
   type plug
   slave.pcm "hw4"
@@ -363,12 +366,14 @@ pcm.prog_2_preview {
   slave.channels 2
   hint { show on; description "PROGRAM 2 - Preview" }
 }
+pcm.program2preview { type plug; slave.pcm "prog_2_preview"; hint { show on; description "PROGRAM 2 PREVIEW" } }
 
 # Program 3 == DSCA (use hw3)
 pcm.prog_3_hw_in  { type plug; slave.pcm "hw3";     slave.rate 192000; slave.channels 2 }
 pcm.prog_3_hw_out { type plug; slave.pcm "hw3_out"; slave.rate 192000; slave.channels 2 }
 pcm.prog_3_in     { type plug; slave.pcm "prog_3_hw_in"; hint { show on; description "PROGRAM 3 / DSCA - INPUT" } }
 pcm.dsca_src      { type plug; slave.pcm "prog_3_hw_in"; slave.rate 192000; slave.channels 2; hint { show on; description "DSCA SOURCE" } }
+pcm.dscasource    { type plug; slave.pcm "dsca_src"; hint { show on; description "DSCA SOURCE" } }
 
 # DSCA injection dmix
 pcm.dsca_in_dmix {
@@ -417,31 +422,40 @@ pcm.prog2_mono_sum {
   ttable.1.0 0.5
 }
 
-# Route into MPX dmix: prog1 -> LEFT, prog2 -> RIGHT, dsca -> dual mono
-pcm.prog1_to_mpx {
-  type route
-  slave.pcm "mpx_dmix"
-  slave.channels 2
-  ttable.0.0 1.0
-  hint { description "PROG1 -> MPX (L)" }
-}
-pcm.prog2_to_mpx {
-  type route
-  slave.pcm "mpx_dmix"
-  slave.channels 2
-  ttable.0.1 1.0
-  hint { description "PROG2 -> MPX (R)" }
-}
-pcm.dsca_to_mpx {
+# Route into MPX dmix:
+# - program1mpx and program2mpx are the named mono-sum + hard-pan sinks for Stereo Tool Enterprise.
+# - dscainjection is the DSCA injection point into the final MPX output.
+pcm.program1mpx {
   type route
   slave.pcm "mpx_dmix"
   slave.channels 2
   ttable.0.0 0.5
-  ttable.0.1 0.5
   ttable.1.0 0.5
-  ttable.1.1 0.5
-  hint { description "DSCA -> MPX (dual mono)" }
+  hint { show on; description "PROGRAM 1 MPX (mono sum -> hard left)" }
 }
+pcm.program2mpx {
+  type route
+  slave.pcm "mpx_dmix"
+  slave.channels 2
+  ttable.0.1 0.5
+  ttable.1.1 0.5
+  hint { show on; description "PROGRAM 2 MPX (mono sum -> hard right)" }
+}
+pcm.dscainjection {
+  type route
+  slave.pcm "mpx_dmix"
+  slave.channels 2
+  ttable.0.0 0.25
+  ttable.1.0 0.25
+  ttable.0.1 0.25
+  ttable.1.1 0.25
+  hint { show on; description "DSCA injection -> MPX (dual mono)" }
+}
+
+# Backward-compatible aliases for previous sink names.
+pcm.prog1_to_mpx { type plug; slave.pcm "program1mpx" }
+pcm.prog2_to_mpx { type plug; slave.pcm "program2mpx" }
+pcm.dsca_to_mpx  { type plug; slave.pcm "dscainjection" }
 
 # Pre-clip and clipping chain (approximate; pilot 19k & RDS preserved)
 pcm.mpx_preclip { type plug; slave.pcm "mpx_dmix"; slave.rate 192000; slave.channels 2 }
@@ -475,9 +489,11 @@ pcm.icecast_stream {
   hint { show on; description "ICECAST STREAM (192k stereo)" }
 }
 
+pcm.icecaststream { type plug; slave.pcm "icecast_stream"; hint { show on; description "ICECAST STREAM 192k FLAC INPUT" } }
+
 pcm.!default {
   type plug
-  slave.pcm "icecast_stream"
+  slave.pcm "icecaststream"
 }
 ASND_TEST
 )
