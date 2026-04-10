@@ -24,6 +24,8 @@ SAMPLE_RATE=192000
 RADIO1_URL="http://example-icecast.local:8000/mount1"
 RADIO2_URL="http://example-icecast.local:8000/mount2"
 CRON_SLEEP=10
+AUTO_UPDATE_STREAM_URLS_FROM_HEADER=true
+AUTO_START_STREAMS_FROM_HEADER=false
 
 ASOUND_CONF_PATH="/etc/asound.conf"
 ASOUND_TEST_PATH="/etc/asound.conf.ompx-test"
@@ -989,6 +991,7 @@ set -euo pipefail
 SYS_SCRIPTS_DIR="/opt/mpx-radio"; OMPX_USER="oMPX"; OMPX_HOME="/var/lib/ompx"; CRON_SLEEP=10; LIQUIDSOAP_CONF_DIR="/opt/mpx-radio/liquidsoap"
 usage(){ cat <<USAGE
 Usage: $0 --radio 1|2 --url URL [--cron-user root|oMPX] [--start-now]
+Adds or updates an existing radio source URL and wrapper.
 USAGE
 }
 RADIO=""; URL=""; CRON_USER="${OMPX_USER}"; START_NOW=0
@@ -996,7 +999,7 @@ while [ $# -gt 0 ]; do case "$1" in --radio) RADIO="$2"; shift 2;; --url) URL="$
 if [ -z "$RADIO" ] || [ -z "$URL" ]; then usage; exit 1; fi
 PROFILE="${OMPX_HOME}/.profile"; cp -a "$PROFILE" "${PROFILE}.bak.$(date +%s)"
 VAR="RADIO${RADIO}_URL"
-if grep -q "^${VAR}=" "$PROFILE"; then sed -i "s|^${VAR}=.*|${VAR}="${URL}"|" "$PROFILE"; else echo "${VAR}="${URL}"" >> "$PROFILE"; fi
+if grep -q "^${VAR}=" "$PROFILE"; then sed -i "s|^${VAR}=.*|${VAR}=\"${URL}\"|" "$PROFILE"; else echo "${VAR}=\"${URL}\"" >> "$PROFILE"; fi
 chown ${OMPX_USER}:${OMPX_USER} "$PROFILE"; chmod 644 "$PROFILE"
 WRAPPER="${SYS_SCRIPTS_DIR}/source${RADIO}.sh"
 cat > "$WRAPPER" <<WRAP
@@ -1004,7 +1007,9 @@ cat > "$WRAPPER" <<WRAP
 set -euo pipefail
 PROFILE="${OMPX_HOME}/.profile"
 [ -f "$PROFILE" ] && . "$PROFILE"
-export RADIO_URL="${RADIO${RADIO}_URL:-}"
+RADIO_VAR_NAME="RADIO${RADIO}_URL"
+RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
+export RADIO_URL="\${RADIO_URL_VALUE}"
 exec /usr/bin/liquidsoap "${LIQUIDSOAP_CONF_DIR}/radio${RADIO}.liq"
 WRAP
 chown ${OMPX_USER}:${OMPX_USER} "$WRAPPER"; chmod 750 "$WRAPPER"
@@ -1017,11 +1022,31 @@ fi
 if [ "${START_NOW}" -eq 1 ]; then
 if [ "$CRON_USER" = "root" ]; then nohup "${WRAPPER}" >/var/log/radio-opus${RADIO}.log 2>&1 & else su -s /bin/sh -c "nohup ${WRAPPER} >/var/log/radio-opus${RADIO}.log 2>&1 &" "${CRON_USER}"; fi
 fi
-echo "Persisted ${VAR} in ${PROFILE} and ensured cron @reboot for ${CRON_USER}."
+echo "Updated ${VAR} in ${PROFILE} and ensured cron @reboot for ${CRON_USER}."
 ADD
 chmod 750 "${OMPX_ADD}"
 chown root:root "${OMPX_ADD}"
 echo "[SUCCESS] ompx_add_source helper created"
+
+if [ "${AUTO_UPDATE_STREAM_URLS_FROM_HEADER}" = true ]; then
+  echo "[INFO] AUTO_UPDATE_STREAM_URLS_FROM_HEADER=true; syncing stream URLs from installer header..."
+  for n in 1 2; do
+    url_var="RADIO${n}_URL"
+    url_val="${!url_var}"
+    if [ -z "${url_val}" ] || [[ "${url_val}" == *"example-icecast.local"* ]] || [[ "${url_val}" == *"your.stream/url"* ]]; then
+      echo "[INFO] ${url_var} is placeholder/empty; skipping auto-update"
+      continue
+    fi
+    add_args=(--radio "${n}" --url "${url_val}" --cron-user "${OMPX_USER}")
+    if [ "${AUTO_START_STREAMS_FROM_HEADER}" = true ]; then
+      add_args+=(--start-now)
+    fi
+    "${OMPX_ADD}" "${add_args[@]}"
+    echo "[SUCCESS] Synced ${url_var} via ${OMPX_ADD}"
+  done
+else
+  echo "[INFO] AUTO_UPDATE_STREAM_URLS_FROM_HEADER=false; skipping header stream sync"
+fi
 # --- start_or_shell wrapper ---
 echo "[INFO] Creating start_or_shell wrapper..."
 
@@ -1107,6 +1132,45 @@ echo ""
 echo "  4. Access oMPX user shell:"
 echo "     sudo su - oMPX"
 echo ""
+
+if [ "$CONFIG_SKIP" = false ]; then
+echo "Apply ALSA settings now?"
+echo "  A) Apply now (no reboot)"
+echo "  R) Reboot now and apply"
+echo "  W) Wait for next reboot"
+echo "  M) Manual apply later"
+read -t 45 -p "Select [A/R/W/M] (default A): " apply_choice || true
+apply_choice="${apply_choice:-A}"
+apply_choice=${apply_choice^^}
+case "$apply_choice" in
+  A)
+    if [ "$CONFIG_OVERWRITE" = false ] && [ -x "${ASOUND_SWITCH_HELPER}"; then
+      echo "[INFO] Promoting staged test profile with ${ASOUND_SWITCH_HELPER}..."
+      "${ASOUND_SWITCH_HELPER}" || true
+    fi
+    echo "[INFO] Restarting oMPX services to apply runtime changes..."
+    systemctl restart mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
+    echo "[SUCCESS] Applied runtime settings without reboot"
+    ;;
+  R)
+    echo "[INFO] Reboot requested by user"
+    reboot
+    ;;
+  W)
+    echo "[INFO] Keeping settings for next reboot"
+    ;;
+  M)
+    echo "[INFO] Manual apply selected"
+    echo "[INFO] To apply later: sudo ${ASOUND_SWITCH_HELPER}"
+    ;;
+  *)
+    echo "[WARNING] Invalid choice; no reboot performed."
+    echo "[INFO] Apply later with: sudo ${ASOUND_SWITCH_HELPER}"
+    ;;
+esac
+echo ""
+fi
+
 chmod +x "$0" || true
 echo "[SUCCESS] Installation finished successfully!"
 exit 0
