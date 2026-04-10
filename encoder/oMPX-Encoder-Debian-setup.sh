@@ -206,232 +206,163 @@ modprobe snd_aloop 2>/dev/null && echo "[SUCCESS] snd_aloop loaded" || {
 echo "[INFO] Preparing ALSA asound.conf configuration..."
 
 WANT_ASOUND=$(cat <<'ASND'
-# /etc/asound.conf - oMPX multi-sinks at 192000 Hz
-# All PCM devices operate at 192000 Hz (carrier frequency: 80kHz within 192kHz signal)
+# /etc/asound.conf — oMPX dedicated loopback subdevices (192 kHz)
+# snd-aloop "Loopback" card — one numbered subdevice per named sink.
+# Write  side: hw:Loopback,0,N  (applications play/feed audio into this sink)
+# Read   side: hw:Loopback,1,N  (applications capture/read audio from this sink)
+#
+#  Sub  Sink name        Description
+#   0   prg1in           Program 1 Input
+#   1   prg1prev         Program 1 Preview
+#   2   prg2in           Program 2 Input
+#   3   prg2prev         Program 2 Preview
+#   4   dsca_src         DSCA Source
+#   5   prg1mpx          Program 1 MPX
+#   6   prg2mpx          Program 2 MPX
+#   7   dsca_injection   DSCA Injection
+#   8   mpx_to_icecast   Final MPX to Icecast
 
-pcm.format_192k {
-type rate
-slave {
-pcm "hw:Loopback,0,0"
-rate 192000
-channels 2
-}
-}
+defaults.namehint.showall off
+defaults.namehint.extended on
 
-pcm.format_192k_mono {
-type rate
-slave {
-pcm "hw:Loopback,0,0"
-rate 192000
-channels 1
-}
-}
-
-pcm.subcarrier_80k_hw {
-type rate
-slave {
-pcm "hw:Loopback,0,0"
-rate 192000
-channels 2
-}
-}
-# stereo dmix for named sinks (allows multiple clients)
-
-pcm.sink_dmix_192k {
-type dmix
-ipc_key 3333
-slave {
-pcm "format_192k"
-period_time 0
-period_size 4096
-buffer_size 65536
-channels 2
-}
-}
-# mono dmix for mpx inputs
-
-pcm.mono_dmix_192k {
-type dmix
-ipc_key 3334
-slave {
-pcm "format_192k_mono"
-period_time 0
-period_size 4096
-buffer_size 65536
-channels 1
-}
-}
-# Named stereo sinks (clients write stereo to these)
-
-pcm.ch1input   { type plug; slave.pcm "sink_dmix_192k"; }
-pcm.ch2input   { type plug; slave.pcm "sink_dmix_192k"; }
-pcm.ch1preview { type plug; slave.pcm "sink_dmix_192k"; }
-pcm.ch2preview { type plug; slave.pcm "sink_dmix_192k"; }
-pcm.dsca_src   { type plug; slave.pcm "sink_dmix_192k"; }
-# Named mono sinks for MPX content (clients write mono; we'll pan later)
-
-pcm.mpx1 { type plug; slave.pcm "mono_dmix_192k"; }
-pcm.mpx2 { type plug; slave.pcm "mono_dmix_192k"; }
-# mpx_final: combine/pan mpx1->left, mpx2->right into stereo at 192k and route to hw Loopback
-
-pcm.mpx_final_route {
-type route
-slave.pcm "format_192k"
-slave.channels 2
-ttable {
-0.0 1   # input channel 0 -> output channel 0 (left)
-1.1 1   # input channel 1 -> output channel 1 (right)
-}
-}
-# We construct a virtual device that reads two mono inputs (mpx1,mpx2), maps them to a 2-channel stream,
-# and outputs to hw:Loopback,0,0 at 192k.
-
-pcm.mpx_final {
-type plug
-slave.pcm "hw:Loopback,0,0"
-hint.description "MPX Final (192kHz L=mpx1 R=mpx2)"
-}
-# Provide a combined feed that takes mpx1/mpx2 mono and produces stereo for downstream apps:
-
-pcm.mpx_stereo_src {
-type multi
-slaves.a.pcm "mpx1"
-slaves.a.channels 1
-slaves.b.pcm "mpx2"
-slaves.b.channels 1
-bindings.0.slave a
-bindings.0.channel 0
-bindings.1.slave b
-bindings.1.channel 0
-}
-# A plug that converts the multi-source into a 2-channel stereo at 192k and sends to loopback playback
-
-pcm.mpx_final_playback {
-type plug
-slave.pcm "hw:Loopback,0,0"
-hint.description "MPX Final Playback (writes to loopback)"
-}
-# Subcarrier device: MPX subcarrier at 80kHz carrier frequency within 192kHz signal
-
-pcm.mpx_subcarrier_80k {
-type plug
-slave.pcm "subcarrier_80k_hw"
-hint.description "MPX Subcarrier (80kHz carrier in 192kHz signal)"
+pcm.prg1in {
+  type plug
+  slave { pcm "hw:Loopback,0,0"; rate 192000; channels 2 }
+  hint { show on; description "Program 1 Input" }
 }
 
-pcm.!default { type plug; slave.pcm "sink_dmix_192k"; }
-ctl.!default { type hw; card Loopback; }
+pcm.prg1prev {
+  type plug
+  slave { pcm "hw:Loopback,0,1"; rate 192000; channels 2 }
+  hint { show on; description "Program 1 Preview" }
+}
+
+pcm.prg2in {
+  type plug
+  slave { pcm "hw:Loopback,0,2"; rate 192000; channels 2 }
+  hint { show on; description "Program 2 Input" }
+}
+
+pcm.prg2prev {
+  type plug
+  slave { pcm "hw:Loopback,0,3"; rate 192000; channels 2 }
+  hint { show on; description "Program 2 Preview" }
+}
+
+pcm.dsca_src {
+  type plug
+  slave { pcm "hw:Loopback,0,4"; rate 192000; channels 2 }
+  hint { show on; description "DSCA Source" }
+}
+
+pcm.prg1mpx {
+  type plug
+  slave { pcm "hw:Loopback,0,5"; rate 192000; channels 2 }
+  hint { show on; description "Program 1 MPX" }
+}
+
+pcm.prg2mpx {
+  type plug
+  slave { pcm "hw:Loopback,0,6"; rate 192000; channels 2 }
+  hint { show on; description "Program 2 MPX" }
+}
+
+pcm.dsca_injection {
+  type plug
+  slave { pcm "hw:Loopback,0,7"; rate 192000; channels 2 }
+  hint { show on; description "DSCA Injection" }
+}
+
+pcm.mpx_to_icecast {
+  type plug
+  slave { pcm "hw:Loopback,0,8"; rate 192000; channels 2 }
+  hint { show on; description "Final MPX to Icecast (192k stereo)" }
+}
+
+pcm.!default { type plug; slave.pcm "prg1in" }
+ctl.!default  { type hw;   card Loopback }
 ASND
 )
 
 # Staged test profile from local updates. This file is written to
 # /etc/asound.conf.ompx-test and can be promoted later after validation.
 WANT_ASOUND_TEST=$(cat <<'ASND_TEST'
+# /etc/asound.conf.ompx-test — oMPX dedicated loopback subdevices (192 kHz)
+# Staged profile: promote to /etc/asound.conf via:  sudo /usr/local/sbin/ompx_apply_asound_test
+# snd-aloop "Loopback" card — one numbered subdevice per named sink.
+# Write  side: hw:Loopback,0,N  (applications play/feed audio into this sink)
+# Read   side: hw:Loopback,1,N  (applications capture/read audio from this sink)
+#
+#  Sub  Sink name        Description
+#   0   prg1in           Program 1 Input
+#   1   prg1prev         Program 1 Preview
+#   2   prg2in           Program 2 Input
+#   3   prg2prev         Program 2 Preview
+#   4   dsca_src         DSCA Source
+#   5   prg1mpx          Program 1 MPX
+#   6   prg2mpx          Program 2 MPX
+#   7   dsca_injection   DSCA Injection
+#   8   mpx_to_icecast   Final MPX to Icecast
+
 defaults.namehint.showall off
 defaults.namehint.extended on
 
-# Minimal oMPX sink set for Stereo Tool Enterprise style routing.
-# Hardware mapping:
-# - Card 10,0: Program 1 input
-# - Card 10,1: Program 1 preview
-# - Card 11,0: Program 2 input
-# - Card 11,1: Program 2 preview
-# - Card 13,0: DSCA source input
-# - Card 13,1: Final MPX output
-
 pcm.prg1in {
   type plug
-  slave.pcm "hw:10,0"
-  slave.rate 192000
-  slave.channels 2
+  slave { pcm "hw:Loopback,0,0"; rate 192000; channels 2 }
   hint { show on; description "Program 1 Input" }
 }
 
 pcm.prg1prev {
   type plug
-  slave.pcm "hw:10,1"
-  slave.rate 192000
-  slave.channels 2
+  slave { pcm "hw:Loopback,0,1"; rate 192000; channels 2 }
   hint { show on; description "Program 1 Preview" }
 }
 
 pcm.prg2in {
   type plug
-  slave.pcm "hw:11,0"
-  slave.rate 192000
-  slave.channels 2
+  slave { pcm "hw:Loopback,0,2"; rate 192000; channels 2 }
   hint { show on; description "Program 2 Input" }
 }
 
 pcm.prg2prev {
   type plug
-  slave.pcm "hw:11,1"
-  slave.rate 192000
-  slave.channels 2
+  slave { pcm "hw:Loopback,0,3"; rate 192000; channels 2 }
   hint { show on; description "Program 2 Preview" }
 }
 
 pcm.dsca_src {
   type plug
-  slave.pcm "hw:13,0"
-  slave.rate 192000
-  slave.channels 2
+  slave { pcm "hw:Loopback,0,4"; rate 192000; channels 2 }
   hint { show on; description "DSCA Source" }
 }
 
-pcm.mpx_mix {
-  type dmix
-  ipc_key 2048
-  slave {
-    pcm "hw:13,1"
-    rate 192000
-    channels 2
-    format "S16_LE"
-    period_size 1024
-    buffer_size 8192
-  }
-  hint { show on; description "MPX Mix Bus" }
-}
-
 pcm.prg1mpx {
-  type route
-  slave.pcm "mpx_mix"
-  slave.channels 2
-  ttable.0.0 0.5
-  ttable.1.0 0.5
-  hint { show on; description "Program 1 MPX (mono -> left)" }
+  type plug
+  slave { pcm "hw:Loopback,0,5"; rate 192000; channels 2 }
+  hint { show on; description "Program 1 MPX" }
 }
 
 pcm.prg2mpx {
-  type route
-  slave.pcm "mpx_mix"
-  slave.channels 2
-  ttable.0.1 0.5
-  ttable.1.1 0.5
-  hint { show on; description "Program 2 MPX (mono -> right)" }
+  type plug
+  slave { pcm "hw:Loopback,0,6"; rate 192000; channels 2 }
+  hint { show on; description "Program 2 MPX" }
 }
 
 pcm.dsca_injection {
-  type route
-  slave.pcm "mpx_mix"
-  slave.channels 2
-  ttable.0.0 0.25
-  ttable.1.0 0.25
-  ttable.0.1 0.25
-  ttable.1.1 0.25
-  hint { show on; description "DSCA Injection (dual mono -> MPX)" }
+  type plug
+  slave { pcm "hw:Loopback,0,7"; rate 192000; channels 2 }
+  hint { show on; description "DSCA Injection" }
 }
 
 pcm.mpx_to_icecast {
   type plug
-  slave.pcm "mpx_mix"
-  slave.rate 192000
-  slave.channels 2
+  slave { pcm "hw:Loopback,0,8"; rate 192000; channels 2 }
   hint { show on; description "Final MPX to Icecast (192k stereo)" }
 }
 
-pcm.!default { type plug; slave.pcm "mpx_to_icecast" }
-ctl.!default { type hw; card 13 }
+pcm.!default { type plug; slave.pcm "prg1in" }
+ctl.!default  { type hw;   card Loopback }
 ASND_TEST
 )
 # --- Write /etc/asound.conf ---
@@ -683,10 +614,26 @@ else
 fi
 
 sleep 1
-echo "[INFO] Available ALSA devices:"
-aplay -l 2>/dev/null || echo "[WARNING] No ALSA devices found"
-_log "ALSA devices listed above"
-echo "[INFO] Expected named ALSA PCMs: prg1in, prg2in, prg1prev, prg2prev, prg1mpx, prg2mpx, dsca_src, dsca_injection, mpx_to_icecast"
+echo "[INFO] Available ALSA hardware devices (by card/device number):"
+aplay -l 2>/dev/null || echo "[WARNING] No ALSA hardware devices found"
+_log "ALSA hardware devices listed above"
+echo ""
+echo "[INFO] Named ALSA PCM sinks — dedicated snd-aloop subdevices (Loopback card):"
+echo "  Sub  Sink Name            Write (feed in)       Read (capture out)    Description"
+echo "  ---  -------------------  --------------------  --------------------  --------------------------------"
+echo "   0   prg1in               hw:Loopback,0,0       hw:Loopback,1,0       Program 1 Input"
+echo "   1   prg1prev             hw:Loopback,0,1       hw:Loopback,1,1       Program 1 Preview"
+echo "   2   prg2in               hw:Loopback,0,2       hw:Loopback,1,2       Program 2 Input"
+echo "   3   prg2prev             hw:Loopback,0,3       hw:Loopback,1,3       Program 2 Preview"
+echo "   4   dsca_src             hw:Loopback,0,4       hw:Loopback,1,4       DSCA Source"
+echo "   5   prg1mpx              hw:Loopback,0,5       hw:Loopback,1,5       Program 1 MPX"
+echo "   6   prg2mpx              hw:Loopback,0,6       hw:Loopback,1,6       Program 2 MPX"
+echo "   7   dsca_injection       hw:Loopback,0,7       hw:Loopback,1,7       DSCA Injection"
+echo "   8   mpx_to_icecast       hw:Loopback,0,8       hw:Loopback,1,8       Final MPX to Icecast"
+echo ""
+echo "[INFO] Live named PCMs visible to ALSA right now (aplay -L):"
+aplay -L 2>/dev/null | grep -E '^(prg1in|prg1prev|prg2in|prg2prev|dsca_src|mpx_mix|prg1mpx|prg2mpx|dsca_injection|mpx_to_icecast)' \
+  || echo "[INFO] No named sinks visible yet — apply ${ASOUND_CONF_PATH} and reload ALSA (or run: sudo ${ASOUND_SWITCH_HELPER})"
 # --- Create FIFOs for liquidsoap outputs ---
 echo "[INFO] Creating FIFOs for radio streams..."
 
@@ -740,11 +687,11 @@ cat > "${OMPX_ENCODER_LIQ}" <<'OMPX_LIQ'
 # /usr/local/bin/ompx_encoder.liq
 # oMPX named ALSA sinks for this installer profile:
 #   prg1in, prg2in, prg1prev, prg2prev, prg1mpx, prg2mpx, dsca_src, dsca_injection, mpx_to_icecast
-# Main stereo source (dmix). Expect 2-channel with L=PROG1, R=PROG2; preserve dead channels.
-main = input.alsa(device="plughw:13,0")
+# Main stereo source — capture side of prg1in (snd-aloop subdevice 0, hw:Loopback,1,0)
+main = input.alsa(device="hw:Loopback,1,0")
 
-# Injector mono source (provide the actual device)
-injector_mono = input.alsa(device="plughw:14,0")
+# DSCA injector source — capture side of dsca_src (snd-aloop subdevice 4, hw:Loopback,1,4)
+injector_mono = input.alsa(device="hw:Loopback,1,4")
 
 # Ensure both sources are resampled to 192kHz first for correct filtering and mixing
 main = convert_samplerate(main, 192000)
@@ -863,7 +810,7 @@ STEREO_PID=$!; _log "Started stereo-tool wrapper pid ${STEREO_PID}"
 ffmpeg -hide_banner -loglevel warning -f s16le -ar ${SAMPLE_RATE} -ac 1 -i "${MPX_LEFT_OUT}" -f s16le -ar ${SAMPLE_RATE} -ac 1 -i "${MPX_RIGHT_OUT}" -filter_complex "[0:a][1:a]join=inputs=2:channel_layout=stereo[aout]" -map "[aout]" -f s16le -ar ${SAMPLE_RATE} -ac 2 - > "${MPX_STEREO_FIFO}" &
 FF_MERGE_PID=$!; _log "ffmpeg merge pid $FF_MERGE_PID"
 ALSA_OUTPUT="${ALSA_OUTPUT:-}"
-if [ -z "$ALSA_OUTPUT" ]; then if aplay -l 2>/dev/null | grep -qi loopback; then ALSA_OUTPUT="hw:Loopback,0,0"; fi; fi
+if [ -z "$ALSA_OUTPUT" ]; then if aplay -l 2>/dev/null | grep -qi loopback; then ALSA_OUTPUT="hw:Loopback,0,8"; fi  # subdevice 8 = mpx_to_icecast; fi
 if [ -z "$ALSA_OUTPUT" ]; then _log "No ALSA output selected."; exit 1; fi
 ffmpeg -hide_banner -loglevel warning -f s16le -ar ${SAMPLE_RATE} -ac 2 -i "${MPX_STEREO_FIFO}" -f wav - | aplay -f S16_LE -c 2 -r ${SAMPLE_RATE} -D "${ALSA_OUTPUT}" &
 PLAY_PID=$!; _log "MPX playback started (pid ${PLAY_PID:-0})"
