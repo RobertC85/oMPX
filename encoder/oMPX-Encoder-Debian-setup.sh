@@ -1,3 +1,4 @@
+
 #!/usr/bin/env bash
 set -euo pipefail
 # oMPX unified installer + ALSA asound.conf setup (192kHz sample rate, 80kHz subcarrier frequency)
@@ -25,10 +26,105 @@ RADIO2_URL="http://example-icecast.local:8000/mount2"
 CRON_SLEEP=10
 
 ASOUND_CONF_PATH="/etc/asound.conf"
+ASOUND_TEST_PATH="/etc/asound.conf.ompx-test"
+ASOUND_SWITCH_HELPER="/usr/local/sbin/ompx_apply_asound_test"
 
 _log(){ logger -t mpx-installer "$*"; echo "$(date +'%F %T') $*"; }
 
+have_crontab(){ command -v crontab >/dev/null 2>&1; }
+
+fix_yarn_apt_repo(){
+  echo "[INFO] Attempting to repair Yarn APT repository signing setup..."
+  install -d -m 0755 /usr/share/keyrings
+  if command -v curl >/dev/null 2>&1 && command -v gpg >/dev/null 2>&1; then
+    if curl -fsSL https://dl.yarnpkg.com/debian/pubkey.gpg | gpg --dearmor > /usr/share/keyrings/yarn-archive-keyring.gpg; then
+      chmod 644 /usr/share/keyrings/yarn-archive-keyring.gpg
+      echo "deb [signed-by=/usr/share/keyrings/yarn-archive-keyring.gpg] https://dl.yarnpkg.com/debian/ stable main" > /etc/apt/sources.list.d/yarn.list
+      chmod 644 /etc/apt/sources.list.d/yarn.list
+      echo "[SUCCESS] Yarn keyring/source repaired"
+      return 0
+    fi
+  fi
+  echo "[WARNING] Could not repair Yarn keyring/source automatically"
+  return 1
+}
+
+disable_yarn_apt_repo(){
+  echo "[WARNING] Disabling Yarn APT repository entries to avoid blocking installation..."
+  if [ -f /etc/apt/sources.list ]; then
+    sed -i '/dl\.yarnpkg\.com\/debian/s|^|# disabled by oMPX installer: |' /etc/apt/sources.list || true
+  fi
+  shopt -s nullglob
+  for f in /etc/apt/sources.list.d/*.list; do
+    sed -i '/dl\.yarnpkg\.com\/debian/s|^|# disabled by oMPX installer: |' "$f" || true
+  done
+  shopt -u nullglob
+}
+
+safe_apt_update(){
+  local apt_log
+  apt_log="$(mktemp)"
+  if apt update 2>&1 | tee "$apt_log"; then
+    rm -f "$apt_log"
+    return 0
+  fi
+
+  if grep -Eqi 'dl\.yarnpkg\.com/debian|NO_PUBKEY 62D54FD4003F6525|not signed' "$apt_log"; then
+    echo "[WARNING] Detected Yarn repository signature issue during apt update"
+    fix_yarn_apt_repo || true
+    if apt update; then
+      rm -f "$apt_log"
+      return 0
+    fi
+    disable_yarn_apt_repo
+    apt update || { rm -f "$apt_log"; return 1; }
+    rm -f "$apt_log"
+    return 0
+  fi
+
+  rm -f "$apt_log"
+  return 1
+}
+
 if [ "$(id -u)" -ne 0 ]; then echo "Run as root: sudo $0" >&2; exit 1; fi
+
+# --- OS/environment detection (Debian, Ubuntu, Proxmox) ---
+OS_ID="unknown"
+OS_VERSION_ID="unknown"
+OS_PRETTY_NAME="unknown"
+if [ -r /etc/os-release ]; then
+  # shellcheck disable=SC1091
+  . /etc/os-release
+  OS_ID="${ID:-unknown}"
+  OS_VERSION_ID="${VERSION_ID:-unknown}"
+  OS_PRETTY_NAME="${PRETTY_NAME:-unknown}"
+fi
+
+IS_PROXMOX=false
+if [[ "$(uname -r)" == *pve* ]] || command -v pveversion >/dev/null 2>&1 || dpkg-query -W -f='${Status}' proxmox-ve 2>/dev/null | grep -q "install ok installed"; then
+  IS_PROXMOX=true
+fi
+
+KERNEL_HELPER_PACKAGE=""
+case "${OS_ID}" in
+  ubuntu)
+    KERNEL_HELPER_PACKAGE="linux-modules-extra-$(uname -r)"
+    ;;
+  debian)
+    # Debian does not generally use linux-modules-extra-* package naming.
+    KERNEL_HELPER_PACKAGE="linux-image-amd64"
+    ;;
+esac
+
+if [ "${IS_PROXMOX}" = true ]; then
+  # Keep running on Proxmox, but avoid forcing Debian/Ubuntu kernel helper assumptions.
+  KERNEL_HELPER_PACKAGE=""
+fi
+
+echo "[INFO] Detected OS: ${OS_PRETTY_NAME} (ID=${OS_ID}, VERSION_ID=${OS_VERSION_ID})"
+if [ "${IS_PROXMOX}" = true ]; then
+  echo "[INFO] Proxmox environment detected (kernel: $(uname -r)); installer will continue with workarounds (no hard stop)."
+fi
 
 # --- Config file handling options ---
 echo ""
@@ -225,12 +321,225 @@ pcm.!default { type plug; slave.pcm "sink_dmix_192k"; }
 ctl.!default { type hw; card Loopback; }
 ASND
 )
+
+# Staged test profile from local updates. This file is written to
+# /etc/asound.conf.ompx-test and can be promoted later after validation.
+WANT_ASOUND_TEST=$(cat <<'ASND_TEST'
+defaults.namehint.showall off
+defaults.namehint.extended off
+
+# Expose existing loopback cards (10..13) via friendly aliases hw:1..hw:4
+pcm.hw1 { type hw card 10 }
+pcm.hw1_out { type hw card 10 device 1 }
+pcm.hw2 { type hw card 11 }
+pcm.hw2_out { type hw card 11 device 1 }
+pcm.hw3 { type hw card 12 }
+pcm.hw3_out { type hw card 12 device 1 }
+pcm.hw4 { type hw card 13 }
+pcm.hw4_out { type hw card 13 device 1 }
+
+# Program 1 (use hw1)
+pcm.prog_1_hw_in  { type plug; slave.pcm "hw1";     slave.rate 192000; slave.channels 2 }
+pcm.prog_1_hw_out { type plug; slave.pcm "hw1_out"; slave.rate 192000; slave.channels 2 }
+pcm.prog_1_in     { type plug; slave.pcm "prog_1_hw_in"; hint { show on; description "PROGRAM 1 - INPUT" } }
+pcm.prog_1_preview {
+  type plug
+  slave.pcm "hw2"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "PROGRAM 1 - Preview" }
+}
+
+# Program 2 (use hw2)
+pcm.prog_2_hw_in  { type plug; slave.pcm "hw2";     slave.rate 192000; slave.channels 2 }
+pcm.prog_2_hw_out { type plug; slave.pcm "hw2_out"; slave.rate 192000; slave.channels 2 }
+pcm.prog_2_in     { type plug; slave.pcm "prog_2_hw_in"; hint { show on; description "PROGRAM 2 - INPUT" } }
+pcm.prog_2_preview {
+  type plug
+  slave.pcm "hw4"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "PROGRAM 2 - Preview" }
+}
+
+# Program 3 == DSCA (use hw3)
+pcm.prog_3_hw_in  { type plug; slave.pcm "hw3";     slave.rate 192000; slave.channels 2 }
+pcm.prog_3_hw_out { type plug; slave.pcm "hw3_out"; slave.rate 192000; slave.channels 2 }
+pcm.prog_3_in     { type plug; slave.pcm "prog_3_hw_in"; hint { show on; description "PROGRAM 3 / DSCA - INPUT" } }
+pcm.dsca_src      { type plug; slave.pcm "prog_3_hw_in"; slave.rate 192000; slave.channels 2; hint { show on; description "DSCA SOURCE" } }
+
+# DSCA injection dmix
+pcm.dsca_in_dmix {
+  type dmix
+  ipc_key 3333
+  slave {
+    pcm "dsca_src"
+    rate 192000
+    channels 2
+    format "S16_LE"
+    period_size 1024
+    buffer_size 4096
+  }
+  hint { description "DSCA injection dmix" }
+}
+
+# MPX (use hw4)
+pcm.mpx_hw { type plug; slave.pcm "hw4"; slave.rate 192000; slave.channels 2 }
+pcm.mpx_dmix {
+  type dmix
+  ipc_key 2048
+  slave {
+    pcm "mpx_hw"
+    rate 192000
+    channels 2
+    format "S16_LE"
+    period_size 1024
+    buffer_size 8192
+  }
+  hint { description "MPX dmix - final mix point" }
+}
+
+# Mono-sum helpers (prog1/prog2)
+pcm.prog1_mono_sum {
+  type route
+  slave.pcm "prog_1_in"
+  slave.channels 1
+  ttable.0.0 0.5
+  ttable.1.0 0.5
+}
+pcm.prog2_mono_sum {
+  type route
+  slave.pcm "prog_2_in"
+  slave.channels 1
+  ttable.0.0 0.5
+  ttable.1.0 0.5
+}
+
+# Route into MPX dmix: prog1 -> LEFT, prog2 -> RIGHT, dsca -> dual mono
+pcm.prog1_to_mpx {
+  type route
+  slave.pcm "mpx_dmix"
+  slave.channels 2
+  ttable.0.0 1.0
+  hint { description "PROG1 -> MPX (L)" }
+}
+pcm.prog2_to_mpx {
+  type route
+  slave.pcm "mpx_dmix"
+  slave.channels 2
+  ttable.0.1 1.0
+  hint { description "PROG2 -> MPX (R)" }
+}
+pcm.dsca_to_mpx {
+  type route
+  slave.pcm "mpx_dmix"
+  slave.channels 2
+  ttable.0.0 0.5
+  ttable.0.1 0.5
+  ttable.1.0 0.5
+  ttable.1.1 0.5
+  hint { description "DSCA -> MPX (dual mono)" }
+}
+
+# Pre-clip and clipping chain (approximate; pilot 19k & RDS preserved)
+pcm.mpx_preclip { type plug; slave.pcm "mpx_dmix"; slave.rate 192000; slave.channels 2 }
+pcm.mpx_lowband { type plug; slave.pcm "mpx_preclip"; slave.rate 192000; slave.channels 2; hint { description "lowband for clipping" } }
+
+pcm.mpx_clipper {
+  type softvol
+  slave.pcm "mpx_lowband"
+  control { name "MPX_Clipper_Fallback"; card 13 }
+  min_dB -6.0
+  max_dB 0.0
+}
+
+pcm.mpx_pilot { type plug; slave.pcm "mpx_preclip"; slave.rate 192000; slave.channels 2; hint { description "pilot (preserved)" } }
+pcm.mpx_rds   { type plug; slave.pcm "mpx_preclip"; slave.rate 192000; slave.channels 2; hint { description "RDS (preserved)" } }
+
+pcm.mpx_final_vol {
+  type softvol
+  slave.pcm "mpx_dmix"
+  control { name "Master_oMPX_Limit"; card 13 }
+  min_dB -10.0
+  max_dB 0.0
+  hint { show on; description "MPX FINAL Softvol" }
+}
+
+pcm.icecast_stream {
+  type plug
+  slave.pcm "mpx_final_vol"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "ICECAST STREAM (192k stereo)" }
+}
+
+pcm.!default {
+  type plug
+  slave.pcm "icecast_stream"
+}
+ASND_TEST
+)
 # --- Write /etc/asound.conf ---
 
 if [ "$CONFIG_SKIP" = true ]; then
 echo "[INFO] Skipping ALSA configuration as requested"
-elif [ "$CONFIG_OVERWRITE" = false ]; then
+else
+echo "[INFO] Writing staged ALSA test profile to ${ASOUND_TEST_PATH}..."
+
+if [ -f "${ASOUND_TEST_PATH}" ]; then
+if ! cmp -s <(printf '%s' "${WANT_ASOUND_TEST}") "${ASOUND_TEST_PATH}"; then
+if [ "$CONFIG_BACKUP" = true ]; then
+cp -a "${ASOUND_TEST_PATH}" "${ASOUND_TEST_PATH}.bak.$(date +%s)" || true
+echo "[INFO] Backed up existing ${ASOUND_TEST_PATH}"
+fi
+printf '%s' "${WANT_ASOUND_TEST}" > "${ASOUND_TEST_PATH}"
+chmod 644 "${ASOUND_TEST_PATH}" || true
+_log "Updated ${ASOUND_TEST_PATH}."
+echo "[SUCCESS] ALSA test profile updated"
+else
+_log "${ASOUND_TEST_PATH} already matches desired test content."
+echo "[INFO] ALSA test profile already current"
+fi
+else
+printf '%s' "${WANT_ASOUND_TEST}" > "${ASOUND_TEST_PATH}"
+chmod 644 "${ASOUND_TEST_PATH}" || true
+_log "Wrote ${ASOUND_TEST_PATH}."
+echo "[SUCCESS] ALSA test profile created"
+fi
+
+cat > "${ASOUND_SWITCH_HELPER}" <<'ASWITCH'
+#!/usr/bin/env bash
+set -euo pipefail
+TEST_PATH="/etc/asound.conf.ompx-test"
+LIVE_PATH="/etc/asound.conf"
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Run as root: sudo $0" >&2
+  exit 1
+fi
+
+if [ ! -f "${TEST_PATH}" ]; then
+  echo "Missing ${TEST_PATH}. Run the installer first to generate it." >&2
+  exit 1
+fi
+
+if [ -f "${LIVE_PATH}" ]; then
+  cp -a "${LIVE_PATH}" "${LIVE_PATH}.bak.$(date +%s)"
+  echo "Backed up ${LIVE_PATH}"
+fi
+
+cp -a "${TEST_PATH}" "${LIVE_PATH}"
+chmod 644 "${LIVE_PATH}" || true
+echo "Applied ${TEST_PATH} -> ${LIVE_PATH}"
+echo "Tip: run 'aplay -L | grep -E \"prog_|mpx|dsca|icecast\"' to verify devices."
+ASWITCH
+chmod 750 "${ASOUND_SWITCH_HELPER}"
+chown root:root "${ASOUND_SWITCH_HELPER}"
+echo "[SUCCESS] Created ${ASOUND_SWITCH_HELPER} helper"
+
+if [ "$CONFIG_OVERWRITE" = false ]; then
 echo "[INFO] Keeping existing ALSA configuration unchanged"
+echo "[INFO] Staged test profile only. Promote it with: sudo ${ASOUND_SWITCH_HELPER}"
 else
 echo "[INFO] Writing /etc/asound.conf..."
 
@@ -253,6 +562,7 @@ printf '%s' "${WANT_ASOUND}" > "${ASOUND_CONF_PATH}"
 chmod 644 "${ASOUND_CONF_PATH}" || true
 _log "Wrote ${ASOUND_CONF_PATH}."
 echo "[SUCCESS] ALSA config created"
+fi
 fi
 fi
 # --- Check existing installation ---
@@ -287,8 +597,10 @@ systemctl disable mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null |
 rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service"
 systemctl daemon-reload || true
 echo "[INFO] Removing old cron jobs..."
-if id -u "${OMPX_USER}" >/dev/null 2>&1; then
+if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
 crontab -u "${OMPX_USER}" -l 2>/dev/null | grep -v "${SYS_SCRIPTS_DIR}/source" | sed '/^$/d' | crontab -u "${OMPX_USER}" - 2>/dev/null || true
+else
+echo "[WARNING] crontab command not found; skipping cron cleanup"
 fi
 echo "[INFO] Removing old files and directories..."
 rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
@@ -309,8 +621,10 @@ systemctl disable mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null |
 rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service"
 systemctl daemon-reload || true
 echo "[INFO] Removing cron jobs..."
-if id -u "${OMPX_USER}" >/dev/null 2>&1; then
+if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
 crontab -u "${OMPX_USER}" -l 2>/dev/null | grep -v "${SYS_SCRIPTS_DIR}/source" | sed '/^$/d' | crontab -u "${OMPX_USER}" - 2>/dev/null || true
+else
+echo "[WARNING] crontab command not found; skipping cron cleanup"
 fi
 echo "[INFO] Removing files and directories..."
 rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
@@ -367,10 +681,15 @@ chmod 755 "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${LIQUIDSOAP_CONF_DIR}"
 echo "[SUCCESS] Directories created at ${SYS_SCRIPTS_DIR}"
 
 echo "[INFO] Updating package lists..."
-apt update
-echo "[INFO] Installing dependencies (curl, alsa-utils, ffmpeg, sox, ladspa-sdk, swh-plugins, liquidsoap, plus optional kernel module extras)..."
-KERNEL_EXTRA="linux-modules-extra-$(uname -r)"
-DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils ffmpeg sox ladspa-sdk swh-plugins liquidsoap "${KERNEL_EXTRA}" || true
+safe_apt_update
+echo "[INFO] Installing base dependencies (curl, alsa-utils, ffmpeg, sox, ladspa-sdk, swh-plugins, liquidsoap, cron)..."
+DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils ffmpeg sox ladspa-sdk swh-plugins liquidsoap cron
+if [ -n "${KERNEL_HELPER_PACKAGE}" ]; then
+  echo "[INFO] Installing kernel helper package for this OS: ${KERNEL_HELPER_PACKAGE}"
+  DEBIAN_FRONTEND=noninteractive apt install -y "${KERNEL_HELPER_PACKAGE}" || echo "[WARNING] Optional package ${KERNEL_HELPER_PACKAGE} could not be installed"
+else
+  echo "[INFO] No automatic kernel helper package selected for this environment"
+fi
 echo "[SUCCESS] Dependencies installed"
 # --- Ensure snd_aloop loaded and show devices ---
 echo "[INFO] Verifying snd_aloop kernel module..."
@@ -378,14 +697,22 @@ echo "[INFO] Verifying snd_aloop kernel module..."
 if ! lsmod | grep -q snd_aloop; then 
   echo "[INFO] Attempting to load snd_aloop..."
   if ! modprobe snd_aloop; then
-    echo "[WARNING] Initial snd_aloop load failed. Trying kernel extra package: ${KERNEL_EXTRA}"
-    if ! DEBIAN_FRONTEND=noninteractive apt install -y "${KERNEL_EXTRA}"; then
-      echo "[WARNING] Package ${KERNEL_EXTRA} could not be installed or is unavailable"
+    if [ -n "${KERNEL_HELPER_PACKAGE}" ]; then
+      echo "[WARNING] Initial snd_aloop load failed. Trying kernel helper package: ${KERNEL_HELPER_PACKAGE}"
+      if ! DEBIAN_FRONTEND=noninteractive apt install -y "${KERNEL_HELPER_PACKAGE}"; then
+        echo "[WARNING] Package ${KERNEL_HELPER_PACKAGE} could not be installed or is unavailable"
+      fi
+    elif [ "${IS_PROXMOX}" = true ]; then
+      echo "[WARNING] snd_aloop failed to load on Proxmox kernel $(uname -r)."
+      echo "[WARNING] Workaround: install and boot a standard Debian kernel (linux-image-amd64), then rerun installer."
+      echo "[WARNING] Installer will continue without hard-stopping."
+    else
+      echo "[WARNING] No kernel helper package configured for this OS (${OS_ID}); continuing."
     fi
-    echo "[INFO] Retrying snd_aloop load after installing kernel extras..."
+    echo "[INFO] Retrying snd_aloop load after helper/workaround step..."
     if modprobe snd_aloop; then
-      echo "[SUCCESS] snd_aloop loaded after installing kernel extras"
-      _log "snd_aloop loaded after kernel extras"
+      echo "[SUCCESS] snd_aloop loaded after helper/workaround step"
+      _log "snd_aloop loaded after helper/workaround step"
     else
       if modinfo snd_aloop >/dev/null 2>&1; then
         echo "[WARNING] snd_aloop module is present but failed to load"
@@ -682,7 +1009,11 @@ exec /usr/bin/liquidsoap "${LIQUIDSOAP_CONF_DIR}/radio${RADIO}.liq"
 WRAP
 chown ${OMPX_USER}:${OMPX_USER} "$WRAPPER"; chmod 750 "$WRAPPER"
 CRON_CMD="@reboot sleep ${CRON_SLEEP} && ${WRAPPER} >/var/log/radio-opus${RADIO}.log 2>&1 &"
-( crontab -u "$CRON_USER" -l 2>/dev/null || true; echo "${CRON_CMD}" ) | crontab -u "$CRON_USER" -
+if command -v crontab >/dev/null 2>&1; then
+  ( crontab -u "$CRON_USER" -l 2>/dev/null || true; echo "${CRON_CMD}" ) | crontab -u "$CRON_USER" -
+else
+  echo "WARNING: crontab command not found; skipping cron setup for $CRON_USER" >&2
+fi
 if [ "${START_NOW}" -eq 1 ]; then
 if [ "$CRON_USER" = "root" ]; then nohup "${WRAPPER}" >/var/log/radio-opus${RADIO}.log 2>&1 & else su -s /bin/sh -c "nohup ${WRAPPER} >/var/log/radio-opus${RADIO}.log 2>&1 &" "${CRON_USER}"; fi
 fi
@@ -736,12 +1067,16 @@ echo "[SUCCESS] start_or_shell wrapper created"
 echo "[INFO] Setting up cron jobs..."
 
 CRON_LINE1="@reboot sleep ${CRON_SLEEP} && ${SYS_SCRIPTS_DIR}/start_or_shell.sh --start >/var/log/radio-opus-start.log 2>&1 &"
+if have_crontab; then
 existing=$(crontab -u "${OMPX_USER}" -l 2>/dev/null || true)
 new_cron="${existing}"
 echo "$existing" | grep -F -q "${SYS_SCRIPTS_DIR}/source1.sh" >/dev/null 2>&1 || new_cron="${new_cron}
 ${CRON_LINE1}"
 printf "%s\n" "${new_cron}" | sed '/^$/d' | crontab -u "${OMPX_USER}" -
 echo "[SUCCESS] Cron job configured for ${OMPX_USER}"
+else
+echo "[WARNING] crontab command not found; skipping cron job setup"
+fi
 # --- Enable and start services ---
 echo "[INFO] Enabling and starting systemd services..."
 
