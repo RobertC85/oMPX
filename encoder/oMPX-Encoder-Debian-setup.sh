@@ -328,97 +328,110 @@ ASND
 # /etc/asound.conf.ompx-test and can be promoted later after validation.
 WANT_ASOUND_TEST=$(cat <<'ASND_TEST'
 defaults.namehint.showall off
-defaults.namehint.extended off
+defaults.namehint.extended on
 
-# Independent hardware sink mapping (each program gets dedicated loopback device):
-# Card 10 (hw:Loopback,0): Program 1 Input (device 0) / Program 1 Preview (device 1)
-# Card 11 (hw:Loopback,1): Program 2 Input (device 0) / Program 2 Preview (device 1)
-# Card 12 (hw:Loopback,2): Program 1 MPX (device 0) / Program 2 MPX (device 1)
-# Card 13 (hw:Loopback,3): DSCA Injection (device 0) / Final MPX Output (device 1)
+# Minimal oMPX sink set for Stereo Tool Enterprise style routing.
+# Hardware mapping:
+# - Card 10,0: Program 1 input
+# - Card 10,1: Program 1 preview
+# - Card 11,0: Program 2 input
+# - Card 11,1: Program 2 preview
+# - Card 13,0: DSCA source input
+# - Card 13,1: Final MPX output
 
-# Program 1: Input (card 10, device 0)
-pcm.prog_1_input_hw { type hw card 10 device 0 }
-pcm.prog_1_input { type plug; slave.pcm "prog_1_input_hw"; slave.rate 192000; slave.channels 2 }
-pcm.program1input { type plug; slave.pcm "prog_1_input"; hint { show on; description "Program 1 Input" } }
+pcm.prg1in {
+  type plug
+  slave.pcm "hw:10,0"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "Program 1 Input" }
+}
 
-# Program 1: Preview (card 10, device 1)
-pcm.prog_1_preview_hw { type hw card 10 device 1 }
-pcm.prog_1_preview { type plug; slave.pcm "prog_1_preview_hw"; slave.rate 192000; slave.channels 2 }
-pcm.program1preview { type plug; slave.pcm "prog_1_preview"; hint { show on; description "Program 1 Preview" } }
+pcm.prg1prev {
+  type plug
+  slave.pcm "hw:10,1"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "Program 1 Preview" }
+}
 
-# Program 2: Input (card 11, device 0)
-pcm.prog_2_input_hw { type hw card 11 device 0 }
-pcm.prog_2_input { type plug; slave.pcm "prog_2_input_hw"; slave.rate 192000; slave.channels 2 }
-pcm.program2input { type plug; slave.pcm "prog_2_input"; hint { show on; description "Program 2 Input" } }
+pcm.prg2in {
+  type plug
+  slave.pcm "hw:11,0"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "Program 2 Input" }
+}
 
-# Program 2: Preview (card 11, device 1)
-pcm.prog_2_preview_hw { type hw card 11 device 1 }
-pcm.prog_2_preview { type plug; slave.pcm "prog_2_preview_hw"; slave.rate 192000; slave.channels 2 }
-pcm.program2preview { type plug; slave.pcm "prog_2_preview"; hint { show on; description "Program 2 Preview" } }
+pcm.prg2prev {
+  type plug
+  slave.pcm "hw:11,1"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "Program 2 Preview" }
+}
 
-# DSCA: Source (card 13, device 0) - input for injection
-pcm.dsca_source_hw { type hw card 13 device 0 }
-pcm.dsca_source { type plug; slave.pcm "dsca_source_hw"; slave.rate 192000; slave.channels 2 }
-pcm.dscasource { type plug; slave.pcm "dsca_source"; hint { show on; description "DSCA Source" } }
+pcm.dsca_src {
+  type plug
+  slave.pcm "hw:13,0"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "DSCA Source" }
+}
 
-# MPX: Final Output Hardware (card 13, device 1)
-pcm.mpx_final_hw { type hw card 13 device 1 }
-
-# MPX mixing dmix - combines prog1 (mono L), prog2 (mono R), and DSCA (both channels)
-pcm.mpx_dmix {
+pcm.mpx_mix {
   type dmix
   ipc_key 2048
   slave {
-    pcm "mpx_final_hw"
+    pcm "hw:13,1"
     rate 192000
     channels 2
     format "S16_LE"
     period_size 1024
     buffer_size 8192
   }
-  hint { description "MPX mixing point" }
+  hint { show on; description "MPX Mix Bus" }
 }
 
-# Program 1: MPX (mono-sum from prog_1_input, hard-panned LEFT into mpx_dmix)
-pcm.program1mpx {
+pcm.prg1mpx {
   type route
-  slave.pcm "mpx_dmix"
+  slave.pcm "mpx_mix"
   slave.channels 2
   ttable.0.0 0.5
   ttable.1.0 0.5
-  hint { show on; description "Program 1 MPX (mono-sum hard left)" }
+  hint { show on; description "Program 1 MPX (mono -> left)" }
 }
 
-# Program 2: MPX (mono-sum from prog_2_input, hard-panned RIGHT into mpx_dmix)
-pcm.program2mpx {
+pcm.prg2mpx {
   type route
-  slave.pcm "mpx_dmix"
+  slave.pcm "mpx_mix"
   slave.channels 2
   ttable.0.1 0.5
   ttable.1.1 0.5
-  hint { show on; description "Program 2 MPX (mono-sum hard right)" }
+  hint { show on; description "Program 2 MPX (mono -> right)" }
 }
 
-# DSCA: Injection (dual-mono from dscasource into mpx_dmix, feeds both channels equally)
-pcm.dscainjection {
+pcm.dsca_injection {
   type route
-  slave.pcm "mpx_dmix"
+  slave.pcm "mpx_mix"
   slave.channels 2
-  ttable.0.0 0.5
-  ttable.1.0 0.5
-  ttable.0.1 0.5
-  ttable.1.1 0.5
-  hint { show on; description "DSCA Injection (dual-mono into MPX)" }
+  ttable.0.0 0.25
+  ttable.1.0 0.25
+  ttable.0.1 0.25
+  ttable.1.1 0.25
+  hint { show on; description "DSCA Injection (dual mono -> MPX)" }
 }
 
-# MPX: Final Output
-pcm.mpx_output { type plug; slave.pcm "mpx_dmix"; hint { show on; description "Final MPX Output" } }
-
-# Default: Route to Final MPX Output
-pcm.!default {
+pcm.mpx_to_icecast {
   type plug
-  slave.pcm "mpx_output"
+  slave.pcm "mpx_mix"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "Final MPX to Icecast (192k stereo)" }
 }
+
+pcm.!default { type plug; slave.pcm "mpx_to_icecast" }
+ctl.!default { type hw; card 13 }
 ASND_TEST
 )
 # --- Write /etc/asound.conf ---
@@ -473,7 +486,7 @@ fi
 cp -a "${TEST_PATH}" "${LIVE_PATH}"
 chmod 644 "${LIVE_PATH}" || true
 echo "Applied ${TEST_PATH} -> ${LIVE_PATH}"
-echo "Tip: run 'aplay -L | grep -E \"prog_|mpx|dsca|icecast\"' to verify devices."
+echo "Tip: run 'aplay -L | grep -E \"prg1in|prg2in|prg1prev|prg2prev|prg1mpx|prg2mpx|dsca_src|dsca_injection|mpx_to_icecast\"' to verify devices."
 ASWITCH
 chmod 750 "${ASOUND_SWITCH_HELPER}"
 chown root:root "${ASOUND_SWITCH_HELPER}"
@@ -673,6 +686,7 @@ sleep 1
 echo "[INFO] Available ALSA devices:"
 aplay -l 2>/dev/null || echo "[WARNING] No ALSA devices found"
 _log "ALSA devices listed above"
+echo "[INFO] Expected named ALSA PCMs: prg1in, prg2in, prg1prev, prg2prev, prg1mpx, prg2mpx, dsca_src, dsca_injection, mpx_to_icecast"
 # --- Create FIFOs for liquidsoap outputs ---
 echo "[INFO] Creating FIFOs for radio streams..."
 
@@ -724,6 +738,8 @@ echo "[SUCCESS] Liquidsoap configs created (radio1.liq, radio2.liq)"
 echo "[INFO] Creating oMPX encoder Liquidsoap script..."
 cat > "${OMPX_ENCODER_LIQ}" <<'OMPX_LIQ'
 # /usr/local/bin/ompx_encoder.liq
+# oMPX named ALSA sinks for this installer profile:
+#   prg1in, prg2in, prg1prev, prg2prev, prg1mpx, prg2mpx, dsca_src, dsca_injection, mpx_to_icecast
 # Main stereo source (dmix). Expect 2-channel with L=PROG1, R=PROG2; preserve dead channels.
 main = input.alsa(device="plughw:13,0")
 
@@ -1082,7 +1098,10 @@ echo ""
 echo "  3. View logs:"
 echo "     journalctl -u mpx-processing-alsa.service -f"
 echo ""
-echo "  4. Access oMPX user shell:"
+echo "  4. Verify ALSA named sinks:"
+echo "     aplay -L | grep -E 'prg1in|prg2in|prg1prev|prg2prev|prg1mpx|prg2mpx|dsca_src|dsca_injection|mpx_to_icecast'"
+echo ""
+echo "  5. Access oMPX user shell:"
 echo "     sudo su - oMPX"
 echo ""
 
