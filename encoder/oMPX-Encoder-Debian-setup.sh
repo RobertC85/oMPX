@@ -330,170 +330,94 @@ WANT_ASOUND_TEST=$(cat <<'ASND_TEST'
 defaults.namehint.showall off
 defaults.namehint.extended off
 
-# Expose existing loopback cards (10..13) via friendly aliases hw:1..hw:4
-pcm.hw1 { type hw card 10 }
-pcm.hw1_out { type hw card 10 device 1 }
-pcm.hw2 { type hw card 11 }
-pcm.hw2_out { type hw card 11 device 1 }
-pcm.hw3 { type hw card 12 }
-pcm.hw3_out { type hw card 12 device 1 }
-pcm.hw4 { type hw card 13 }
-pcm.hw4_out { type hw card 13 device 1 }
+# Independent hardware sink mapping (each program gets dedicated loopback device):
+# Card 10 (hw:Loopback,0): Program 1 Input (device 0) / Program 1 Preview (device 1)
+# Card 11 (hw:Loopback,1): Program 2 Input (device 0) / Program 2 Preview (device 1)
+# Card 12 (hw:Loopback,2): Program 1 MPX (device 0) / Program 2 MPX (device 1)
+# Card 13 (hw:Loopback,3): DSCA Injection (device 0) / Final MPX Output (device 1)
 
-# Program 1 (use hw1)
-pcm.prog_1_hw_in  { type plug; slave.pcm "hw1";     slave.rate 192000; slave.channels 2 }
-pcm.prog_1_hw_out { type plug; slave.pcm "hw1_out"; slave.rate 192000; slave.channels 2 }
-pcm.prog_1_in     { type plug; slave.pcm "prog_1_hw_in"; hint { show on; description "PROGRAM 1 - INPUT" } }
-pcm.program1source { type plug; slave.pcm "prog_1_in"; hint { show on; description "PROGRAM 1 SOURCE" } }
-pcm.prog_1_preview {
-  type plug
-  slave.pcm "hw2"
-  slave.rate 192000
-  slave.channels 2
-  hint { show on; description "PROGRAM 1 - Preview" }
-}
-pcm.program1preview { type plug; slave.pcm "prog_1_preview"; hint { show on; description "PROGRAM 1 PREVIEW" } }
+# Program 1: Input (card 10, device 0)
+pcm.prog_1_input_hw { type hw card 10 device 0 }
+pcm.prog_1_input { type plug; slave.pcm "prog_1_input_hw"; slave.rate 192000; slave.channels 2 }
+pcm.program1input { type plug; slave.pcm "prog_1_input"; hint { show on; description "Program 1 Input" } }
 
-# Program 2 (use hw2)
-pcm.prog_2_hw_in  { type plug; slave.pcm "hw2";     slave.rate 192000; slave.channels 2 }
-pcm.prog_2_hw_out { type plug; slave.pcm "hw2_out"; slave.rate 192000; slave.channels 2 }
-pcm.prog_2_in     { type plug; slave.pcm "prog_2_hw_in"; hint { show on; description "PROGRAM 2 - INPUT" } }
-pcm.program2source { type plug; slave.pcm "prog_2_in"; hint { show on; description "PROGRAM 2 SOURCE" } }
-pcm.prog_2_preview {
-  type plug
-  slave.pcm "hw4"
-  slave.rate 192000
-  slave.channels 2
-  hint { show on; description "PROGRAM 2 - Preview" }
-}
-pcm.program2preview { type plug; slave.pcm "prog_2_preview"; hint { show on; description "PROGRAM 2 PREVIEW" } }
+# Program 1: Preview (card 10, device 1)
+pcm.prog_1_preview_hw { type hw card 10 device 1 }
+pcm.prog_1_preview { type plug; slave.pcm "prog_1_preview_hw"; slave.rate 192000; slave.channels 2 }
+pcm.program1preview { type plug; slave.pcm "prog_1_preview"; hint { show on; description "Program 1 Preview" } }
 
-# Program 3 == DSCA (use hw3)
-pcm.prog_3_hw_in  { type plug; slave.pcm "hw3";     slave.rate 192000; slave.channels 2 }
-pcm.prog_3_hw_out { type plug; slave.pcm "hw3_out"; slave.rate 192000; slave.channels 2 }
-pcm.prog_3_in     { type plug; slave.pcm "prog_3_hw_in"; hint { show on; description "PROGRAM 3 / DSCA - INPUT" } }
-pcm.dsca_src      { type plug; slave.pcm "prog_3_hw_in"; slave.rate 192000; slave.channels 2; hint { show on; description "DSCA SOURCE" } }
-pcm.dscasource    { type plug; slave.pcm "dsca_src"; hint { show on; description "DSCA SOURCE" } }
+# Program 2: Input (card 11, device 0)
+pcm.prog_2_input_hw { type hw card 11 device 0 }
+pcm.prog_2_input { type plug; slave.pcm "prog_2_input_hw"; slave.rate 192000; slave.channels 2 }
+pcm.program2input { type plug; slave.pcm "prog_2_input"; hint { show on; description "Program 2 Input" } }
 
-# DSCA injection dmix
-pcm.dsca_in_dmix {
-  type dmix
-  ipc_key 3333
-  slave {
-    pcm "dsca_src"
-    rate 192000
-    channels 2
-    format "S16_LE"
-    period_size 1024
-    buffer_size 4096
-  }
-  hint { description "DSCA injection dmix" }
-}
+# Program 2: Preview (card 11, device 1)
+pcm.prog_2_preview_hw { type hw card 11 device 1 }
+pcm.prog_2_preview { type plug; slave.pcm "prog_2_preview_hw"; slave.rate 192000; slave.channels 2 }
+pcm.program2preview { type plug; slave.pcm "prog_2_preview"; hint { show on; description "Program 2 Preview" } }
 
-# MPX (use hw4)
-pcm.mpx_hw { type plug; slave.pcm "hw4"; slave.rate 192000; slave.channels 2 }
+# DSCA: Source (card 13, device 0) - input for injection
+pcm.dsca_source_hw { type hw card 13 device 0 }
+pcm.dsca_source { type plug; slave.pcm "dsca_source_hw"; slave.rate 192000; slave.channels 2 }
+pcm.dscasource { type plug; slave.pcm "dsca_source"; hint { show on; description "DSCA Source" } }
+
+# MPX: Final Output Hardware (card 13, device 1)
+pcm.mpx_final_hw { type hw card 13 device 1 }
+
+# MPX mixing dmix - combines prog1 (mono L), prog2 (mono R), and DSCA (both channels)
 pcm.mpx_dmix {
   type dmix
   ipc_key 2048
   slave {
-    pcm "mpx_hw"
+    pcm "mpx_final_hw"
     rate 192000
     channels 2
     format "S16_LE"
     period_size 1024
     buffer_size 8192
   }
-  hint { description "MPX dmix - final mix point" }
+  hint { description "MPX mixing point" }
 }
 
-# Mono-sum helpers (prog1/prog2)
-pcm.prog1_mono_sum {
-  type route
-  slave.pcm "prog_1_in"
-  slave.channels 1
-  ttable.0.0 0.5
-  ttable.1.0 0.5
-}
-pcm.prog2_mono_sum {
-  type route
-  slave.pcm "prog_2_in"
-  slave.channels 1
-  ttable.0.0 0.5
-  ttable.1.0 0.5
-}
-
-# Route into MPX dmix:
-# - program1mpx and program2mpx are the named mono-sum + hard-pan sinks for Stereo Tool Enterprise.
-# - dscainjection is the DSCA injection point into the final MPX output.
+# Program 1: MPX (mono-sum from prog_1_input, hard-panned LEFT into mpx_dmix)
 pcm.program1mpx {
   type route
   slave.pcm "mpx_dmix"
   slave.channels 2
   ttable.0.0 0.5
   ttable.1.0 0.5
-  hint { show on; description "PROGRAM 1 MPX (mono sum -> hard left)" }
+  hint { show on; description "Program 1 MPX (mono-sum hard left)" }
 }
+
+# Program 2: MPX (mono-sum from prog_2_input, hard-panned RIGHT into mpx_dmix)
 pcm.program2mpx {
   type route
   slave.pcm "mpx_dmix"
   slave.channels 2
   ttable.0.1 0.5
   ttable.1.1 0.5
-  hint { show on; description "PROGRAM 2 MPX (mono sum -> hard right)" }
+  hint { show on; description "Program 2 MPX (mono-sum hard right)" }
 }
+
+# DSCA: Injection (dual-mono from dscasource into mpx_dmix, feeds both channels equally)
 pcm.dscainjection {
   type route
   slave.pcm "mpx_dmix"
   slave.channels 2
-  ttable.0.0 0.25
-  ttable.1.0 0.25
-  ttable.0.1 0.25
-  ttable.1.1 0.25
-  hint { show on; description "DSCA injection -> MPX (dual mono)" }
+  ttable.0.0 0.5
+  ttable.1.0 0.5
+  ttable.0.1 0.5
+  ttable.1.1 0.5
+  hint { show on; description "DSCA Injection (dual-mono into MPX)" }
 }
 
-# Backward-compatible aliases for previous sink names.
-pcm.prog1_to_mpx { type plug; slave.pcm "program1mpx" }
-pcm.prog2_to_mpx { type plug; slave.pcm "program2mpx" }
-pcm.dsca_to_mpx  { type plug; slave.pcm "dscainjection" }
+# MPX: Final Output
+pcm.mpx_output { type plug; slave.pcm "mpx_dmix"; hint { show on; description "Final MPX Output" } }
 
-# Pre-clip and clipping chain (approximate; pilot 19k & RDS preserved)
-pcm.mpx_preclip { type plug; slave.pcm "mpx_dmix"; slave.rate 192000; slave.channels 2 }
-pcm.mpx_lowband { type plug; slave.pcm "mpx_preclip"; slave.rate 192000; slave.channels 2; hint { description "lowband for clipping" } }
-
-pcm.mpx_clipper {
-  type softvol
-  slave.pcm "mpx_lowband"
-  control { name "MPX_Clipper_Fallback"; card 13 }
-  min_dB -6.0
-  max_dB 0.0
-}
-
-pcm.mpx_pilot { type plug; slave.pcm "mpx_preclip"; slave.rate 192000; slave.channels 2; hint { description "pilot (preserved)" } }
-pcm.mpx_rds   { type plug; slave.pcm "mpx_preclip"; slave.rate 192000; slave.channels 2; hint { description "RDS (preserved)" } }
-
-pcm.mpx_final_vol {
-  type softvol
-  slave.pcm "mpx_dmix"
-  control { name "Master_oMPX_Limit"; card 13 }
-  min_dB -10.0
-  max_dB 0.0
-  hint { show on; description "MPX FINAL Softvol" }
-}
-
-pcm.icecast_stream {
-  type plug
-  slave.pcm "mpx_final_vol"
-  slave.rate 192000
-  slave.channels 2
-  hint { show on; description "ICECAST STREAM (192k stereo)" }
-}
-
-pcm.icecaststream { type plug; slave.pcm "icecast_stream"; hint { show on; description "ICECAST STREAM 192k FLAC INPUT" } }
-
+# Default: Route to Final MPX Output
 pcm.!default {
   type plug
-  slave.pcm "icecaststream"
+  slave.pcm "mpx_output"
 }
 ASND_TEST
 )
@@ -831,6 +755,19 @@ out_src = add([main, inj_stereo])
 out_src = if channels(out_src) == 2 then out_src else add_blank_channel(out_src) end
 out_src = convert_samplerate(out_src, 192000)
 
+# Composite clipper: split 0-16kHz (composite+stereo subcarrier) from 16kHz+ (RDS+pilot)
+# Only clip the composite band; leave RDS and pilot unclipped.
+
+# Composite band: 0-16 kHz (composite audio + 38 kHz stereo pilot region)
+composite_band = lowpass(out_src, 16000.)
+composite_band = clip(composite_band, min=-0.99, max=0.99)
+
+# Protected band: 16 kHz+ (RDS at ~57kHz, pilot at ~19kHz, and beyond)
+protected_band = highpass(out_src, 16000.)
+
+# Recombine clipped composite + unclipped highs
+out_src = add([composite_band, protected_band])
+
 # Stream as FLAC to Icecast
 output.icecast(
   %flac(compression=8),
@@ -839,7 +776,7 @@ output.icecast(
   port=8000,
   password="bbkrb494b3fy8qqcrym6fvbfgdxk7jcher-mpx",
   name="MPX FLAC 192kHz (stereo with 80kHz injector)",
-  description="Native 192kHz FLAC stereo (L=PROG1, R=PROG2) with shared ~80kHz injection",
+  description="Native 192kHz FLAC stereo (L=PROG1, R=PROG2) with shared ~80kHz injection and composite clipping",
   genre="Radio",
   url="http://127.0.0.1:8000/mpx",
   out_src
