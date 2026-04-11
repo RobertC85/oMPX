@@ -199,7 +199,7 @@ if [ -t 0 ]; then
       ;;
   esac
 
-  read -t 30 -p "Run quick prg1in -> prg1in_cap loopback test during install? [Y/n] (default Y): " cfg_quick_test || cfg_quick_test="Y"
+  read -t 30 -p "Run quick loopback test (write to prg1in, read from prg1in_cap) during install? [Y/n] (default Y): " cfg_quick_test || cfg_quick_test="Y"
   cfg_quick_test=${cfg_quick_test^^}
   if [ "${cfg_quick_test}" = "N" ]; then
     RUN_QUICK_AUDIO_TEST=false
@@ -213,7 +213,13 @@ cat > "${ASOUND_MAP_HELPER}" <<'ASMAP'
 set -euo pipefail
 echo "oMPX sink map helper"
 echo "--------------------"
+echo "Write/playback endpoints (send audio into these):"
 for id in prg1in prg1prev prg2in prg2prev dsca_src prg1mpx prg2mpx dsca_injection mpx_to_icecast; do
+  printf '  %s\n' "$id"
+done
+echo ""
+echo "Read/capture endpoints (read audio back from these):"
+for id in prg1in_cap prg1prev_cap prg2in_cap prg2prev_cap dsca_src_cap; do
   printf '  %s\n' "$id"
 done
 ASMAP
@@ -469,16 +475,16 @@ echo "[INFO] Available ALSA devices:"
 aplay -l 2>/dev/null || echo "[WARNING] No ALSA devices found"
 echo "[INFO] Hardware-only list above (aplay -l). Virtual named PCMs are shown with: aplay -L"
 _log "ALSA devices listed above"
-echo "[INFO] Expected named ALSA PCMs: prg1in, prg1in_cap, prg2in, prg2in_cap, prg1prev, prg1prev_cap, prg2prev, prg2prev_cap, prg1mpx, prg2mpx, dsca_src, dsca_src_cap, dsca_injection, mpx_to_icecast"
+echo "[INFO] Expected named ALSA PCMs: write/playback endpoints prg1in, prg2in, prg1prev, prg2prev, prg1mpx, prg2mpx, dsca_src, dsca_injection, mpx_to_icecast; read/capture endpoints prg1in_cap, prg2in_cap, prg1prev_cap, prg2prev_cap, dsca_src_cap"
 echo "[INFO] Resolved sink map helper: ${ASOUND_MAP_HELPER}"
 "${ASOUND_MAP_HELPER}" || true
 if ! aplay -L 2>/dev/null | grep -q '^prg1in$'; then
-  echo "[ERROR] Named PCM prg1in is missing. Check ${ASOUND_CONF_PATH} and snd_aloop state."
+  echo "[ERROR] Named PCM prg1in is missing. This is the write/playback endpoint for Program 1 input. Check ${ASOUND_CONF_PATH} and snd_aloop state."
   echo "[ERROR] Run: aplay -L | grep -E 'prg1in|prg1in_cap'"
   exit 1
 fi
 if ! arecord -L 2>/dev/null | grep -q '^prg1in_cap$'; then
-  echo "[ERROR] Named PCM prg1in_cap is missing. Check ${ASOUND_CONF_PATH} and snd_aloop state."
+  echo "[ERROR] Named PCM prg1in_cap is missing. This is the read/capture endpoint for Program 1 input. Check ${ASOUND_CONF_PATH} and snd_aloop state."
   echo "[ERROR] Run: arecord -L | grep -E 'prg1in|prg1in_cap'"
   exit 1
 fi
@@ -486,32 +492,60 @@ fi
 if [ "${RUN_QUICK_AUDIO_TEST}" = true ]; then
   test_attempt=1
   while true; do
-    echo "[INFO] Running quick loopback self-test attempt ${test_attempt}: prg1in -> prg1in_cap"
+    echo "[INFO] Running quick loopback self-test attempt ${test_attempt}: write to prg1in, read from prg1in_cap"
     test_wav=$(mktemp --suffix=.wav)
-    if arecord -D prg1in_cap -f S16_LE -c 2 -r ${SAMPLE_RATE} -d 2 "${test_wav}" >/dev/null 2>&1 & then
+    test_tone=$(mktemp --suffix=.wav)
+    test_capture_log=$(mktemp)
+    test_inject_log=$(mktemp)
+    sox -n -r ${SAMPLE_RATE} -c 2 -b 16 "${test_tone}" synth 1.8 sine 1000 vol 0.6 >/dev/null 2>&1 || true
+
+    if arecord -D prg1in_cap -f S16_LE -c 2 -r ${SAMPLE_RATE} -d 2 "${test_wav}" >"${test_capture_log}" 2>&1 & then
       rec_pid=$!
-      sleep 0.4
-      ffmpeg -hide_banner -loglevel error -f lavfi -i "sine=frequency=1000:sample_rate=${SAMPLE_RATE}:duration=1.8" -ac 2 -f alsa prg1in >/dev/null 2>&1 || true
+      sleep 0.6
+
+      inject_ok=0
+      if [ -s "${test_tone}" ]; then
+        if timeout 4 aplay -q -D prg1in "${test_tone}" >"${test_inject_log}" 2>&1; then
+          inject_ok=1
+        fi
+      fi
+
+      if [ "${inject_ok}" -ne 1 ]; then
+        if ffmpeg -hide_banner -loglevel error -f lavfi -i "sine=frequency=1000:sample_rate=${SAMPLE_RATE}:duration=1.8" -ac 2 -f alsa prg1in >"${test_inject_log}" 2>&1; then
+          inject_ok=1
+        fi
+      fi
+
       wait "${rec_pid}" >/dev/null 2>&1 || true
 
       sox_stats=""
       sox_stats=$(sox "${test_wav}" -n stat 2>&1 || true)
       test_peak=$(printf '%s\n' "${sox_stats}" | awk '/Maximum amplitude/ {print $3; exit}')
       test_peak=${test_peak:-0}
-      rm -f "${test_wav}" || true
+      rm -f "${test_wav}" "${test_tone}" || true
 
       if awk -v p="${test_peak:-0}" 'BEGIN { exit !(p > 0.0005) }'; then
         echo "[SUCCESS] Quick loopback self-test passed (peak amplitude ${test_peak})"
+        rm -f "${test_capture_log}" "${test_inject_log}" || true
         break
       fi
 
       echo "[WARNING] Quick loopback self-test detected silence/low signal (peak amplitude ${test_peak})"
-      if [ "${test_peak}" = "0" ]; then
-        echo "[WARNING] No measurable signal captured from prg1in_cap. This can indicate missing ALSA routing or inactive source audio."
+      if [ "${inject_ok}" -ne 1 ]; then
+        echo "[WARNING] Tone injection into prg1in (write/playback endpoint) failed. Last injector output:"
+        tail -n 3 "${test_inject_log}" 2>/dev/null || true
       fi
+      if [ "${test_peak}" = "0" ]; then
+        echo "[WARNING] No measurable signal captured from prg1in_cap (read/capture endpoint). This can indicate missing ALSA routing or inactive source audio."
+        echo "[WARNING] Last capture output:"
+        tail -n 3 "${test_capture_log}" 2>/dev/null || true
+      fi
+      rm -f "${test_capture_log}" "${test_inject_log}" || true
     else
-      rm -f "${test_wav}" || true
+      rm -f "${test_wav}" "${test_tone}" || true
       echo "[WARNING] Could not start arecord for loopback self-test"
+      echo "[WARNING] Check arecord -L for prg1in_cap (capture endpoint) and ensure snd_aloop is loaded"
+      rm -f "${test_capture_log}" "${test_inject_log}" || true
     fi
 
     if [ -t 0 ]; then
@@ -592,12 +626,13 @@ echo "[SUCCESS] Liquidsoap configs created (radio1.liq, radio2.liq)"
 echo "[INFO] Creating oMPX encoder Liquidsoap script..."
 cat > "${OMPX_ENCODER_LIQ}" <<'OMPX_LIQ'
 # /usr/local/bin/ompx_encoder.liq
-# oMPX named ALSA sinks for this installer profile:
-#   prg1in, prg2in, prg1prev, prg2prev, prg1mpx, prg2mpx, dsca_src, dsca_injection, mpx_to_icecast
-# Main stereo source: capture side of Program 1 input loopback sink.
+# oMPX named ALSA loopback endpoints for this installer profile:
+#   Write/playback: prg1in, prg2in, prg1prev, prg2prev, prg1mpx, prg2mpx, dsca_src, dsca_injection, mpx_to_icecast
+#   Read/capture: prg1in_cap, prg2in_cap, prg1prev_cap, prg2prev_cap, dsca_src_cap
+# Main stereo source: read/capture side of Program 1 input loopback pair.
 main = input.alsa(device="prg1in_cap")
 
-# Injector source: capture side of DSCA source loopback sink.
+# Injector source: read/capture side of the DSCA source loopback pair.
 injector_mono = input.alsa(device="dsca_src_cap")
 
 # Ensure both sources are resampled to 192kHz first for correct filtering and mixing
@@ -1006,6 +1041,7 @@ echo "     journalctl -u mpx-processing-alsa.service -f"
 echo ""
 echo "  4. Verify ALSA named sinks:"
 echo "     aplay -L | grep -E 'prg1in|prg2in|prg1prev|prg2prev|prg1mpx|prg2mpx|dsca_src|dsca_injection|mpx_to_icecast'"
+echo "     arecord -L | grep -E 'prg1in_cap|prg2in_cap|prg1prev_cap|prg2prev_cap|dsca_src_cap'"
 echo ""
 echo "  5. Print resolved sink-to-hardware map:"
 echo "     sudo ${ASOUND_MAP_HELPER}"
