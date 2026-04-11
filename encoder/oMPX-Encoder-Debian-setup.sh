@@ -478,18 +478,26 @@ _log "ALSA devices listed above"
 echo "[INFO] Expected named ALSA PCMs: write/playback endpoints prg1in, prg2in, prg1prev, prg2prev, prg1mpx, prg2mpx, dsca_src, dsca_injection, mpx_to_icecast; read/capture endpoints prg1in_cap, prg2in_cap, prg1prev_cap, prg2prev_cap, dsca_src_cap"
 echo "[INFO] Resolved sink map helper: ${ASOUND_MAP_HELPER}"
 "${ASOUND_MAP_HELPER}" || true
-if ! aplay -L 2>/dev/null | grep -q '^prg1in$'; then
-  echo "[ERROR] Named PCM prg1in is missing. This is the write/playback endpoint for Program 1 input. Check ${ASOUND_CONF_PATH} and snd_aloop state."
-  echo "[ERROR] Run: aplay -L | grep -E 'prg1in|prg1in_cap'"
-  exit 1
-fi
-if ! arecord -L 2>/dev/null | grep -q '^prg1in_cap$'; then
-  echo "[ERROR] Named PCM prg1in_cap is missing. This is the read/capture endpoint for Program 1 input. Check ${ASOUND_CONF_PATH} and snd_aloop state."
-  echo "[ERROR] Run: arecord -L | grep -E 'prg1in|prg1in_cap'"
-  exit 1
+
+if [ "${CONFIG_SKIP}" = true ]; then
+  echo "[INFO] Skipping live ALSA named-PCM validation because asound.conf changes were disabled"
+elif [ "${CONFIG_OVERWRITE}" = false ]; then
+  echo "[INFO] Skipping live ALSA named-PCM validation because config was staged, not applied"
+  echo "[INFO] Promote the staged config first with: sudo ${ASOUND_SWITCH_HELPER}"
+else
+  if ! aplay -L 2>/dev/null | grep -q '^prg1in$'; then
+    echo "[ERROR] Named PCM prg1in is missing. This is the write/playback endpoint for Program 1 input. Check ${ASOUND_CONF_PATH} and snd_aloop state."
+    echo "[ERROR] Run: aplay -L | grep -E 'prg1in|prg1in_cap'"
+    exit 1
+  fi
+  if ! arecord -L 2>/dev/null | grep -q '^prg1in_cap$'; then
+    echo "[ERROR] Named PCM prg1in_cap is missing. This is the read/capture endpoint for Program 1 input. Check ${ASOUND_CONF_PATH} and snd_aloop state."
+    echo "[ERROR] Run: arecord -L | grep -E 'prg1in|prg1in_cap'"
+    exit 1
+  fi
 fi
 
-if [ "${RUN_QUICK_AUDIO_TEST}" = true ]; then
+if [ "${RUN_QUICK_AUDIO_TEST}" = true ] && [ "${CONFIG_SKIP}" = false ] && [ "${CONFIG_OVERWRITE}" = true ]; then
   test_attempt=1
   while true; do
     echo "[INFO] Running quick loopback self-test attempt ${test_attempt}: write to prg1in, read from prg1in_cap"
@@ -574,6 +582,8 @@ if [ "${RUN_QUICK_AUDIO_TEST}" = true ]; then
       break
     fi
   done
+elif [ "${RUN_QUICK_AUDIO_TEST}" = true ]; then
+  echo "[INFO] Skipping quick loopback self-test because the live ALSA config is not active yet"
 fi
 # --- Create FIFOs for liquidsoap outputs ---
 echo "[INFO] Creating FIFOs for radio streams..."
