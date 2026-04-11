@@ -46,6 +46,7 @@ fi
 IS_PROXMOX=false
 [[ "$(uname -r)" == *"pve"* ]] && IS_PROXMOX=true
 KERNEL_HELPER_PACKAGE=""
+LOOPBACK_CARD_REF="${LOOPBACK_CARD_REF:-Loopback}"
 
 _log(){
   logger -t mpx "$*" 2>/dev/null || true
@@ -58,6 +59,51 @@ have_crontab(){
 
 safe_apt_update(){
   DEBIAN_FRONTEND=noninteractive apt update -y || true
+}
+
+detect_loopback_card_ref(){
+  local card_ref=""
+  card_ref=$(aplay -l 2>/dev/null | awk '/\[Loopback\]/{gsub(":", "", $2); print $2; exit}')
+  if [ -n "${card_ref}" ]; then
+    echo "${card_ref}"
+    return 0
+  fi
+
+  card_ref=$(awk -F'[][]' '/Loopback/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); split($1, a, /[[:space:]]+/); print a[1]; exit}' /proc/asound/cards 2>/dev/null)
+  if [ -n "${card_ref}" ]; then
+    echo "${card_ref}"
+    return 0
+  fi
+
+  echo "Loopback"
+}
+
+render_asound_config(){
+  local card_ref="$1"
+  cat <<EOF
+# oMPX ALSA virtual PCM map (auto-generated)
+
+pcm.prg1in { type plug slave.pcm "hw:${card_ref},0,0" }
+pcm.prg1in_cap { type plug slave.pcm "hw:${card_ref},1,0" }
+
+pcm.prg2in { type plug slave.pcm "hw:${card_ref},0,1" }
+pcm.prg2in_cap { type plug slave.pcm "hw:${card_ref},1,1" }
+
+pcm.prg1prev { type plug slave.pcm "hw:${card_ref},0,2" }
+pcm.prg1prev_cap { type plug slave.pcm "hw:${card_ref},1,2" }
+
+pcm.prg2prev { type plug slave.pcm "hw:${card_ref},0,3" }
+pcm.prg2prev_cap { type plug slave.pcm "hw:${card_ref},1,3" }
+
+pcm.prg1mpx { type plug slave.pcm "hw:${card_ref},0,4" }
+pcm.prg2mpx { type plug slave.pcm "hw:${card_ref},0,5" }
+
+pcm.dsca_src { type plug slave.pcm "hw:${card_ref},0,6" }
+pcm.dsca_src_cap { type plug slave.pcm "hw:${card_ref},1,6" }
+
+pcm.dsca_injection { type plug slave.pcm "hw:${card_ref},0,7" }
+pcm.mpx_to_icecast { type plug slave.pcm "hw:${card_ref},0,8" }
+EOF
 }
 
 strip_old_ompx_sinks(){
@@ -240,31 +286,7 @@ ASWITCH
 chmod 755 "${ASOUND_SWITCH_HELPER}"
 chown root:root "${ASOUND_SWITCH_HELPER}"
 
-WANT_ASOUND_TEST=$(cat <<'ASOUND_EOF'
-# oMPX ALSA virtual PCM map (auto-generated)
-
-pcm.prg1in { type plug slave.pcm "hw:Loopback,0,0" }
-pcm.prg1in_cap { type plug slave.pcm "hw:Loopback,1,0" }
-
-pcm.prg2in { type plug slave.pcm "hw:Loopback,0,1" }
-pcm.prg2in_cap { type plug slave.pcm "hw:Loopback,1,1" }
-
-pcm.prg1prev { type plug slave.pcm "hw:Loopback,0,2" }
-pcm.prg1prev_cap { type plug slave.pcm "hw:Loopback,1,2" }
-
-pcm.prg2prev { type plug slave.pcm "hw:Loopback,0,3" }
-pcm.prg2prev_cap { type plug slave.pcm "hw:Loopback,1,3" }
-
-pcm.prg1mpx { type plug slave.pcm "hw:Loopback,0,4" }
-pcm.prg2mpx { type plug slave.pcm "hw:Loopback,0,5" }
-
-pcm.dsca_src { type plug slave.pcm "hw:Loopback,0,6" }
-pcm.dsca_src_cap { type plug slave.pcm "hw:Loopback,1,6" }
-
-pcm.dsca_injection { type plug slave.pcm "hw:Loopback,0,7" }
-pcm.mpx_to_icecast { type plug slave.pcm "hw:Loopback,0,8" }
-ASOUND_EOF
-)
+WANT_ASOUND_TEST="$(render_asound_config "${LOOPBACK_CARD_REF}")"
 
 if [ "${CONFIG_SKIP}" = false ]; then
   if [ "${CONFIG_OVERWRITE}" = true ]; then
@@ -468,6 +490,21 @@ if ! lsmod | grep -q snd_aloop; then
 else 
   echo "[SUCCESS] snd_aloop is loaded"
   _log "snd_aloop loaded"
+fi
+
+LOOPBACK_CARD_REF="$(detect_loopback_card_ref)"
+WANT_ASOUND_TEST="$(render_asound_config "${LOOPBACK_CARD_REF}")"
+echo "[INFO] Using loopback card reference: ${LOOPBACK_CARD_REF}"
+if [ "${CONFIG_SKIP}" = false ]; then
+  if [ "${CONFIG_OVERWRITE}" = true ]; then
+    printf '%s\n' "${WANT_ASOUND_TEST}" > "${ASOUND_CONF_PATH}"
+    chmod 644 "${ASOUND_CONF_PATH}" || true
+    echo "[INFO] Refreshed ${ASOUND_CONF_PATH} with detected loopback card reference"
+  else
+    printf '%s\n' "${WANT_ASOUND_TEST}" > /etc/asound.conf.ompx-staged
+    chmod 644 /etc/asound.conf.ompx-staged || true
+    echo "[INFO] Refreshed /etc/asound.conf.ompx-staged with detected loopback card reference"
+  fi
 fi
 
 sleep 1
@@ -775,9 +812,9 @@ RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
 SINK_NAME="prg${n}in"
 if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   if [ "${n}" = "1" ]; then
-    SINK_NAME="plughw:Loopback,0,0"
+    SINK_NAME="plughw:${LOOPBACK_CARD_REF},0,0"
   else
-    SINK_NAME="plughw:Loopback,0,1"
+    SINK_NAME="plughw:${LOOPBACK_CARD_REF},0,1"
   fi
   echo "[\$(date +'%F %T')] source${n}: named sink unavailable; using fallback \${SINK_NAME}"
 fi
@@ -829,11 +866,11 @@ for n in 1 2; do
 done
 
 if ! arecord -L 2>/dev/null | grep -q "^${PROG1_ALSA_IN}$"; then
-  PROG1_ALSA_IN="hw:Loopback,1,0"
+  PROG1_ALSA_IN="hw:${LOOPBACK_CARD_REF},1,0"
   _log "Fallback capture endpoint for Program 1: ${PROG1_ALSA_IN}"
 fi
 if ! arecord -L 2>/dev/null | grep -q "^${PROG2_ALSA_IN}$"; then
-  PROG2_ALSA_IN="hw:Loopback,1,1"
+  PROG2_ALSA_IN="hw:${LOOPBACK_CARD_REF},1,1"
   _log "Fallback capture endpoint for Program 2: ${PROG2_ALSA_IN}"
 fi
 _log "Using capture endpoints: PROG1_ALSA_IN=${PROG1_ALSA_IN}, PROG2_ALSA_IN=${PROG2_ALSA_IN}"
@@ -854,7 +891,7 @@ STEREO_PID=$!; _log "Started stereo-tool wrapper pid ${STEREO_PID}"
 ffmpeg -hide_banner -loglevel warning -f s16le -ar ${SAMPLE_RATE} -ac 1 -i "${MPX_LEFT_OUT}" -f s16le -ar ${SAMPLE_RATE} -ac 1 -i "${MPX_RIGHT_OUT}" -filter_complex "[0:a][1:a]join=inputs=2:channel_layout=stereo[aout]" -map "[aout]" -f s16le -ar ${SAMPLE_RATE} -ac 2 - > "${MPX_STEREO_FIFO}" &
 FF_MERGE_PID=$!; _log "ffmpeg merge pid $FF_MERGE_PID"
 ALSA_OUTPUT="${ALSA_OUTPUT:-}"
-if [ -z "$ALSA_OUTPUT" ]; then if aplay -l 2>/dev/null | grep -qi loopback; then ALSA_OUTPUT="hw:Loopback,0,0"; fi; fi
+if [ -z "$ALSA_OUTPUT" ]; then if aplay -l 2>/dev/null | grep -qi loopback; then ALSA_OUTPUT="hw:${LOOPBACK_CARD_REF},0,0"; fi; fi
 if [ -z "$ALSA_OUTPUT" ]; then _log "No ALSA output selected."; exit 1; fi
 ffmpeg -hide_banner -loglevel warning -f s16le -ar ${SAMPLE_RATE} -ac 2 -i "${MPX_STEREO_FIFO}" -f wav - | aplay -f S16_LE -c 2 -r ${SAMPLE_RATE} -D "${ALSA_OUTPUT}" &
 PLAY_PID=$!; _log "MPX playback started (pid ${PLAY_PID:-0})"
@@ -978,9 +1015,9 @@ RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
 SINK_NAME="prg${RADIO}in"
 if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   if [ "${RADIO}" = "1" ]; then
-    SINK_NAME="plughw:Loopback,0,0"
+    SINK_NAME="plughw:${LOOPBACK_CARD_REF},0,0"
   else
-    SINK_NAME="plughw:Loopback,0,1"
+    SINK_NAME="plughw:${LOOPBACK_CARD_REF},0,1"
   fi
   echo "[\$(date +'%F %T')] source${RADIO}: named sink unavailable; using fallback \${SINK_NAME}"
 fi
