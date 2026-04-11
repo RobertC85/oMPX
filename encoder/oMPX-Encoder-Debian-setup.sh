@@ -11,6 +11,7 @@ echo "[$(date +'%F %T')] oMPX installer starting..."
 
 OMPX_USER="oMPX"
 OMPX_HOME="/var/lib/ompx"
+OMPX_LOG_DIR="${OMPX_HOME}/logs"
 OMPX_SHELL="/bin/bash"
 SYS_SCRIPTS_DIR="/opt/mpx-radio"
 FIFOS_DIR="${SYS_SCRIPTS_DIR}/fifos"
@@ -822,7 +823,7 @@ echo "[WARNING] crontab command not found; skipping cron cleanup"
 fi
 echo "[INFO] Removing old files and directories..."
 rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
-rm -rf "${SYS_SCRIPTS_DIR}" "${LIQUIDSOAP_CONF_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log
+rm -rf "${SYS_SCRIPTS_DIR}" "${LIQUIDSOAP_CONF_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log
 rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
 echo "[INFO] Removing oMPX user..."
 if id -u "${OMPX_USER}" >/dev/null 2>&1; then userdel -r "${OMPX_USER}" || true; fi
@@ -846,7 +847,7 @@ echo "[WARNING] crontab command not found; skipping cron cleanup"
 fi
 echo "[INFO] Removing files and directories..."
 rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
-rm -rf "${SYS_SCRIPTS_DIR}" "${LIQUIDSOAP_CONF_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log
+rm -rf "${SYS_SCRIPTS_DIR}" "${LIQUIDSOAP_CONF_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log
 rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
 echo "[INFO] Removing oMPX user..."
 if id -u "${OMPX_USER}" >/dev/null 2>&1; then userdel -r "${OMPX_USER}" || true; fi
@@ -893,9 +894,11 @@ echo "[SUCCESS] Profile configuration created"
 # --- Create directories, install packages ---
 echo "[INFO] Creating system directories..."
 
-mkdir -p "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${LIQUIDSOAP_CONF_DIR}"
+mkdir -p "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${LIQUIDSOAP_CONF_DIR}" "${OMPX_LOG_DIR}"
 chown -R "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}"
+chown -R "${OMPX_USER}:${OMPX_USER}" "${OMPX_LOG_DIR}"
 chmod 755 "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${LIQUIDSOAP_CONF_DIR}"
+chmod 755 "${OMPX_LOG_DIR}"
 echo "[SUCCESS] Directories created at ${SYS_SCRIPTS_DIR}"
 
 echo "[INFO] Updating package lists..."
@@ -1223,7 +1226,7 @@ echo "[INFO] Creating ompx_add_source helper..."
 cat > "${OMPX_ADD}" <<'ADD'
 #!/usr/bin/env bash
 set -euo pipefail
-SYS_SCRIPTS_DIR="/opt/mpx-radio"; OMPX_USER="oMPX"; OMPX_HOME="/var/lib/ompx"; CRON_SLEEP=10; LIQUIDSOAP_CONF_DIR="/opt/mpx-radio/liquidsoap"
+SYS_SCRIPTS_DIR="/opt/mpx-radio"; OMPX_USER="oMPX"; OMPX_HOME="/var/lib/ompx"; OMPX_LOG_DIR="${OMPX_HOME}/logs"; CRON_SLEEP=10; LIQUIDSOAP_CONF_DIR="/opt/mpx-radio/liquidsoap"
 usage(){ cat <<USAGE
 Usage: $0 --radio 1|2 --url URL [--cron-user root|oMPX] [--start-now]
 Adds or updates an existing radio source URL and wrapper.
@@ -1237,6 +1240,12 @@ VAR="RADIO${RADIO}_URL"
 if grep -q "^${VAR}=" "$PROFILE"; then sed -i "s|^${VAR}=.*|${VAR}=\"${URL}\"|" "$PROFILE"; else echo "${VAR}=\"${URL}\"" >> "$PROFILE"; fi
 chown ${OMPX_USER}:${OMPX_USER} "$PROFILE"; chmod 644 "$PROFILE"
 WRAPPER="${SYS_SCRIPTS_DIR}/source${RADIO}.sh"
+LOG_FILE="${OMPX_LOG_DIR}/radio-opus${RADIO}.log"
+mkdir -p "${OMPX_LOG_DIR}"
+touch "${LOG_FILE}"
+chown "${OMPX_USER}:${OMPX_USER}" "${OMPX_LOG_DIR}" "${LOG_FILE}"
+chmod 755 "${OMPX_LOG_DIR}"
+chmod 664 "${LOG_FILE}"
 cat > "$WRAPPER" <<WRAP
 #!/usr/bin/env bash
 set -euo pipefail
@@ -1248,14 +1257,18 @@ export RADIO_URL="\${RADIO_URL_VALUE}"
 exec /usr/bin/liquidsoap "${LIQUIDSOAP_CONF_DIR}/radio${RADIO}.liq"
 WRAP
 chown ${OMPX_USER}:${OMPX_USER} "$WRAPPER"; chmod 750 "$WRAPPER"
-CRON_CMD="@reboot sleep ${CRON_SLEEP} && ${WRAPPER} >/var/log/radio-opus${RADIO}.log 2>&1 &"
+CRON_CMD="@reboot sleep ${CRON_SLEEP} && ${WRAPPER} >>${LOG_FILE} 2>&1 &"
 if command -v crontab >/dev/null 2>&1; then
   ( crontab -u "$CRON_USER" -l 2>/dev/null || true; echo "${CRON_CMD}" ) | crontab -u "$CRON_USER" -
 else
   echo "WARNING: crontab command not found; skipping cron setup for $CRON_USER" >&2
 fi
 if [ "${START_NOW}" -eq 1 ]; then
-if [ "$CRON_USER" = "root" ]; then nohup "${WRAPPER}" >/var/log/radio-opus${RADIO}.log 2>&1 & else su -s /bin/sh -c "nohup ${WRAPPER} >/var/log/radio-opus${RADIO}.log 2>&1 &" "${CRON_USER}"; fi
+if [ "$CRON_USER" = "root" ]; then
+  nohup "${WRAPPER}" >>"${LOG_FILE}" 2>&1 &
+else
+  su -s /bin/sh -c "nohup '${WRAPPER}' >>'${LOG_FILE}' 2>&1 &" "${CRON_USER}"
+fi
 fi
 echo "Updated ${VAR} in ${PROFILE} and ensured cron @reboot for ${CRON_USER}."
 ADD
@@ -1296,8 +1309,7 @@ set -euo pipefail
 
 OMPX_USER="oMPX"
 SYS_SCRIPTS_DIR="/opt/mpx-radio"
-LOG1="/var/log/radio-opus1.log"
-LOG2="/var/log/radio-opus2.log"
+OMPX_LOG_DIR="/var/lib/ompx/logs"
 
 usage(){ cat <<USAGE
 Usage: $0 [--start] [--shell]
@@ -1308,9 +1320,13 @@ USAGE
 }
 
 start_sources(){
+mkdir -p "${OMPX_LOG_DIR}"
+chown "${OMPX_USER}:${OMPX_USER}" "${OMPX_LOG_DIR}" 2>/dev/null || true
 for n in 1 2; do
 wrapper="${SYS_SCRIPTS_DIR}/source${n}.sh"
-log="/var/log/radio-opus${n}.log"
+log="${OMPX_LOG_DIR}/radio-opus${n}.log"
+touch "${log}" 2>/dev/null || true
+chown "${OMPX_USER}:${OMPX_USER}" "${log}" 2>/dev/null || true
 if ! pgrep -f "${wrapper}" >/dev/null 2>&1; then
 su -s /bin/sh -c "nohup '${wrapper}' >>'${log}' 2>&1 &" "${OMPX_USER}"
 fi
@@ -1331,7 +1347,7 @@ echo "[SUCCESS] start_or_shell wrapper created"
 # --- Install @reboot cron for oMPX to start sources at boot ---
 echo "[INFO] Setting up cron jobs..."
 
-CRON_LINE1="@reboot sleep ${CRON_SLEEP} && ${SYS_SCRIPTS_DIR}/start_or_shell.sh --start >/var/log/radio-opus-start.log 2>&1 &"
+CRON_LINE1="@reboot sleep ${CRON_SLEEP} && ${SYS_SCRIPTS_DIR}/start_or_shell.sh --start >>${OMPX_LOG_DIR}/radio-opus-start.log 2>&1 &"
 if have_crontab; then
 existing=$(crontab -u "${OMPX_USER}" -l 2>/dev/null || true)
 new_cron="${existing}"
