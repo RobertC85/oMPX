@@ -83,26 +83,131 @@ render_asound_config(){
   cat <<EOF
 # oMPX ALSA virtual PCM map (auto-generated)
 
-pcm.prg1in { type plug slave.pcm "hw:${card_ref},0,0" }
-pcm.prg1in_cap { type plug slave.pcm "hw:${card_ref},1,0" }
+pcm.prg1in {
+  type plug
+  slave.pcm "hw:${card_ref},0,0"
+  hint {
+    show on
+    description "oMPX Program 1 Input (write/playback)"
+  }
+}
 
-pcm.prg2in { type plug slave.pcm "hw:${card_ref},0,1" }
-pcm.prg2in_cap { type plug slave.pcm "hw:${card_ref},1,1" }
+pcm.prg1in_cap {
+  type plug
+  slave.pcm "hw:${card_ref},1,0"
+  hint {
+    show on
+    description "oMPX Program 1 Input Capture (read/capture)"
+  }
+}
 
-pcm.prg1prev { type plug slave.pcm "hw:${card_ref},0,2" }
-pcm.prg1prev_cap { type plug slave.pcm "hw:${card_ref},1,2" }
+pcm.prg2in {
+  type plug
+  slave.pcm "hw:${card_ref},0,1"
+  hint {
+    show on
+    description "oMPX Program 2 Input (write/playback)"
+  }
+}
 
-pcm.prg2prev { type plug slave.pcm "hw:${card_ref},0,3" }
-pcm.prg2prev_cap { type plug slave.pcm "hw:${card_ref},1,3" }
+pcm.prg2in_cap {
+  type plug
+  slave.pcm "hw:${card_ref},1,1"
+  hint {
+    show on
+    description "oMPX Program 2 Input Capture (read/capture)"
+  }
+}
 
-pcm.prg1mpx { type plug slave.pcm "hw:${card_ref},0,4" }
-pcm.prg2mpx { type plug slave.pcm "hw:${card_ref},0,5" }
+pcm.prg1prev {
+  type plug
+  slave.pcm "hw:${card_ref},0,2"
+  hint {
+    show on
+    description "oMPX Program 1 Preview (write/playback)"
+  }
+}
 
-pcm.dsca_src { type plug slave.pcm "hw:${card_ref},0,6" }
-pcm.dsca_src_cap { type plug slave.pcm "hw:${card_ref},1,6" }
+pcm.prg1prev_cap {
+  type plug
+  slave.pcm "hw:${card_ref},1,2"
+  hint {
+    show on
+    description "oMPX Program 1 Preview Capture (read/capture)"
+  }
+}
 
-pcm.dsca_injection { type plug slave.pcm "hw:${card_ref},0,7" }
-pcm.mpx_to_icecast { type plug slave.pcm "hw:${card_ref},0,8" }
+pcm.prg2prev {
+  type plug
+  slave.pcm "hw:${card_ref},0,3"
+  hint {
+    show on
+    description "oMPX Program 2 Preview (write/playback)"
+  }
+}
+
+pcm.prg2prev_cap {
+  type plug
+  slave.pcm "hw:${card_ref},1,3"
+  hint {
+    show on
+    description "oMPX Program 2 Preview Capture (read/capture)"
+  }
+}
+
+pcm.prg1mpx {
+  type plug
+  slave.pcm "hw:${card_ref},0,4"
+  hint {
+    show on
+    description "oMPX Program 1 MPX Output"
+  }
+}
+
+pcm.prg2mpx {
+  type plug
+  slave.pcm "hw:${card_ref},0,5"
+  hint {
+    show on
+    description "oMPX Program 2 MPX Output"
+  }
+}
+
+pcm.dsca_src {
+  type plug
+  slave.pcm "hw:${card_ref},0,6"
+  hint {
+    show on
+    description "oMPX DSCA Source (write/playback)"
+  }
+}
+
+pcm.dsca_src_cap {
+  type plug
+  slave.pcm "hw:${card_ref},1,6"
+  hint {
+    show on
+    description "oMPX DSCA Source Capture (read/capture)"
+  }
+}
+
+pcm.dsca_injection {
+  type plug
+  slave.pcm "hw:${card_ref},0,7"
+  hint {
+    show on
+    description "oMPX DSCA Injection"
+  }
+}
+
+pcm.mpx_to_icecast {
+  type plug
+  slave.pcm "hw:${card_ref},0,8"
+  hint {
+    show on
+    description "oMPX MPX To Icecast"
+  }
+}
 EOF
 }
 
