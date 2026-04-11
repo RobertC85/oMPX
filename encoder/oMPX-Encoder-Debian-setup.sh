@@ -12,56 +12,163 @@ echo "[$(date +'%F %T')] oMPX installer starting..."
 OMPX_USER="oMPX"
 OMPX_HOME="/var/lib/ompx"
 OMPX_LOG_DIR="${OMPX_HOME}/logs"
-RADIO_URL_VALUE="${!RADIO_VAR_NAME:-}"
-  slave.channels 2
-  hint { show on; description "Program 1 Input" }
-}
-  echo "[$(date +'%F %T')] source${n}: RADIO${n}_URL is empty/placeholder; exiting"
-  type plug
-RADIO_URL_VALUE="${!RADIO_VAR_NAME:-}"
-  if [ -n "${card}" ]; then
-    printf '  %-15s -> hw:%s,0\n' "$id" "$card"
-  else
-  echo "[$(date +'%F %T')] source${n}: RADIO${n}_URL is empty/placeholder; exiting"
-done
-count=$(awk -F'[][]' '/program1in|program1preview|program2in|program2preview|dscasource|program1mpxsrc|program2mpxsrc|dscainjectionsrc|mpxmix|ompxaux1|ompxaux2/{c++} END{print c+0}' /proc/asound/cards 2>/dev/null)
-if [ "${count:-0}" -lt 6 ]; then
-  echo ""
-  echo "WARNING: kernel currently exposes ${count:-0} oMPX loopback cards; it may have collapsed to a single Loopback card with subdevices."
+OMPX_SHELL="/bin/bash"
+SYS_SCRIPTS_DIR="/opt/mpx-radio"
+FIFOS_DIR="${SYS_SCRIPTS_DIR}/fifos"
+LIQUIDSOAP_CONF_DIR="${SYS_SCRIPTS_DIR}/liquidsoap"
+SYSTEMD_DIR="/etc/systemd/system"
+OMPX_ENCODER_LIQ="/usr/local/bin/ompx_encoder.liq"
+OMPX_ENCODER_RUN="/usr/local/bin/ompx_encoder"
+STEREO_TOOL_WRAPPER="/usr/local/bin/stereo-tool"
+OMPX_ADD="/usr/local/bin/ompx_add_source"
+ASOUND_CONF_PATH="/etc/asound.conf"
+ASOUND_MAP_HELPER="/usr/local/bin/asound-map"
+ASOUND_SWITCH_HELPER="/usr/local/bin/asound-switch"
+SAMPLE_RATE=192000
+CRON_SLEEP=10
+
+# These can be overridden by exporting env vars before running the installer.
+RADIO1_URL="${RADIO1_URL:-https://example-icecast.local:8443/radio1.opus}"
+RADIO2_URL="${RADIO2_URL:-https://example-icecast.local:8443/radio2.opus}"
+AUTO_UPDATE_STREAM_URLS_FROM_HEADER="${AUTO_UPDATE_STREAM_URLS_FROM_HEADER:-true}"
+AUTO_START_STREAMS_FROM_HEADER="${AUTO_START_STREAMS_FROM_HEADER:-false}"
+CONFIG_OVERWRITE="${CONFIG_OVERWRITE:-true}"
+CONFIG_BACKUP="${CONFIG_BACKUP:-true}"
+CONFIG_SKIP="${CONFIG_SKIP:-false}"
+
+OS_ID="unknown"
+if [ -r /etc/os-release ]; then
+  . /etc/os-release
+  OS_ID="${ID:-unknown}"
 fi
+IS_PROXMOX=false
+[[ "$(uname -r)" == *"pve"* ]] && IS_PROXMOX=true
+KERNEL_HELPER_PACKAGE=""
+
+_log(){
+  logger -t mpx "$*" 2>/dev/null || true
+  echo "$(date +'%F %T') $*"
+}
+
+have_crontab(){
+  command -v crontab >/dev/null 2>&1
+}
+
+safe_apt_update(){
+  DEBIAN_FRONTEND=noninteractive apt update -y || true
+}
+
+load_ompx_aloop_profile(){
+  modprobe snd_aloop enable=1 pcm_substreams=2
+}
+
+if [ "${EUID}" -ne 0 ]; then
+  echo "[ERROR] This script must be run as root"
+  exit 1
+fi
+
+# Interactive confirmations for ALSA config behavior.
+# Keep current defaults when running non-interactively.
+if [ -t 0 ]; then
+  echo ""
+  echo "ALSA configuration options:"
+  echo "  Y) Manage /etc/asound.conf during install"
+  echo "  N) Skip asound.conf changes"
+  read -t 30 -p "Manage ALSA config now? [Y/n] (default Y): " cfg_manage || cfg_manage="Y"
+  cfg_manage=${cfg_manage^^}
+
+  if [ "${cfg_manage}" = "N" ]; then
+    CONFIG_SKIP=true
+    echo "[INFO] CONFIG_SKIP=true (asound.conf changes disabled)"
+  else
+    CONFIG_SKIP=false
+    if [ -f "${ASOUND_CONF_PATH}" ]; then
+      read -t 30 -p "Overwrite ${ASOUND_CONF_PATH}? [Y/n] (default Y): " cfg_overwrite || cfg_overwrite="Y"
+      cfg_overwrite=${cfg_overwrite^^}
+      if [ "${cfg_overwrite}" = "N" ]; then
+        CONFIG_OVERWRITE=false
+        echo "[INFO] CONFIG_OVERWRITE=false (keeping existing asound.conf)"
+      else
+        CONFIG_OVERWRITE=true
+        read -t 30 -p "Backup existing asound.conf first? [Y/n] (default Y): " cfg_backup || cfg_backup="Y"
+        cfg_backup=${cfg_backup^^}
+        if [ "${cfg_backup}" = "N" ]; then
+          CONFIG_BACKUP=false
+        else
+          CONFIG_BACKUP=true
+        fi
+        echo "[INFO] CONFIG_OVERWRITE=true CONFIG_BACKUP=${CONFIG_BACKUP}"
+      fi
+    fi
+  fi
+
+  echo ""
+  echo "Stream configuration options:"
+  echo "  H) Read config header (use RADIO1_URL/RADIO2_URL already in script/env)"
+  echo "  D) Define now (enter stream URLs during install)"
+  echo "  L) Define later (skip stream setup during install)"
+  read -t 45 -p "Choose stream setup mode [H/D/L] (default H): " cfg_stream_mode || cfg_stream_mode="H"
+  cfg_stream_mode=${cfg_stream_mode^^}
+
+  case "${cfg_stream_mode}" in
+    D)
+      read -t 120 -p "Enter RADIO1_URL (leave empty to keep current): " cfg_radio1 || cfg_radio1=""
+      read -t 120 -p "Enter RADIO2_URL (leave empty to keep current): " cfg_radio2 || cfg_radio2=""
+      if [ -n "${cfg_radio1}" ]; then RADIO1_URL="${cfg_radio1}"; fi
+      if [ -n "${cfg_radio2}" ]; then RADIO2_URL="${cfg_radio2}"; fi
+      AUTO_UPDATE_STREAM_URLS_FROM_HEADER=true
+      read -t 30 -p "Start configured streams immediately when valid? [y/N] (default N): " cfg_autostart || cfg_autostart="N"
+      cfg_autostart=${cfg_autostart^^}
+      if [ "${cfg_autostart}" = "Y" ]; then
+        AUTO_START_STREAMS_FROM_HEADER=true
+      else
+        AUTO_START_STREAMS_FROM_HEADER=false
+      fi
+      ;;
+    L)
+      AUTO_UPDATE_STREAM_URLS_FROM_HEADER=false
+      AUTO_START_STREAMS_FROM_HEADER=false
+      echo "[INFO] Stream URLs will be defined after installation via ${OMPX_ADD}."
+      ;;
+    *)
+      read -t 30 -p "Sync header stream URLs during install? [Y/n] (default Y): " cfg_sync_header || cfg_sync_header="Y"
+      cfg_sync_header=${cfg_sync_header^^}
+      if [ "${cfg_sync_header}" = "N" ]; then
+        AUTO_UPDATE_STREAM_URLS_FROM_HEADER=false
+        AUTO_START_STREAMS_FROM_HEADER=false
+      else
+        AUTO_UPDATE_STREAM_URLS_FROM_HEADER=true
+        read -t 30 -p "Start header streams immediately when valid? [y/N] (default N): " cfg_start_header || cfg_start_header="N"
+        cfg_start_header=${cfg_start_header^^}
+        if [ "${cfg_start_header}" = "Y" ]; then
+          AUTO_START_STREAMS_FROM_HEADER=true
+        else
+          AUTO_START_STREAMS_FROM_HEADER=false
+        fi
+      fi
+      ;;
+  esac
+fi
+
+cat > "${ASOUND_MAP_HELPER}" <<'ASMAP'
+#!/usr/bin/env bash
+set -euo pipefail
+echo "oMPX sink map helper"
+echo "--------------------"
+for id in prg1in prg1prev prg2in prg2prev dsca_src prg1mpx prg2mpx dsca_injection mpx_to_icecast; do
+  printf '  %s\n' "$id"
+done
 ASMAP
 chmod 755 "${ASOUND_MAP_HELPER}"
 chown root:root "${ASOUND_MAP_HELPER}"
-echo "[SUCCESS] Created ${ASOUND_MAP_HELPER} helper"
 
-if [ "$CONFIG_OVERWRITE" = false ]; then
-echo "[INFO] Keeping existing ALSA configuration unchanged"
-echo "[INFO] Staged test profile only. Promote it with: sudo ${ASOUND_SWITCH_HELPER}"
-else
-echo "[INFO] Writing /etc/asound.conf..."
-
-if [ -f "${ASOUND_CONF_PATH}" ]; then
-if ! cmp -s <(printf '%s' "${WANT_ASOUND_TEST}") "${ASOUND_CONF_PATH}"; then
-if [ "$CONFIG_BACKUP" = true ]; then
-cp -a "${ASOUND_CONF_PATH}" "${ASOUND_CONF_PATH}.bak.$(date +%s)" || true
-echo "[INFO] Backed up existing ${ASOUND_CONF_PATH}"
-fi
-printf '%s' "${WANT_ASOUND_TEST}" > "${ASOUND_CONF_PATH}"
-chmod 644 "${ASOUND_CONF_PATH}" || true
-_log "Updated ${ASOUND_CONF_PATH}."
-echo "[SUCCESS] ALSA config updated"
-else
-_log "${ASOUND_CONF_PATH} already matches desired content."
-echo "[INFO] ALSA config already current"
-fi
-else
-printf '%s' "${WANT_ASOUND_TEST}" > "${ASOUND_CONF_PATH}"
-chmod 644 "${ASOUND_CONF_PATH}" || true
-_log "Wrote ${ASOUND_CONF_PATH}."
-echo "[SUCCESS] ALSA config created"
-fi
-fi
-fi
+cat > "${ASOUND_SWITCH_HELPER}" <<'ASWITCH'
+#!/usr/bin/env bash
+set -euo pipefail
+echo "No staged ALSA profile switch is required in this installer version."
+ASWITCH
+chmod 755 "${ASOUND_SWITCH_HELPER}"
+chown root:root "${ASOUND_SWITCH_HELPER}"
 # --- Check existing installation ---
 echo "[INFO] Checking for existing oMPX installation..."
 
@@ -369,31 +476,21 @@ cat > "${SYS_SCRIPTS_DIR}/source${n}.sh" <<WRAP
 #!/usr/bin/env bash
 set -euo pipefail
 PROFILE="${OMPX_HOME}/.profile"
-[ -f "$PROFILE" ] && . "$PROFILE"
+[ -f "\$PROFILE" ] && . "\$PROFILE"
 RADIO_VAR_NAME="RADIO${n}_URL"
-RADIO_URL_VALUE="
-  "; RADIO_URL_VALUE="
-  "
-RADIO_URL_VALUE="
-  " # keep shellcheck quiet in generated file context
-RADIO_URL_VALUE="
-  " # overwritten on next line at runtime
-RADIO_URL_VALUE="
-  "
-RADIO_URL_VALUE="${!RADIO_VAR_NAME:-}"
+RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
 SINK_NAME="prg${n}in"
 
-if [ -z "${RADIO_URL_VALUE}" ] || [[ "${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
-  echo "[
-    t	date +'%F %T'] source${n}: RADIO${n}_URL is empty/placeholder; exiting"
+if [ -z "\${RADIO_URL_VALUE}" ] || [[ "\${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "\${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
+  echo "[\$(date +'%F %T')] source${n}: RADIO${n}_URL is empty/placeholder; exiting"
   exit 0
 fi
 
 while true; do
-  ffmpeg -re -thread_queue_size 10240 -i "${RADIO_URL_VALUE}" \
+  ffmpeg -re -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
     -content_type "audio/ogg" \
     -max_delay 5000000 \
-    -ar ${SAMPLE_RATE} -ac 2 -f alsa "${SINK_NAME}" || true
+    -ar ${SAMPLE_RATE} -ac 2 -f alsa "\${SINK_NAME}" || true
   sleep 5
 done
 WRAP
