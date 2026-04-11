@@ -986,6 +986,21 @@ cat > "${OMPX_ADD}" <<'ADD'
 #!/usr/bin/env bash
 set -euo pipefail
 SYS_SCRIPTS_DIR="/opt/mpx-radio"; OMPX_USER="oMPX"; OMPX_HOME="/var/lib/ompx"; OMPX_LOG_DIR="${OMPX_HOME}/logs"; CRON_SLEEP=10; LIQUIDSOAP_CONF_DIR="/opt/mpx-radio/liquidsoap"
+detect_loopback_card_ref(){
+  local card_ref=""
+  card_ref=$(aplay -l 2>/dev/null | awk '/\[Loopback\]/{gsub(":", "", $2); print $2; exit}')
+  if [ -n "$card_ref" ]; then
+    echo "$card_ref"
+    return 0
+  fi
+  card_ref=$(awk -F'[][]' '/Loopback/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); split($1, a, /[[:space:]]+/); print a[1]; exit}' /proc/asound/cards 2>/dev/null)
+  if [ -n "$card_ref" ]; then
+    echo "$card_ref"
+    return 0
+  fi
+  echo "Loopback"
+}
+LOOPBACK_CARD_REF="${LOOPBACK_CARD_REF:-$(detect_loopback_card_ref)}"
 usage(){ cat <<USAGE
 Usage: $0 --radio 1|2 --url URL [--cron-user root|oMPX] [--start-now]
 Adds or updates an existing radio source URL and wrapper.
