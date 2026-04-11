@@ -259,9 +259,12 @@ cp -a /etc/modprobe.d/snd-aloop.conf /etc/modprobe.d/snd-aloop.conf.bak.$(date +
 echo "[INFO] Backed up existing /etc/modprobe.d/snd-aloop.conf"
 fi
 cat > /etc/modprobe.d/snd-aloop.conf <<'EOF'
-options snd-aloop pcm_substreams=16
+options snd-aloop enable=1,1,1,1,1,1,1,1
+options snd-aloop index=-2,-2,-2,-2,-2,-2,-2,-2
+options snd-aloop id=ompx_prg1in,ompx_prg1prev,ompx_prg2in,ompx_prg2prev,ompx_dsca_src,ompx_mpx_mix,ompx_aux1,ompx_aux2
+options snd-aloop pcm_substreams=2,2,2,2,2,2,2,2
 EOF
-echo "[INFO] Created /etc/modprobe.d/snd-aloop.conf with pcm_substreams=16"
+echo "[INFO] Created /etc/modprobe.d/snd-aloop.conf for 8 separate named loopback cards"
 fi
 echo "[INFO] Attempting to load snd_aloop module..."
 modprobe snd_aloop 2>/dev/null && echo "[SUCCESS] snd_aloop loaded" || {
@@ -271,12 +274,6 @@ modprobe snd_aloop 2>/dev/null && echo "[SUCCESS] snd_aloop loaded" || {
 }
 # --- Prepare desired /etc/asound.conf content ---
 echo "[INFO] Preparing ALSA asound.conf configuration..."
-
-LOOPBACK_CARD_ID="$(awk -F'[][]' '/Loopback/{print $2; exit}' /proc/asound/cards 2>/dev/null || true)"
-if [ -z "${LOOPBACK_CARD_ID}" ]; then
-  LOOPBACK_CARD_ID="Loopback"
-fi
-echo "[INFO] Using ALSA loopback card id for sink mapping: ${LOOPBACK_CARD_ID}"
 
 WANT_ASOUND=$(cat <<'ASND'
 # /etc/asound.conf - oMPX multi-sinks at 192000 Hz
@@ -405,16 +402,16 @@ defaults.namehint.extended on
 
 # Minimal oMPX sink set for Stereo Tool Enterprise style routing.
 # Hardware mapping:
-# - __LOOPBACK_CARD_ID__,0,0: Program 1 input
-# - __LOOPBACK_CARD_ID__,0,1: Program 1 preview
-# - __LOOPBACK_CARD_ID__,0,2: Program 2 input
-# - __LOOPBACK_CARD_ID__,0,3: Program 2 preview
-# - __LOOPBACK_CARD_ID__,0,4: DSCA source input
-# - __LOOPBACK_CARD_ID__,1,0: Final MPX output
+# - ompx_prg1in,0,0: Program 1 input
+# - ompx_prg1prev,0,0: Program 1 preview
+# - ompx_prg2in,0,0: Program 2 input
+# - ompx_prg2prev,0,0: Program 2 preview
+# - ompx_dsca_src,0,0: DSCA source input
+# - ompx_mpx_mix,0,0: Final MPX mix/output
 
 pcm.prg1in {
   type plug
-  slave.pcm "hw:__LOOPBACK_CARD_ID__,0,0"
+  slave.pcm "hw:ompx_prg1in,0,0"
   slave.rate 192000
   slave.channels 2
   hint { show on; description "Program 1 Input" }
@@ -422,7 +419,7 @@ pcm.prg1in {
 
 pcm.prg1prev {
   type plug
-  slave.pcm "hw:__LOOPBACK_CARD_ID__,0,1"
+  slave.pcm "hw:ompx_prg1prev,0,0"
   slave.rate 192000
   slave.channels 2
   hint { show on; description "Program 1 Preview" }
@@ -430,7 +427,7 @@ pcm.prg1prev {
 
 pcm.prg2in {
   type plug
-  slave.pcm "hw:__LOOPBACK_CARD_ID__,0,2"
+  slave.pcm "hw:ompx_prg2in,0,0"
   slave.rate 192000
   slave.channels 2
   hint { show on; description "Program 2 Input" }
@@ -438,7 +435,7 @@ pcm.prg2in {
 
 pcm.prg2prev {
   type plug
-  slave.pcm "hw:__LOOPBACK_CARD_ID__,0,3"
+  slave.pcm "hw:ompx_prg2prev,0,0"
   slave.rate 192000
   slave.channels 2
   hint { show on; description "Program 2 Preview" }
@@ -446,7 +443,7 @@ pcm.prg2prev {
 
 pcm.dsca_src {
   type plug
-  slave.pcm "hw:__LOOPBACK_CARD_ID__,0,4"
+  slave.pcm "hw:ompx_dsca_src,0,0"
   slave.rate 192000
   slave.channels 2
   hint { show on; description "DSCA Source" }
@@ -456,7 +453,7 @@ pcm.mpx_mix {
   type dmix
   ipc_key 2048
   slave {
-    pcm "hw:__LOOPBACK_CARD_ID__,1,0"
+    pcm "hw:ompx_mpx_mix,0,0"
     rate 192000
     channels 2
     format "S16_LE"
@@ -504,11 +501,9 @@ pcm.mpx_to_icecast {
 }
 
 pcm.!default { type plug; slave.pcm "mpx_to_icecast" }
-ctl.!default { type hw; card __LOOPBACK_CARD_ID__ }
+ctl.!default { type hw; card ompx_mpx_mix }
 ASND_TEST
 )
-
-WANT_ASOUND_TEST="${WANT_ASOUND_TEST//__LOOPBACK_CARD_ID__/${LOOPBACK_CARD_ID}}"
 # --- Write /etc/asound.conf ---
 
 if [ "$CONFIG_SKIP" = true ]; then
@@ -571,30 +566,35 @@ cat > "${ASOUND_MAP_HELPER}" <<'ASMAP'
 #!/usr/bin/env bash
 set -euo pipefail
 
-LOOPBACK_CARD_ID="$(awk -F'[][]' '/Loopback/{print $2; exit}' /proc/asound/cards 2>/dev/null || true)"
-if [ -z "${LOOPBACK_CARD_ID}" ]; then
-  echo "Loopback card not detected. Ensure snd_aloop is loaded." >&2
-  exit 1
-fi
-
 cat <<EOF
-Detected loopback card ID: ${LOOPBACK_CARD_ID}
+Configured loopback card IDs:
+  ompx_prg1in
+  ompx_prg1prev
+  ompx_prg2in
+  ompx_prg2prev
+  ompx_dsca_src
+  ompx_mpx_mix
+  ompx_aux1
+  ompx_aux2
 
-prg1in         -> hw:${LOOPBACK_CARD_ID},0,0
-prg1prev       -> hw:${LOOPBACK_CARD_ID},0,1
-prg2in         -> hw:${LOOPBACK_CARD_ID},0,2
-prg2prev       -> hw:${LOOPBACK_CARD_ID},0,3
-dsca_src       -> hw:${LOOPBACK_CARD_ID},0,4
+prg1in         -> hw:ompx_prg1in,0,0
+prg1prev       -> hw:ompx_prg1prev,0,0
+prg2in         -> hw:ompx_prg2in,0,0
+prg2prev       -> hw:ompx_prg2prev,0,0
+dsca_src       -> hw:ompx_dsca_src,0,0
 
-prg1mpx        -> mpx_mix -> hw:${LOOPBACK_CARD_ID},1,0
-prg2mpx        -> mpx_mix -> hw:${LOOPBACK_CARD_ID},1,0
-dsca_injection -> mpx_mix -> hw:${LOOPBACK_CARD_ID},1,0
-mpx_to_icecast -> mpx_mix -> hw:${LOOPBACK_CARD_ID},1,0
+prg1mpx        -> mpx_mix -> hw:ompx_mpx_mix,0,0
+prg2mpx        -> mpx_mix -> hw:ompx_mpx_mix,0,0
+dsca_injection -> mpx_mix -> hw:ompx_mpx_mix,0,0
+mpx_to_icecast -> mpx_mix -> hw:ompx_mpx_mix,0,0
 EOF
 
 echo ""
 echo "Named PCM entries visible to apps:"
 aplay -L 2>/dev/null | grep -E '^(prg1in|prg2in|prg1prev|prg2prev|prg1mpx|prg2mpx|dsca_src|dsca_injection|mpx_to_icecast)$' || true
+echo ""
+echo "Detected ALSA cards for oMPX loopbacks:"
+awk -F'[][]' '/ompx_prg1in|ompx_prg1prev|ompx_prg2in|ompx_prg2prev|ompx_dsca_src|ompx_mpx_mix|ompx_aux1|ompx_aux2/{print $1"["$2"]"}' /proc/asound/cards 2>/dev/null || true
 ASMAP
 chmod 755 "${ASOUND_MAP_HELPER}"
 chown root:root "${ASOUND_MAP_HELPER}"
