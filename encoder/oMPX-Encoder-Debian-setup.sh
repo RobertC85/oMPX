@@ -485,16 +485,64 @@ elif [ "${CONFIG_OVERWRITE}" = false ]; then
   echo "[INFO] Skipping live ALSA named-PCM validation because config was staged, not applied"
   echo "[INFO] Promote the staged config first with: sudo ${ASOUND_SWITCH_HELPER}"
 else
-  if ! aplay -L 2>/dev/null | grep -q '^prg1in$'; then
-    echo "[ERROR] Named PCM prg1in is missing. This is the write/playback endpoint for Program 1 input. Check ${ASOUND_CONF_PATH} and snd_aloop state."
-    echo "[ERROR] Run: aplay -L | grep -E 'prg1in|prg1in_cap'"
-    exit 1
-  fi
-  if ! arecord -L 2>/dev/null | grep -q '^prg1in_cap$'; then
-    echo "[ERROR] Named PCM prg1in_cap is missing. This is the read/capture endpoint for Program 1 input. Check ${ASOUND_CONF_PATH} and snd_aloop state."
-    echo "[ERROR] Run: arecord -L | grep -E 'prg1in|prg1in_cap'"
-    exit 1
-  fi
+  while true; do
+    playback_ok=0
+    capture_ok=0
+    if aplay -L 2>/dev/null | grep -Eq '(^|[[:space:]])prg1in($|[[:space:]])'; then playback_ok=1; fi
+    if arecord -L 2>/dev/null | grep -Eq '(^|[[:space:]])prg1in_cap($|[[:space:]])'; then capture_ok=1; fi
+
+    if [ "${playback_ok}" -eq 1 ] && [ "${capture_ok}" -eq 1 ]; then
+      break
+    fi
+
+    echo "[WARNING] Named PCM discovery did not return expected endpoints yet."
+    if [ "${playback_ok}" -ne 1 ]; then
+      echo "[WARNING] Missing from aplay -L: prg1in (write/playback endpoint)"
+    fi
+    if [ "${capture_ok}" -ne 1 ]; then
+      echo "[WARNING] Missing from arecord -L: prg1in_cap (read/capture endpoint)"
+    fi
+
+    if [ -f "${ASOUND_CONF_PATH}" ]; then
+      if grep -Eq '^[[:space:]]*pcm\.prg1in[[:space:]]*\{' "${ASOUND_CONF_PATH}" && grep -Eq '^[[:space:]]*pcm\.prg1in_cap[[:space:]]*\{' "${ASOUND_CONF_PATH}"; then
+        echo "[INFO] ${ASOUND_CONF_PATH} contains prg1in/prg1in_cap definitions."
+      else
+        echo "[WARNING] ${ASOUND_CONF_PATH} does not appear to contain both prg1in and prg1in_cap definitions."
+      fi
+    fi
+
+    echo "[INFO] Current matching devices from ALSA discovery:"
+    echo "[INFO] aplay -L | grep -E 'prg1in|prg1in_cap'"
+    aplay -L 2>/dev/null | grep -E 'prg1in|prg1in_cap' || true
+    echo "[INFO] arecord -L | grep -E 'prg1in|prg1in_cap'"
+    arecord -L 2>/dev/null | grep -E 'prg1in|prg1in_cap' || true
+
+    if [ -t 0 ]; then
+      echo "[PROMPT] Named PCM check is incomplete."
+      echo "  R) Retry discovery"
+      echo "  C) Continue anyway"
+      echo "  A) Abort installation"
+      read -t 60 -p "Select [R/C/A] (default R): " pcm_choice || pcm_choice="R"
+      pcm_choice=${pcm_choice^^}
+      case "${pcm_choice}" in
+        C)
+          echo "[WARNING] Continuing with incomplete named PCM discovery"
+          break
+          ;;
+        A)
+          echo "[ERROR] Aborting at user request due to named PCM check failure"
+          exit 1
+          ;;
+        *)
+          echo "[INFO] Retrying named PCM discovery..."
+          sleep 1
+          ;;
+      esac
+    else
+      echo "[ERROR] Non-interactive mode and named PCM check failed; aborting"
+      exit 1
+    fi
+  done
 fi
 
 if [ "${RUN_QUICK_AUDIO_TEST}" = true ] && [ "${CONFIG_SKIP}" = false ] && [ "${CONFIG_OVERWRITE}" = true ]; then
