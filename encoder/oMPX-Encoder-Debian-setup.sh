@@ -12,739 +12,17 @@ echo "[$(date +'%F %T')] oMPX installer starting..."
 OMPX_USER="oMPX"
 OMPX_HOME="/var/lib/ompx"
 OMPX_LOG_DIR="${OMPX_HOME}/logs"
-OMPX_SHELL="/bin/bash"
-SYS_SCRIPTS_DIR="/opt/mpx-radio"
-FIFOS_DIR="${SYS_SCRIPTS_DIR}/fifos"
-LIQUIDSOAP_CONF_DIR="${SYS_SCRIPTS_DIR}/liquidsoap"
-SYSTEMD_DIR="/etc/systemd/system"
-STEREO_TOOL_WRAPPER="/usr/local/bin/stereo-tool"
-OMPX_ADD="/usr/local/sbin/ompx_add_source"
-OMPX_ENCODER_LIQ="/usr/local/bin/ompx_encoder.liq"
-OMPX_ENCODER_RUN="/usr/local/bin/ompx_encoder"
-SAMPLE_RATE=192000
-RADIO1_URL="http://example-icecast.local:8000/mount1"
-RADIO2_URL="http://example-icecast.local:8000/mount2"
-CRON_SLEEP=10
-AUTO_UPDATE_STREAM_URLS_FROM_HEADER=true
-AUTO_START_STREAMS_FROM_HEADER=true
-
-ASOUND_CONF_PATH="/etc/asound.conf"
-ASOUND_TEST_PATH="/etc/asound.conf.ompx-test"
-ASOUND_SWITCH_HELPER="/usr/local/sbin/ompx_apply_asound_test"
-ASOUND_MAP_HELPER="/usr/local/sbin/ompx_show_sink_map"
-
-_log(){ logger -t mpx-installer "$*"; echo "$(date +'%F %T') $*"; }
-
-have_crontab(){ command -v crontab >/dev/null 2>&1; }
-
-ALOOP_IDS="program1in,program1preview,program2in,program2preview,dscasource,program1mpxsrc,program2mpxsrc,dscainjectionsrc,mpxmix,ompxaux1,ompxaux2"
-ALOOP_ENABLE="1,1,1,1,1,1,1,1,1,1,1"
-ALOOP_INDEX=""
-ALOOP_SUBSTREAMS="2,2,2,2,2,2,2,2,2,2,2"
-
-select_aloop_indices(){
-  local used idx count
-  local -a chosen=()
-  used=" $(awk '/^[[:space:]]*[0-9]+ \[/{gsub(":","",$1); print $1}' /proc/asound/cards 2>/dev/null | tr '\n' ' ') "
-  for idx in $(seq 8 31); do
-    if [[ "${used}" != *" ${idx} "* ]]; then
-      chosen+=("${idx}")
-      if [ "${#chosen[@]}" -eq 11 ]; then
-        break
-      fi
-    fi
-  done
-  if [ "${#chosen[@]}" -eq 11 ]; then
-    ALOOP_INDEX="$(IFS=,; echo "${chosen[*]}")"
-  else
-    ALOOP_INDEX="-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2"
-  fi
-  echo "[INFO] snd_aloop index profile: ${ALOOP_INDEX}"
-}
-
-show_stereotool_hw_map(){
-  local ids id card
-  ids="program1in program1preview program2in program2preview dscasource program1mpxsrc program2mpxsrc dscainjectionsrc mpxmix"
-  echo "[INFO] Stereo Tool hardware map (uses numeric hw card numbers):"
-  for id in ${ids}; do
-    card="$(awk -F'[][]' -v id="${id}" '$2==id {gsub(/^[[:space:]]+/,"",$1); split($1,a," "); print a[1]; exit}' /proc/asound/cards 2>/dev/null || true)"
-    if [ -n "${card}" ]; then
-      printf '[INFO]   %-15s -> hw:%s,0\n' "${id}" "${card}"
-    fi
-  done
-}
-
-load_ompx_aloop_profile(){
-  modprobe -r snd_aloop 2>/dev/null || true
-  modprobe snd_aloop \
-    enable="${ALOOP_ENABLE}" \
-    index="${ALOOP_INDEX}" \
-    id="${ALOOP_IDS}" \
-    pcm_substreams="${ALOOP_SUBSTREAMS}" 2>/dev/null
-}
-
-count_ompx_loopback_cards(){
-  awk -F'[][]' '/program1in|program1preview|program2in|program2preview|dscasource|program1mpxsrc|program2mpxsrc|dscainjectionsrc|mpxmix|ompxaux1|ompxaux2/{c++} END{print c+0}' /proc/asound/cards 2>/dev/null
-}
-
-fix_yarn_apt_repo(){
-  echo "[INFO] Attempting to repair Yarn APT repository signing setup..."
-  install -d -m 0755 /usr/share/keyrings
-  if command -v curl >/dev/null 2>&1 && command -v gpg >/dev/null 2>&1; then
-    if curl -fsSL https://dl.yarnpkg.com/debian/pubkey.gpg | gpg --dearmor > /usr/share/keyrings/yarn-archive-keyring.gpg; then
-      chmod 644 /usr/share/keyrings/yarn-archive-keyring.gpg
-      echo "deb [signed-by=/usr/share/keyrings/yarn-archive-keyring.gpg] https://dl.yarnpkg.com/debian/ stable main" > /etc/apt/sources.list.d/yarn.list
-      chmod 644 /etc/apt/sources.list.d/yarn.list
-      echo "[SUCCESS] Yarn keyring/source repaired"
-      return 0
-    fi
-  fi
-  echo "[WARNING] Could not repair Yarn keyring/source automatically"
-  return 1
-}
-
-disable_yarn_apt_repo(){
-  echo "[WARNING] Disabling Yarn APT repository entries to avoid blocking installation..."
-  if [ -f /etc/apt/sources.list ]; then
-    sed -i '/dl\.yarnpkg\.com\/debian/s|^|# disabled by oMPX installer: |' /etc/apt/sources.list || true
-  fi
-  shopt -s nullglob
-  for f in /etc/apt/sources.list.d/*.list; do
-    sed -i '/dl\.yarnpkg\.com\/debian/s|^|# disabled by oMPX installer: |' "$f" || true
-  done
-  shopt -u nullglob
-}
-
-safe_apt_update(){
-  local apt_log
-  apt_log="$(mktemp)"
-  if apt update 2>&1 | tee "$apt_log"; then
-    rm -f "$apt_log"
-    return 0
-  fi
-
-  if grep -Eqi 'dl\.yarnpkg\.com/debian|NO_PUBKEY 62D54FD4003F6525|not signed' "$apt_log"; then
-    echo "[WARNING] Detected Yarn repository signature issue during apt update"
-    fix_yarn_apt_repo || true
-    if apt update; then
-      rm -f "$apt_log"
-      return 0
-    fi
-    disable_yarn_apt_repo
-    apt update || { rm -f "$apt_log"; return 1; }
-    rm -f "$apt_log"
-    return 0
-  fi
-
-  rm -f "$apt_log"
-  return 1
-}
-
-cleanup_legacy_loopback(){
-  local ts
-  local cleaned=0
-  local f
-  ts="$(date +%s)"
-
-  echo "[INFO] Cleaning legacy loopback artifacts from previous installs (backup-first)..."
-
-  shopt -s nullglob
-  for f in /etc/modprobe.d/*aloop*.conf; do
-    if [ "$f" != "/etc/modprobe.d/snd-aloop.conf" ]; then
-      mv "$f" "${f}.bak.${ts}" || true
-      echo "[INFO] Moved legacy modprobe file: $f -> ${f}.bak.${ts}"
-      cleaned=1
-    fi
-  done
-  for f in /etc/modules-load.d/*aloop*.conf; do
-    if [ "$f" != "/etc/modules-load.d/snd-aloop.conf" ]; then
-      mv "$f" "${f}.bak.${ts}" || true
-      echo "[INFO] Moved legacy modules-load file: $f -> ${f}.bak.${ts}"
-      cleaned=1
-    fi
-  done
-  shopt -u nullglob
-
-  # Also clean old snd-aloop directives embedded in generic config files
-  # (e.g. /etc/modprobe.d/alsa-base.conf) from previous installs.
-  shopt -s nullglob
-  for f in /etc/modprobe.d/*.conf; do
-    if [ "$f" = "/etc/modprobe.d/snd-aloop.conf" ]; then
-      continue
-    fi
-    if grep -Eq '^[[:space:]]*(options|alias|install)[[:space:]]+snd[-_]aloop' "$f"; then
-      cp -a "$f" "${f}.bak.${ts}" || true
-      sed -i '/^[[:space:]]*\(options\|alias\|install\)[[:space:]]\+snd[-_]aloop\b/s|^|# disabled by oMPX installer (legacy aloop): |' "$f" || true
-      echo "[INFO] Disabled legacy snd-aloop lines in $f (backup: ${f}.bak.${ts})"
-      cleaned=1
-    fi
-  done
-  shopt -u nullglob
-
-  echo "[INFO] Reloading snd_aloop module to apply clean state..."
-  modprobe -r snd_aloop 2>/dev/null || true
-  if modprobe snd_aloop 2>/dev/null; then
-    echo "[SUCCESS] snd_aloop reloaded"
-  else
-    echo "[WARNING] Could not reload snd_aloop (continuing)"
-  fi
-
-  if [ "$cleaned" -eq 0 ]; then
-    echo "[INFO] No legacy loopback config artifacts found"
-  fi
-}
-
-if [ "$(id -u)" -ne 0 ]; then echo "Run as root: sudo $0" >&2; exit 1; fi
-
-# --- OS/environment detection (Debian, Ubuntu, Proxmox) ---
-OS_ID="unknown"
-OS_VERSION_ID="unknown"
-OS_PRETTY_NAME="unknown"
-if [ -r /etc/os-release ]; then
-  # shellcheck disable=SC1091
-  . /etc/os-release
-  OS_ID="${ID:-unknown}"
-  OS_VERSION_ID="${VERSION_ID:-unknown}"
-  OS_PRETTY_NAME="${PRETTY_NAME:-unknown}"
-fi
-
-IS_PROXMOX=false
-if [[ "$(uname -r)" == *pve* ]] || command -v pveversion >/dev/null 2>&1 || dpkg-query -W -f='${Status}' proxmox-ve 2>/dev/null | grep -q "install ok installed"; then
-  IS_PROXMOX=true
-fi
-
-KERNEL_HELPER_PACKAGE=""
-case "${OS_ID}" in
-  ubuntu)
-    KERNEL_HELPER_PACKAGE="linux-modules-extra-$(uname -r)"
-    ;;
-  debian)
-    # Debian does not generally use linux-modules-extra-* package naming.
-    KERNEL_HELPER_PACKAGE="linux-image-amd64"
-    ;;
-esac
-
-if [ "${IS_PROXMOX}" = true ]; then
-  # Keep running on Proxmox, but avoid forcing Debian/Ubuntu kernel helper assumptions.
-  KERNEL_HELPER_PACKAGE=""
-fi
-
-echo "[INFO] Detected OS: ${OS_PRETTY_NAME} (ID=${OS_ID}, VERSION_ID=${OS_VERSION_ID})"
-if [ "${IS_PROXMOX}" = true ]; then
-  echo "[INFO] Proxmox environment detected (kernel: $(uname -r)); installer will continue with workarounds (no hard stop)."
-fi
-
-# --- Config file handling options ---
-echo ""
-echo "How should existing configuration files be handled?"
-echo "  K) Keep existing config files unchanged (skip writing new ones)"
-echo "  B) Backup existing config files and overwrite with new ones"
-echo "  O) Overwrite existing config files without backup"
-echo "  S) Skip config file setup entirely"
-read -t 30 -p "Select [K/B/O/S] (default B): " config_action || true
-config_action="${config_action:-B}"
-config_action=${config_action^^}
-echo "[INFO] Config action selected: $config_action"
-
-case "$config_action" in
-K)
-echo "[INFO] Keeping existing config files unchanged"
-CONFIG_BACKUP=false
-CONFIG_OVERWRITE=false
-CONFIG_SKIP=true
-;;
-B)
-echo "[INFO] Will backup and overwrite config files"
-CONFIG_BACKUP=true
-CONFIG_OVERWRITE=true
-CONFIG_SKIP=false
-;;
-O)
-echo "[INFO] Will overwrite config files without backup"
-CONFIG_BACKUP=false
-CONFIG_OVERWRITE=true
-CONFIG_SKIP=false
-;;
-S)
-echo "[INFO] Skipping config file setup"
-CONFIG_BACKUP=false
-CONFIG_OVERWRITE=false
-CONFIG_SKIP=true
-;;
-*)
-echo "[INFO] Aborting due to invalid config action choice"
-exit 0
-;;
-esac
-
-echo ""
-echo "Optional legacy cleanup:" 
-echo "  If you have leftover loopback devices from older oMPX installs,"
-echo "  this can move old aloop config files to .bak and reload snd_aloop."
-read -t 30 -p "Run legacy loopback cleanup now? [y/N]: " cleanup_choice || true
-cleanup_choice="${cleanup_choice:-N}"
-if [[ "${cleanup_choice^^}" == "Y" ]]; then
-  cleanup_legacy_loopback
-else
-  echo "[INFO] Skipping legacy loopback cleanup"
-fi
-
-select_aloop_indices
-
-# --- Ensure snd_aloop loads and write modprobe options ---
-
-if [ "$CONFIG_SKIP" = true ]; then
-echo "[INFO] Skipping kernel module configuration as requested"
-else
-echo "[INFO] Setting up snd_aloop kernel module..."
-mkdir -p /etc/modules-load.d /etc/modprobe.d
-if [ "$CONFIG_BACKUP" = true ] && [ -f /etc/modules-load.d/snd-aloop.conf ]; then
-cp -a /etc/modules-load.d/snd-aloop.conf /etc/modules-load.d/snd-aloop.conf.bak.$(date +%s) || true
-echo "[INFO] Backed up existing /etc/modules-load.d/snd-aloop.conf"
-fi
-cat > /etc/modules-load.d/snd-aloop.conf <<'EOF'
-snd-aloop
-EOF
-echo "[INFO] Created /etc/modules-load.d/snd-aloop.conf"
-
-if [ "$CONFIG_BACKUP" = true ] && [ -f /etc/modprobe.d/snd-aloop.conf ]; then
-cp -a /etc/modprobe.d/snd-aloop.conf /etc/modprobe.d/snd-aloop.conf.bak.$(date +%s) || true
-echo "[INFO] Backed up existing /etc/modprobe.d/snd-aloop.conf"
-fi
-cat > /etc/modprobe.d/snd-aloop.conf <<EOF
-options snd-aloop enable=${ALOOP_ENABLE}
-options snd-aloop index=${ALOOP_INDEX}
-options snd-aloop id=${ALOOP_IDS}
-options snd-aloop pcm_substreams=${ALOOP_SUBSTREAMS}
-EOF
-echo "[INFO] Created /etc/modprobe.d/snd-aloop.conf for 8 separate named loopback cards"
-fi
-echo "[INFO] Attempting to load snd_aloop module..."
-load_ompx_aloop_profile && echo "[SUCCESS] snd_aloop loaded" || {
-    echo "[WARNING] Failed to load snd_aloop. Ensure you're running a standard Debian kernel (linux-image-amd64)."
-    echo "[WARNING] Audio routing will not work without this module."
-    read -p "Press Enter to continue anyway..." || true
-}
-OMPX_LOOPBACK_COUNT="$(count_ompx_loopback_cards)"
-if [ "${OMPX_LOOPBACK_COUNT:-0}" -lt 6 ]; then
-  echo "[WARNING] Kernel exposed ${OMPX_LOOPBACK_COUNT:-0} oMPX loopback cards, not the requested 8."
-  echo "[WARNING] Some kernels collapse snd_aloop into a single Loopback card with subdevices."
-  echo "[WARNING] Stereo Tool may then show one device with many subdevices."
-else
-  echo "[SUCCESS] Detected ${OMPX_LOOPBACK_COUNT} oMPX loopback cards"
-fi
-show_stereotool_hw_map
-# --- Prepare desired /etc/asound.conf content ---
-echo "[INFO] Preparing ALSA asound.conf configuration..."
-
-WANT_ASOUND=$(cat <<'ASND'
-# /etc/asound.conf - oMPX multi-sinks at 192000 Hz
-# All PCM devices operate at 192000 Hz (carrier frequency: 80kHz within 192kHz signal)
-
-pcm.format_192k {
-type rate
-slave {
-pcm "hw:Loopback,0,0"
-rate 192000
-channels 2
-}
-}
-
-pcm.format_192k_mono {
-type rate
-slave {
-pcm "hw:Loopback,0,0"
-rate 192000
-channels 1
-}
-}
-
-pcm.subcarrier_80k_hw {
-type rate
-slave {
-pcm "hw:Loopback,0,0"
-rate 192000
-channels 2
-}
-}
-# stereo dmix for named sinks (allows multiple clients)
-
-pcm.sink_dmix_192k {
-type dmix
-ipc_key 3333
-slave {
-pcm "format_192k"
-period_time 0
-period_size 4096
-buffer_size 65536
-channels 2
-}
-}
-# mono dmix for mpx inputs
-
-pcm.mono_dmix_192k {
-type dmix
-ipc_key 3334
-slave {
-pcm "format_192k_mono"
-period_time 0
-period_size 4096
-buffer_size 65536
-channels 1
-}
-}
-# Named stereo sinks (clients write stereo to these)
-
-pcm.ch1input   { type plug; slave.pcm "sink_dmix_192k"; }
-pcm.ch2input   { type plug; slave.pcm "sink_dmix_192k"; }
-pcm.ch1preview { type plug; slave.pcm "sink_dmix_192k"; }
-pcm.ch2preview { type plug; slave.pcm "sink_dmix_192k"; }
-pcm.dsca_src   { type plug; slave.pcm "sink_dmix_192k"; }
-# Named mono sinks for MPX content (clients write mono; we'll pan later)
-
-pcm.mpx1 { type plug; slave.pcm "mono_dmix_192k"; }
-pcm.mpx2 { type plug; slave.pcm "mono_dmix_192k"; }
-# mpx_final: combine/pan mpx1->left, mpx2->right into stereo at 192k and route to hw Loopback
-
-pcm.mpx_final_route {
-type route
-slave.pcm "format_192k"
-slave.channels 2
-ttable {
-0.0 1   # input channel 0 -> output channel 0 (left)
-1.1 1   # input channel 1 -> output channel 1 (right)
-}
-}
-# We construct a virtual device that reads two mono inputs (mpx1,mpx2), maps them to a 2-channel stream,
-# and outputs to hw:Loopback,0,0 at 192k.
-
-pcm.mpx_final {
-type plug
-slave.pcm "hw:Loopback,0,0"
-hint.description "MPX Final (192kHz L=mpx1 R=mpx2)"
-}
-# Provide a combined feed that takes mpx1/mpx2 mono and produces stereo for downstream apps:
-
-pcm.mpx_stereo_src {
-type multi
-slaves.a.pcm "mpx1"
-slaves.a.channels 1
-slaves.b.pcm "mpx2"
-slaves.b.channels 1
-bindings.0.slave a
-bindings.0.channel 0
-bindings.1.slave b
-bindings.1.channel 0
-}
-# A plug that converts the multi-source into a 2-channel stereo at 192k and sends to loopback playback
-
-pcm.mpx_final_playback {
-type plug
-slave.pcm "hw:Loopback,0,0"
-hint.description "MPX Final Playback (writes to loopback)"
-}
-# Subcarrier device: MPX subcarrier at 80kHz carrier frequency within 192kHz signal
-
-pcm.mpx_subcarrier_80k {
-type plug
-slave.pcm "subcarrier_80k_hw"
-hint.description "MPX Subcarrier (80kHz carrier in 192kHz signal)"
-}
-
-pcm.!default { type plug; slave.pcm "sink_dmix_192k"; }
-ctl.!default { type hw; card Loopback; }
-ASND
-)
-
-# Staged test profile from local updates. This file is written to
-# /etc/asound.conf.ompx-test and can be promoted later after validation.
-WANT_ASOUND_TEST=$(cat <<'ASND_TEST'
-defaults.namehint.showall off
-defaults.namehint.extended on
-
-# Minimal oMPX sink set for Stereo Tool Enterprise style routing.
-# Hardware mapping:
-# - program1in,0,0: Program 1 input
-# - program1preview,0,0: Program 1 preview
-# - program2in,0,0: Program 2 input
-# - program2preview,0,0: Program 2 preview
-# - dscasource,0,0: DSCA source input
-# - program1mpxsrc,0,0: Program 1 MPX pre-mix source
-# - program2mpxsrc,0,0: Program 2 MPX pre-mix source
-# - dscainjectionsrc,0,0: DSCA pre-mix injection source
-# - mpxmix,0,0: Final MPX mix/output
-
-pcm.prg1in {
-  type plug
-  slave.pcm "hw:program1in,0,0"
-  slave.rate 192000
+RADIO_URL_VALUE="${!RADIO_VAR_NAME:-}"
   slave.channels 2
   hint { show on; description "Program 1 Input" }
 }
-
-pcm.prg1in_cap {
+  echo "[$(date +'%F %T')] source${n}: RADIO${n}_URL is empty/placeholder; exiting"
   type plug
-  slave.pcm "hw:program1in,1,0"
-  slave.rate 192000
-  slave.channels 2
-  hint { show on; description "Program 1 Input Capture" }
-}
-
-pcm.prg1prev {
-  type plug
-  slave.pcm "hw:program1preview,0,0"
-  slave.rate 192000
-  slave.channels 2
-  hint { show on; description "Program 1 Preview" }
-}
-
-pcm.prg1prev_cap {
-  type plug
-  slave.pcm "hw:program1preview,1,0"
-  slave.rate 192000
-  slave.channels 2
-  hint { show on; description "Program 1 Preview Capture" }
-}
-
-pcm.prg2in {
-  type plug
-  slave.pcm "hw:program2in,0,0"
-  slave.rate 192000
-  slave.channels 2
-  hint { show on; description "Program 2 Input" }
-}
-
-pcm.prg2in_cap {
-  type plug
-  slave.pcm "hw:program2in,1,0"
-  slave.rate 192000
-  slave.channels 2
-  hint { show on; description "Program 2 Input Capture" }
-}
-
-pcm.prg2prev {
-  type plug
-  slave.pcm "hw:program2preview,0,0"
-  slave.rate 192000
-  slave.channels 2
-  hint { show on; description "Program 2 Preview" }
-}
-
-pcm.prg2prev_cap {
-  type plug
-  slave.pcm "hw:program2preview,1,0"
-  slave.rate 192000
-  slave.channels 2
-  hint { show on; description "Program 2 Preview Capture" }
-}
-
-pcm.dsca_src {
-  type plug
-  slave.pcm "hw:dscasource,0,0"
-  slave.rate 192000
-  slave.channels 2
-  hint { show on; description "DSCA Source" }
-}
-
-pcm.dsca_src_cap {
-  type plug
-  slave.pcm "hw:dscasource,1,0"
-  slave.rate 192000
-  slave.channels 2
-  hint { show on; description "DSCA Source Capture" }
-}
-
-# Hardware-visible pre-mix sources for Stereo Tool hardware-only selection.
-pcm.prg1mpx_src {
-  type plug
-  slave.pcm "hw:program1mpxsrc,0,0"
-  slave.rate 192000
-  slave.channels 2
-  hint { show on; description "Program 1 MPX Source (pre-mix)" }
-}
-
-pcm.prg2mpx_src {
-  type plug
-  slave.pcm "hw:program2mpxsrc,0,0"
-  slave.rate 192000
-  slave.channels 2
-  hint { show on; description "Program 2 MPX Source (pre-mix)" }
-}
-
-pcm.dsca_injection_src {
-  type plug
-  slave.pcm "hw:dscainjectionsrc,0,0"
-  slave.rate 192000
-  slave.channels 2
-  hint { show on; description "DSCA Injection Source (pre-mix)" }
-}
-
-pcm.mpx_mix {
-  type dmix
-  ipc_key 2048
-  slave {
-    pcm "hw:mpxmix,0,0"
-    rate 192000
-    channels 2
-    format "S16_LE"
-    period_size 1024
-    buffer_size 8192
-  }
-  hint { show on; description "MPX Mix Bus" }
-}
-
-pcm.prg1mpx {
-  type route
-  slave.pcm "mpx_mix"
-  slave.channels 2
-  ttable.0.0 0.5
-  ttable.1.0 0.5
-  hint { show on; description "Program 1 MPX (mono -> left)" }
-}
-
-pcm.prg2mpx {
-  type route
-  slave.pcm "mpx_mix"
-  slave.channels 2
-  ttable.0.1 0.5
-  ttable.1.1 0.5
-  hint { show on; description "Program 2 MPX (mono -> right)" }
-}
-
-pcm.dsca_injection {
-  type route
-  slave.pcm "mpx_mix"
-  slave.channels 2
-  ttable.0.0 0.25
-  ttable.1.0 0.25
-  ttable.0.1 0.25
-  ttable.1.1 0.25
-  hint { show on; description "DSCA Injection (dual mono -> MPX)" }
-}
-
-pcm.mpx_to_icecast {
-  type plug
-  slave.pcm "mpx_mix"
-  slave.rate 192000
-  slave.channels 2
-  hint { show on; description "Final MPX to Icecast (192k stereo)" }
-}
-
-pcm.!default { type plug; slave.pcm "mpx_to_icecast" }
-ctl.!default { type hw; card mpxmix }
-ASND_TEST
-)
-# --- Write /etc/asound.conf ---
-
-if [ "$CONFIG_SKIP" = true ]; then
-echo "[INFO] Skipping ALSA configuration as requested"
-else
-echo "[INFO] Writing staged ALSA test profile to ${ASOUND_TEST_PATH}..."
-
-if [ -f "${ASOUND_TEST_PATH}" ]; then
-if ! cmp -s <(printf '%s' "${WANT_ASOUND_TEST}") "${ASOUND_TEST_PATH}"; then
-if [ "$CONFIG_BACKUP" = true ]; then
-cp -a "${ASOUND_TEST_PATH}" "${ASOUND_TEST_PATH}.bak.$(date +%s)" || true
-echo "[INFO] Backed up existing ${ASOUND_TEST_PATH}"
-fi
-printf '%s' "${WANT_ASOUND_TEST}" > "${ASOUND_TEST_PATH}"
-chmod 644 "${ASOUND_TEST_PATH}" || true
-_log "Updated ${ASOUND_TEST_PATH}."
-echo "[SUCCESS] ALSA test profile updated"
-else
-_log "${ASOUND_TEST_PATH} already matches desired test content."
-echo "[INFO] ALSA test profile already current"
-fi
-else
-printf '%s' "${WANT_ASOUND_TEST}" > "${ASOUND_TEST_PATH}"
-chmod 644 "${ASOUND_TEST_PATH}" || true
-_log "Wrote ${ASOUND_TEST_PATH}."
-echo "[SUCCESS] ALSA test profile created"
-fi
-
-cat > "${ASOUND_SWITCH_HELPER}" <<'ASWITCH'
-#!/usr/bin/env bash
-set -euo pipefail
-TEST_PATH="/etc/asound.conf.ompx-test"
-LIVE_PATH="/etc/asound.conf"
-
-if [ "$(id -u)" -ne 0 ]; then
-  echo "Run as root: sudo $0" >&2
-  exit 1
-fi
-
-if [ ! -f "${TEST_PATH}" ]; then
-  echo "Missing ${TEST_PATH}. Run the installer first to generate it." >&2
-  exit 1
-fi
-
-if [ -f "${LIVE_PATH}" ]; then
-  cp -a "${LIVE_PATH}" "${LIVE_PATH}.bak.$(date +%s)"
-  echo "Backed up ${LIVE_PATH}"
-fi
-
-cp -a "${TEST_PATH}" "${LIVE_PATH}"
-chmod 644 "${LIVE_PATH}" || true
-echo "Applied ${TEST_PATH} -> ${LIVE_PATH}"
-echo "Tip: run 'aplay -L | grep -E \"prg1in|prg1in_cap|prg2in|prg2in_cap|prg1prev|prg1prev_cap|prg2prev|prg2prev_cap|prg1mpx|prg2mpx|dsca_src|dsca_src_cap|dsca_injection|mpx_to_icecast\"' to verify devices."
-ASWITCH
-chmod 750 "${ASOUND_SWITCH_HELPER}"
-chown root:root "${ASOUND_SWITCH_HELPER}"
-echo "[SUCCESS] Created ${ASOUND_SWITCH_HELPER} helper"
-
-cat > "${ASOUND_MAP_HELPER}" <<'ASMAP'
-#!/usr/bin/env bash
-set -euo pipefail
-
-cat <<EOF
-Configured loopback card IDs:
-  program1in
-  program1preview
-  program2in
-  program2preview
-  dscasource
-  program1mpxsrc
-  program2mpxsrc
-  dscainjectionsrc
-  mpxmix
-  ompxaux1
-  ompxaux2
-
-prg1in         -> hw:program1in,0,0
-prg1in_cap     -> hw:program1in,1,0
-prg1prev       -> hw:program1preview,0,0
-prg1prev_cap   -> hw:program1preview,1,0
-prg2in         -> hw:program2in,0,0
-prg2in_cap     -> hw:program2in,1,0
-prg2prev       -> hw:program2preview,0,0
-prg2prev_cap   -> hw:program2preview,1,0
-dsca_src       -> hw:dscasource,0,0
-dsca_src_cap   -> hw:dscasource,1,0
-prg1mpx_src    -> hw:program1mpxsrc,0,0
-prg2mpx_src    -> hw:program2mpxsrc,0,0
-dsca_inj_src   -> hw:dscainjectionsrc,0,0
-
-prg1mpx        -> mpx_mix -> hw:mpxmix,0,0
-prg2mpx        -> mpx_mix -> hw:mpxmix,0,0
-dsca_injection -> mpx_mix -> hw:mpxmix,0,0
-mpx_to_icecast -> mpx_mix -> hw:mpxmix,0,0
-EOF
-
-echo ""
-echo "Named PCM entries visible to apps:"
-aplay -L 2>/dev/null | grep -E '^(prg1in|prg1in_cap|prg2in|prg2in_cap|prg1prev|prg1prev_cap|prg2prev|prg2prev_cap|dsca_src|dsca_src_cap|prg1mpx_src|prg2mpx_src|dsca_injection_src|prg1mpx|prg2mpx|dsca_injection|mpx_to_icecast)$' || true
-echo ""
-echo "Detected ALSA cards for oMPX loopbacks:"
-awk -F'[][]' '/program1in|program1preview|program2in|program2preview|dscasource|program1mpxsrc|program2mpxsrc|dscainjectionsrc|mpxmix|ompxaux1|ompxaux2/{print $1"["$2"]"}' /proc/asound/cards 2>/dev/null || true
-echo ""
-echo "Stereo Tool numeric hardware mapping:"
-for id in program1in program1preview program2in program2preview dscasource program1mpxsrc program2mpxsrc dscainjectionsrc mpxmix; do
-  card=$(awk -F'[][]' -v id="$id" '$2==id {gsub(/^[[:space:]]+/,"",$1); split($1,a," "); print a[1]; exit}' /proc/asound/cards 2>/dev/null || true)
+RADIO_URL_VALUE="${!RADIO_VAR_NAME:-}"
   if [ -n "${card}" ]; then
     printf '  %-15s -> hw:%s,0\n' "$id" "$card"
   else
-    printf '  %-15s -> not detected\n' "$id"
-  fi
+  echo "[$(date +'%F %T')] source${n}: RADIO${n}_URL is empty/placeholder; exiting"
 done
 count=$(awk -F'[][]' '/program1in|program1preview|program2in|program2preview|dscasource|program1mpxsrc|program2mpxsrc|dscainjectionsrc|mpxmix|ompxaux1|ompxaux2/{c++} END{print c+0}' /proc/asound/cards 2>/dev/null)
 if [ "${count:-0}" -lt 6 ]; then
@@ -883,7 +161,7 @@ mkdir -p "${OMPX_HOME}"
 PROFILE="${OMPX_HOME}/.profile"
 cp -a "${PROFILE:-/dev/null}" "${PROFILE}.bak.$(date +%s)" 2>/dev/null || true
 cat > "$PROFILE" <<PROFILE_WRITTEN
-oMPX persistent environment (auto-generated)
+# oMPX persistent environment (auto-generated)
 
 RADIO1_URL="${RADIO1_URL}"
 RADIO2_URL="${RADIO2_URL}"
@@ -1083,19 +361,243 @@ EOF
 chown root:root "${OMPX_ENCODER_RUN}"
 chmod 755 "${OMPX_ENCODER_RUN}"
 echo "[SUCCESS] Created ${OMPX_ENCODER_LIQ} and ${OMPX_ENCODER_RUN} (runs as ${OMPX_USER})"
-# --- Create source wrapper scripts (for liquidsoap) ---
+# --- Create source wrapper scripts (persistent ffmpeg ingest to ALSA sinks) ---
 echo "[INFO] Creating wrapper scripts..."
 
 for n in 1 2; do
-VAR_NAME="RADIO${n}_URL"
-RADIO_URL_VALUE="${!VAR_NAME}"
 cat > "${SYS_SCRIPTS_DIR}/source${n}.sh" <<WRAP
 #!/usr/bin/env bash
 set -euo pipefail
 PROFILE="${OMPX_HOME}/.profile"
 [ -f "$PROFILE" ] && . "$PROFILE"
-export RADIO_URL="${RADIO_URL_VALUE}"
-exec /usr/bin/liquidsoap "${LIQUIDSOAP_CONF_DIR}/radio${n}.liq"
+RADIO_VAR_NAME="RADIO${n}_URL"
+RADIO_URL_VALUE="
+  "; RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  " # keep shellcheck quiet in generated file context
+RADIO_URL_VALUE="
+  " # overwritten on next line at runtime
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="
+  "
+RADIO_URL_VALUE="${!RADIO_VAR_NAME:-}"
+SINK_NAME="prg${n}in"
+
+if [ -z "${RADIO_URL_VALUE}" ] || [[ "${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
+  echo "[
+    t	date +'%F %T'] source${n}: RADIO${n}_URL is empty/placeholder; exiting"
+  exit 0
+fi
+
+while true; do
+  ffmpeg -re -thread_queue_size 10240 -i "${RADIO_URL_VALUE}" \
+    -content_type "audio/ogg" \
+    -max_delay 5000000 \
+    -ar ${SAMPLE_RATE} -ac 2 -f alsa "${SINK_NAME}" || true
+  sleep 5
+done
 WRAP
 chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/source${n}.sh"
 chmod 750 "${SYS_SCRIPTS_DIR}/source${n}.sh"
@@ -1253,8 +755,18 @@ PROFILE="${OMPX_HOME}/.profile"
 [ -f "$PROFILE" ] && . "$PROFILE"
 RADIO_VAR_NAME="RADIO${RADIO}_URL"
 RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
-export RADIO_URL="\${RADIO_URL_VALUE}"
-exec /usr/bin/liquidsoap "${LIQUIDSOAP_CONF_DIR}/radio${RADIO}.liq"
+SINK_NAME="prg${RADIO}in"
+if [ -z "\${RADIO_URL_VALUE}" ] || [[ "\${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "\${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
+  echo "[$(date +'%F %T')] source${RADIO}: RADIO${RADIO}_URL is empty/placeholder; exiting"
+  exit 0
+fi
+while true; do
+  ffmpeg -re -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
+    -content_type "audio/ogg" \
+    -max_delay 5000000 \
+    -ar 192000 -ac 2 -f alsa "\${SINK_NAME}" || true
+  sleep 5
+done
 WRAP
 chown ${OMPX_USER}:${OMPX_USER} "$WRAPPER"; chmod 750 "$WRAPPER"
 CRON_CMD="@reboot sleep ${CRON_SLEEP} && ${WRAPPER} >>${LOG_FILE} 2>&1 &"
