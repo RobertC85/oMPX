@@ -32,6 +32,8 @@ RADIO1_URL="${RADIO1_URL:-https://example-icecast.local:8443/radio1.opus}"
 RADIO2_URL="${RADIO2_URL:-https://example-icecast.local:8443/radio2.opus}"
 AUTO_UPDATE_STREAM_URLS_FROM_HEADER="${AUTO_UPDATE_STREAM_URLS_FROM_HEADER:-true}"
 AUTO_START_STREAMS_FROM_HEADER="${AUTO_START_STREAMS_FROM_HEADER:-false}"
+REMOVE_OLD_SINKS="${REMOVE_OLD_SINKS:-false}"
+RUN_QUICK_AUDIO_TEST="${RUN_QUICK_AUDIO_TEST:-true}"
 CONFIG_OVERWRITE="${CONFIG_OVERWRITE:-true}"
 CONFIG_BACKUP="${CONFIG_BACKUP:-true}"
 CONFIG_SKIP="${CONFIG_SKIP:-false}"
@@ -56,6 +58,46 @@ have_crontab(){
 
 safe_apt_update(){
   DEBIAN_FRONTEND=noninteractive apt update -y || true
+}
+
+strip_old_ompx_sinks(){
+  local in_file="$1"
+  local out_file="$2"
+  awk '
+    BEGIN {
+      split("prg1in prg1in_cap prg2in prg2in_cap prg1prev prg1prev_cap prg2prev prg2prev_cap prg1mpx prg2mpx dsca_src dsca_src_cap dsca_injection mpx_to_icecast", a, " ")
+      for (i in a) names[a[i]] = 1
+      skip = 0
+      depth = 0
+    }
+    {
+      if (skip == 1) {
+        l1 = $0
+        l2 = $0
+        opens = gsub(/\{/, "{", l1)
+        closes = gsub(/\}/, "}", l2)
+        depth += opens - closes
+        if (depth <= 0) {
+          skip = 0
+          depth = 0
+        }
+        next
+      }
+
+      if ($0 ~ /^[[:space:]]*pcm\.[[:alnum:]_]+[[:space:]]*\{/) {
+        name = $0
+        sub(/^[[:space:]]*pcm\./, "", name)
+        sub(/[[:space:]]*\{.*/, "", name)
+        if (name in names) {
+          skip = 1
+          depth = 1
+          next
+        }
+      }
+
+      print
+    }
+  ' "$in_file" > "$out_file"
 }
 
 load_ompx_aloop_profile(){
@@ -98,6 +140,14 @@ if [ -t 0 ]; then
           CONFIG_BACKUP=true
         fi
         echo "[INFO] CONFIG_OVERWRITE=true CONFIG_BACKUP=${CONFIG_BACKUP}"
+      fi
+
+      read -t 30 -p "Delete old oMPX sink definitions first? [y/N] (default N): " cfg_prune || cfg_prune="N"
+      cfg_prune=${cfg_prune^^}
+      if [ "${cfg_prune}" = "Y" ]; then
+        REMOVE_OLD_SINKS=true
+      else
+        REMOVE_OLD_SINKS=false
       fi
     fi
   fi
@@ -148,6 +198,14 @@ if [ -t 0 ]; then
       fi
       ;;
   esac
+
+  read -t 30 -p "Run quick prg1in -> prg1in_cap loopback test during install? [Y/n] (default Y): " cfg_quick_test || cfg_quick_test="Y"
+  cfg_quick_test=${cfg_quick_test^^}
+  if [ "${cfg_quick_test}" = "N" ]; then
+    RUN_QUICK_AUDIO_TEST=false
+  else
+    RUN_QUICK_AUDIO_TEST=true
+  fi
 fi
 
 cat > "${ASOUND_MAP_HELPER}" <<'ASMAP'
@@ -165,10 +223,83 @@ chown root:root "${ASOUND_MAP_HELPER}"
 cat > "${ASOUND_SWITCH_HELPER}" <<'ASWITCH'
 #!/usr/bin/env bash
 set -euo pipefail
-echo "No staged ALSA profile switch is required in this installer version."
+if [ -f /etc/asound.conf.ompx-staged ]; then
+  cp -f /etc/asound.conf.ompx-staged /etc/asound.conf
+  chmod 644 /etc/asound.conf
+  echo "Promoted /etc/asound.conf.ompx-staged -> /etc/asound.conf"
+else
+  echo "No staged ALSA profile found at /etc/asound.conf.ompx-staged"
+fi
 ASWITCH
 chmod 755 "${ASOUND_SWITCH_HELPER}"
 chown root:root "${ASOUND_SWITCH_HELPER}"
+
+WANT_ASOUND_TEST=$(cat <<'ASOUND_EOF'
+# oMPX ALSA virtual PCM map (auto-generated)
+
+pcm.prg1in { type plug slave.pcm "hw:Loopback,0,0" }
+pcm.prg1in_cap { type plug slave.pcm "hw:Loopback,1,0" }
+
+pcm.prg2in { type plug slave.pcm "hw:Loopback,0,1" }
+pcm.prg2in_cap { type plug slave.pcm "hw:Loopback,1,1" }
+
+pcm.prg1prev { type plug slave.pcm "hw:Loopback,0,2" }
+pcm.prg1prev_cap { type plug slave.pcm "hw:Loopback,1,2" }
+
+pcm.prg2prev { type plug slave.pcm "hw:Loopback,0,3" }
+pcm.prg2prev_cap { type plug slave.pcm "hw:Loopback,1,3" }
+
+pcm.prg1mpx { type plug slave.pcm "hw:Loopback,0,4" }
+pcm.prg2mpx { type plug slave.pcm "hw:Loopback,0,5" }
+
+pcm.dsca_src { type plug slave.pcm "hw:Loopback,0,6" }
+pcm.dsca_src_cap { type plug slave.pcm "hw:Loopback,1,6" }
+
+pcm.dsca_injection { type plug slave.pcm "hw:Loopback,0,7" }
+pcm.mpx_to_icecast { type plug slave.pcm "hw:Loopback,0,8" }
+ASOUND_EOF
+)
+
+if [ "${CONFIG_SKIP}" = false ]; then
+  if [ "${CONFIG_OVERWRITE}" = true ]; then
+    if [ "${REMOVE_OLD_SINKS}" = true ] && [ -f "${ASOUND_CONF_PATH}" ]; then
+      tmp_clean=$(mktemp)
+      strip_old_ompx_sinks "${ASOUND_CONF_PATH}" "${tmp_clean}" || true
+      cp -f "${tmp_clean}" "${ASOUND_CONF_PATH}" || true
+      rm -f "${tmp_clean}" || true
+      echo "[INFO] Removed old oMPX sink blocks from existing ${ASOUND_CONF_PATH}"
+    fi
+    if [ -f "${ASOUND_CONF_PATH}" ] && [ "${CONFIG_BACKUP}" = true ]; then
+      cp -a "${ASOUND_CONF_PATH}" "${ASOUND_CONF_PATH}.bak.$(date +%s)" || true
+      echo "[INFO] Backed up existing ${ASOUND_CONF_PATH}"
+    fi
+    printf '%s\n' "${WANT_ASOUND_TEST}" > "${ASOUND_CONF_PATH}"
+    chmod 644 "${ASOUND_CONF_PATH}" || true
+    _log "Wrote ${ASOUND_CONF_PATH}"
+    echo "[SUCCESS] ALSA config written: ${ASOUND_CONF_PATH}"
+  else
+    if [ -f "${ASOUND_CONF_PATH}" ]; then
+      tmp_stage=$(mktemp)
+      cp -f "${ASOUND_CONF_PATH}" "${tmp_stage}" || true
+      if [ "${REMOVE_OLD_SINKS}" = true ]; then
+        tmp_clean_stage=$(mktemp)
+        strip_old_ompx_sinks "${tmp_stage}" "${tmp_clean_stage}" || true
+        mv -f "${tmp_clean_stage}" "${tmp_stage}"
+        echo "[INFO] Removed old oMPX sink blocks from staged source"
+      fi
+      printf '\n%s\n' "${WANT_ASOUND_TEST}" >> "${tmp_stage}"
+      cp -f "${tmp_stage}" /etc/asound.conf.ompx-staged
+      rm -f "${tmp_stage}" || true
+    else
+      printf '%s\n' "${WANT_ASOUND_TEST}" > /etc/asound.conf.ompx-staged
+    fi
+    chmod 644 /etc/asound.conf.ompx-staged || true
+    echo "[INFO] Staged ALSA config: /etc/asound.conf.ompx-staged"
+    echo "[INFO] Promote later with: sudo ${ASOUND_SWITCH_HELPER}"
+  fi
+else
+  echo "[INFO] Skipping asound.conf changes (CONFIG_SKIP=true)"
+fi
 # --- Check existing installation ---
 echo "[INFO] Checking for existing oMPX installation..."
 
@@ -341,6 +472,75 @@ _log "ALSA devices listed above"
 echo "[INFO] Expected named ALSA PCMs: prg1in, prg1in_cap, prg2in, prg2in_cap, prg1prev, prg1prev_cap, prg2prev, prg2prev_cap, prg1mpx, prg2mpx, dsca_src, dsca_src_cap, dsca_injection, mpx_to_icecast"
 echo "[INFO] Resolved sink map helper: ${ASOUND_MAP_HELPER}"
 "${ASOUND_MAP_HELPER}" || true
+if ! aplay -L 2>/dev/null | grep -q '^prg1in$'; then
+  echo "[ERROR] Named PCM prg1in is missing. Check ${ASOUND_CONF_PATH} and snd_aloop state."
+  echo "[ERROR] Run: aplay -L | grep -E 'prg1in|prg1in_cap'"
+  exit 1
+fi
+if ! arecord -L 2>/dev/null | grep -q '^prg1in_cap$'; then
+  echo "[ERROR] Named PCM prg1in_cap is missing. Check ${ASOUND_CONF_PATH} and snd_aloop state."
+  echo "[ERROR] Run: arecord -L | grep -E 'prg1in|prg1in_cap'"
+  exit 1
+fi
+
+if [ "${RUN_QUICK_AUDIO_TEST}" = true ]; then
+  test_attempt=1
+  while true; do
+    echo "[INFO] Running quick loopback self-test attempt ${test_attempt}: prg1in -> prg1in_cap"
+    test_wav=$(mktemp --suffix=.wav)
+    if arecord -D prg1in_cap -f S16_LE -c 2 -r ${SAMPLE_RATE} -d 2 "${test_wav}" >/dev/null 2>&1 & then
+      rec_pid=$!
+      sleep 0.4
+      ffmpeg -hide_banner -loglevel error -f lavfi -i "sine=frequency=1000:sample_rate=${SAMPLE_RATE}:duration=1.8" -ac 2 -f alsa prg1in >/dev/null 2>&1 || true
+      wait "${rec_pid}" >/dev/null 2>&1 || true
+
+      sox_stats=""
+      sox_stats=$(sox "${test_wav}" -n stat 2>&1 || true)
+      test_peak=$(printf '%s\n' "${sox_stats}" | awk '/Maximum amplitude/ {print $3; exit}')
+      test_peak=${test_peak:-0}
+      rm -f "${test_wav}" || true
+
+      if awk -v p="${test_peak:-0}" 'BEGIN { exit !(p > 0.0005) }'; then
+        echo "[SUCCESS] Quick loopback self-test passed (peak amplitude ${test_peak})"
+        break
+      fi
+
+      echo "[WARNING] Quick loopback self-test detected silence/low signal (peak amplitude ${test_peak})"
+      if [ "${test_peak}" = "0" ]; then
+        echo "[WARNING] No measurable signal captured from prg1in_cap. This can indicate missing ALSA routing or inactive source audio."
+      fi
+    else
+      rm -f "${test_wav}" || true
+      echo "[WARNING] Could not start arecord for loopback self-test"
+    fi
+
+    if [ -t 0 ]; then
+      echo "[PROMPT] Loopback self-test failed."
+      echo "  R) Retry self-test"
+      echo "  C) Continue installation"
+      echo "  A) Abort installation"
+      read -t 60 -p "Select [R/C/A] (default C): " selftest_choice || selftest_choice="C"
+      selftest_choice=${selftest_choice^^}
+      case "${selftest_choice}" in
+        R)
+          test_attempt=$((test_attempt + 1))
+          continue
+          ;;
+        A)
+          echo "[ERROR] Aborting at user request due to failed loopback self-test"
+          exit 1
+          ;;
+        *)
+          echo "[INFO] Continuing installation after failed loopback self-test"
+          break
+          ;;
+      esac
+    else
+      echo "[INFO] Non-interactive mode: continuing after failed loopback self-test"
+      break
+    fi
+  done
+fi
 # --- Create FIFOs for liquidsoap outputs ---
 echo "[INFO] Creating FIFOs for radio streams..."
 
