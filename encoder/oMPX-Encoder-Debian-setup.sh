@@ -25,7 +25,7 @@ RADIO1_URL="http://example-icecast.local:8000/mount1"
 RADIO2_URL="http://example-icecast.local:8000/mount2"
 CRON_SLEEP=10
 AUTO_UPDATE_STREAM_URLS_FROM_HEADER=true
-AUTO_START_STREAMS_FROM_HEADER=false
+AUTO_START_STREAMS_FROM_HEADER=true
 
 ASOUND_CONF_PATH="/etc/asound.conf"
 ASOUND_TEST_PATH="/etc/asound.conf.ompx-test"
@@ -481,12 +481,28 @@ pcm.prg1in {
   hint { show on; description "Program 1 Input" }
 }
 
+pcm.prg1in_cap {
+  type plug
+  slave.pcm "hw:program1in,1,0"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "Program 1 Input Capture" }
+}
+
 pcm.prg1prev {
   type plug
   slave.pcm "hw:program1preview,0,0"
   slave.rate 192000
   slave.channels 2
   hint { show on; description "Program 1 Preview" }
+}
+
+pcm.prg1prev_cap {
+  type plug
+  slave.pcm "hw:program1preview,1,0"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "Program 1 Preview Capture" }
 }
 
 pcm.prg2in {
@@ -497,6 +513,14 @@ pcm.prg2in {
   hint { show on; description "Program 2 Input" }
 }
 
+pcm.prg2in_cap {
+  type plug
+  slave.pcm "hw:program2in,1,0"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "Program 2 Input Capture" }
+}
+
 pcm.prg2prev {
   type plug
   slave.pcm "hw:program2preview,0,0"
@@ -505,12 +529,28 @@ pcm.prg2prev {
   hint { show on; description "Program 2 Preview" }
 }
 
+pcm.prg2prev_cap {
+  type plug
+  slave.pcm "hw:program2preview,1,0"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "Program 2 Preview Capture" }
+}
+
 pcm.dsca_src {
   type plug
   slave.pcm "hw:dscasource,0,0"
   slave.rate 192000
   slave.channels 2
   hint { show on; description "DSCA Source" }
+}
+
+pcm.dsca_src_cap {
+  type plug
+  slave.pcm "hw:dscasource,1,0"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "DSCA Source Capture" }
 }
 
 # Hardware-visible pre-mix sources for Stereo Tool hardware-only selection.
@@ -645,7 +685,7 @@ fi
 cp -a "${TEST_PATH}" "${LIVE_PATH}"
 chmod 644 "${LIVE_PATH}" || true
 echo "Applied ${TEST_PATH} -> ${LIVE_PATH}"
-echo "Tip: run 'aplay -L | grep -E \"prg1in|prg2in|prg1prev|prg2prev|prg1mpx|prg2mpx|dsca_src|dsca_injection|mpx_to_icecast\"' to verify devices."
+echo "Tip: run 'aplay -L | grep -E \"prg1in|prg1in_cap|prg2in|prg2in_cap|prg1prev|prg1prev_cap|prg2prev|prg2prev_cap|prg1mpx|prg2mpx|dsca_src|dsca_src_cap|dsca_injection|mpx_to_icecast\"' to verify devices."
 ASWITCH
 chmod 750 "${ASOUND_SWITCH_HELPER}"
 chown root:root "${ASOUND_SWITCH_HELPER}"
@@ -670,10 +710,15 @@ Configured loopback card IDs:
   ompxaux2
 
 prg1in         -> hw:program1in,0,0
+prg1in_cap     -> hw:program1in,1,0
 prg1prev       -> hw:program1preview,0,0
+prg1prev_cap   -> hw:program1preview,1,0
 prg2in         -> hw:program2in,0,0
+prg2in_cap     -> hw:program2in,1,0
 prg2prev       -> hw:program2preview,0,0
+prg2prev_cap   -> hw:program2preview,1,0
 dsca_src       -> hw:dscasource,0,0
+dsca_src_cap   -> hw:dscasource,1,0
 prg1mpx_src    -> hw:program1mpxsrc,0,0
 prg2mpx_src    -> hw:program2mpxsrc,0,0
 dsca_inj_src   -> hw:dscainjectionsrc,0,0
@@ -686,7 +731,7 @@ EOF
 
 echo ""
 echo "Named PCM entries visible to apps:"
-aplay -L 2>/dev/null | grep -E '^(prg1in|prg2in|prg1prev|prg2prev|dsca_src|prg1mpx_src|prg2mpx_src|dsca_injection_src|prg1mpx|prg2mpx|dsca_injection|mpx_to_icecast)$' || true
+aplay -L 2>/dev/null | grep -E '^(prg1in|prg1in_cap|prg2in|prg2in_cap|prg1prev|prg1prev_cap|prg2prev|prg2prev_cap|dsca_src|dsca_src_cap|prg1mpx_src|prg2mpx_src|dsca_injection_src|prg1mpx|prg2mpx|dsca_injection|mpx_to_icecast)$' || true
 echo ""
 echo "Detected ALSA cards for oMPX loopbacks:"
 awk -F'[][]' '/program1in|program1preview|program2in|program2preview|dscasource|program1mpxsrc|program2mpxsrc|dscainjectionsrc|mpxmix|ompxaux1|ompxaux2/{print $1"["$2"]"}' /proc/asound/cards 2>/dev/null || true
@@ -905,7 +950,7 @@ echo "[INFO] Available ALSA devices:"
 aplay -l 2>/dev/null || echo "[WARNING] No ALSA devices found"
 echo "[INFO] Hardware-only list above (aplay -l). Virtual named PCMs are shown with: aplay -L"
 _log "ALSA devices listed above"
-echo "[INFO] Expected named ALSA PCMs: prg1in, prg2in, prg1prev, prg2prev, prg1mpx, prg2mpx, dsca_src, dsca_injection, mpx_to_icecast"
+echo "[INFO] Expected named ALSA PCMs: prg1in, prg1in_cap, prg2in, prg2in_cap, prg1prev, prg1prev_cap, prg2prev, prg2prev_cap, prg1mpx, prg2mpx, dsca_src, dsca_src_cap, dsca_injection, mpx_to_icecast"
 echo "[INFO] Resolved sink map helper: ${ASOUND_MAP_HELPER}"
 "${ASOUND_MAP_HELPER}" || true
 # --- Create FIFOs for liquidsoap outputs ---
@@ -961,11 +1006,11 @@ cat > "${OMPX_ENCODER_LIQ}" <<'OMPX_LIQ'
 # /usr/local/bin/ompx_encoder.liq
 # oMPX named ALSA sinks for this installer profile:
 #   prg1in, prg2in, prg1prev, prg2prev, prg1mpx, prg2mpx, dsca_src, dsca_injection, mpx_to_icecast
-# Main stereo source (dmix). Expect 2-channel with L=PROG1, R=PROG2; preserve dead channels.
-main = input.alsa(device="plughw:13,0")
+# Main stereo source: capture side of Program 1 input loopback sink.
+main = input.alsa(device="prg1in_cap")
 
-# Injector mono source (provide the actual device)
-injector_mono = input.alsa(device="plughw:14,0")
+# Injector source: capture side of DSCA source loopback sink.
+injector_mono = input.alsa(device="dsca_src_cap")
 
 # Ensure both sources are resampled to 192kHz first for correct filtering and mixing
 main = convert_samplerate(main, 192000)
@@ -1237,6 +1282,11 @@ if [ "${AUTO_UPDATE_STREAM_URLS_FROM_HEADER}" = true ]; then
 else
   echo "[INFO] AUTO_UPDATE_STREAM_URLS_FROM_HEADER=false; skipping header stream sync"
 fi
+if [ "${AUTO_START_STREAMS_FROM_HEADER}" = true ]; then
+  echo "[INFO] Header stream URLs are configured to auto-start immediately when valid."
+else
+  echo "[INFO] Header stream URLs are configured to start on reboot/manual start only."
+fi
 # --- start_or_shell wrapper ---
 echo "[INFO] Creating start_or_shell wrapper..."
 
@@ -1262,7 +1312,7 @@ for n in 1 2; do
 wrapper="${SYS_SCRIPTS_DIR}/source${n}.sh"
 log="/var/log/radio-opus${n}.log"
 if ! pgrep -f "${wrapper}" >/dev/null 2>&1; then
-su -s /bin/sh -c "nohup "${wrapper}" >>"${log}" 2>&1 &" "${OMPX_USER}"
+su -s /bin/sh -c "nohup '${wrapper}' >>'${log}' 2>&1 &" "${OMPX_USER}"
 fi
 done
 }
