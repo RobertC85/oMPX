@@ -89,6 +89,60 @@ safe_apt_update(){
   return 1
 }
 
+cleanup_legacy_loopback(){
+  local ts
+  local cleaned=0
+  local f
+  ts="$(date +%s)"
+
+  echo "[INFO] Cleaning legacy loopback artifacts from previous installs (backup-first)..."
+
+  shopt -s nullglob
+  for f in /etc/modprobe.d/*aloop*.conf; do
+    if [ "$f" != "/etc/modprobe.d/snd-aloop.conf" ]; then
+      mv "$f" "${f}.bak.${ts}" || true
+      echo "[INFO] Moved legacy modprobe file: $f -> ${f}.bak.${ts}"
+      cleaned=1
+    fi
+  done
+  for f in /etc/modules-load.d/*aloop*.conf; do
+    if [ "$f" != "/etc/modules-load.d/snd-aloop.conf" ]; then
+      mv "$f" "${f}.bak.${ts}" || true
+      echo "[INFO] Moved legacy modules-load file: $f -> ${f}.bak.${ts}"
+      cleaned=1
+    fi
+  done
+  shopt -u nullglob
+
+  # Also clean old snd-aloop directives embedded in generic config files
+  # (e.g. /etc/modprobe.d/alsa-base.conf) from previous installs.
+  shopt -s nullglob
+  for f in /etc/modprobe.d/*.conf; do
+    if [ "$f" = "/etc/modprobe.d/snd-aloop.conf" ]; then
+      continue
+    fi
+    if grep -Eq '^[[:space:]]*(options|alias|install)[[:space:]]+snd[-_]aloop' "$f"; then
+      cp -a "$f" "${f}.bak.${ts}" || true
+      sed -i '/^[[:space:]]*\(options\|alias\|install\)[[:space:]]\+snd[-_]aloop\b/s|^|# disabled by oMPX installer (legacy aloop): |' "$f" || true
+      echo "[INFO] Disabled legacy snd-aloop lines in $f (backup: ${f}.bak.${ts})"
+      cleaned=1
+    fi
+  done
+  shopt -u nullglob
+
+  echo "[INFO] Reloading snd_aloop module to apply clean state..."
+  modprobe -r snd_aloop 2>/dev/null || true
+  if modprobe snd_aloop 2>/dev/null; then
+    echo "[SUCCESS] snd_aloop reloaded"
+  else
+    echo "[WARNING] Could not reload snd_aloop (continuing)"
+  fi
+
+  if [ "$cleaned" -eq 0 ]; then
+    echo "[INFO] No legacy loopback config artifacts found"
+  fi
+}
+
 if [ "$(id -u)" -ne 0 ]; then echo "Run as root: sudo $0" >&2; exit 1; fi
 
 # --- OS/environment detection (Debian, Ubuntu, Proxmox) ---
@@ -171,6 +225,18 @@ echo "[INFO] Aborting due to invalid config action choice"
 exit 0
 ;;
 esac
+
+echo ""
+echo "Optional legacy cleanup:" 
+echo "  If you have leftover loopback devices from older oMPX installs,"
+echo "  this can move old aloop config files to .bak and reload snd_aloop."
+read -t 30 -p "Run legacy loopback cleanup now? [y/N]: " cleanup_choice || true
+cleanup_choice="${cleanup_choice:-N}"
+if [[ "${cleanup_choice^^}" == "Y" ]]; then
+  cleanup_legacy_loopback
+else
+  echo "[INFO] Skipping legacy loopback cleanup"
+fi
 
 # --- Ensure snd_aloop loads and write modprobe options ---
 
