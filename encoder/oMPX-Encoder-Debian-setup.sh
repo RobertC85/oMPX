@@ -18,8 +18,8 @@ ENV_STREAM_ENGINE_VAL="${STREAM_ENGINE-}"
 ENV_STREAM_SILENCE_SET="${STREAM_SILENCE_MAX_DBFS+x}"
 ENV_STREAM_SILENCE_VAL="${STREAM_SILENCE_MAX_DBFS-}"
 
-OMPX_USER="oMPX"
-OMPX_HOME="/var/lib/ompx"
+OMPX_USER="ompx"
+OMPX_HOME="/home/ompx"
 OMPX_LOG_DIR="${OMPX_HOME}/logs"
 OMPX_SHELL="/bin/bash"
 SYS_SCRIPTS_DIR="/opt/mpx-radio"
@@ -29,6 +29,9 @@ SYSTEMD_DIR="/etc/systemd/system"
 OMPX_ENCODER_LIQ="/usr/local/bin/ompx_encoder.liq"
 OMPX_ENCODER_RUN="/usr/local/bin/ompx_encoder"
 STEREO_TOOL_WRAPPER="/usr/local/bin/stereo-tool"
+STEREO_TOOL_ENTERPRISE_BIN="${OMPX_HOME}/stereo-tool-enterprise/stereo-tool-enterprise"
+STEREO_TOOL_ENTERPRISE_LAUNCHER="/usr/local/bin/stereo-tool-enterprise-launch"
+STEREO_TOOL_ENTERPRISE_SERVICE="${SYSTEMD_DIR}/stereo-tool-enterprise.service"
 OMPX_ADD="/usr/local/bin/ompx_add_source"
 ASOUND_CONF_PATH="/etc/asound.conf"
 ASOUND_MAP_HELPER="/usr/local/bin/asound-map"
@@ -47,6 +50,13 @@ STREAM_SILENCE_MAX_DBFS="${STREAM_SILENCE_MAX_DBFS:--85}"
 ALLOW_PLACEHOLDER_STREAM_OVERWRITE="${ALLOW_PLACEHOLDER_STREAM_OVERWRITE:-false}"
 REMOVE_OLD_SINKS="${REMOVE_OLD_SINKS:-false}"
 RUN_QUICK_AUDIO_TEST="${RUN_QUICK_AUDIO_TEST:-true}"
+FETCH_STEREO_TOOL_ENTERPRISE="${FETCH_STEREO_TOOL_ENTERPRISE:-false}"
+STEREO_TOOL_ENTERPRISE_URL="${STEREO_TOOL_ENTERPRISE_URL:-https://download.thimeo.com/ST-Enterprise}"
+STEREO_TOOL_DOWNLOAD_DIR="${STEREO_TOOL_DOWNLOAD_DIR:-${OMPX_HOME}/stereo-tool-enterprise}"
+STEREO_TOOL_WEB_BIND="${STEREO_TOOL_WEB_BIND:-0.0.0.0}"
+STEREO_TOOL_WEB_PORT="${STEREO_TOOL_WEB_PORT:-8081}"
+STEREO_TOOL_WEB_WHITELIST="${STEREO_TOOL_WEB_WHITELIST:-0.0.0.0/0}"
+ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE="${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE:-false}"
 CONFIG_OVERWRITE="${CONFIG_OVERWRITE:-true}"
 CONFIG_BACKUP="${CONFIG_BACKUP:-true}"
 CONFIG_SKIP="${CONFIG_SKIP:-false}"
@@ -83,6 +93,100 @@ _log(){
 
 have_crontab(){
   command -v crontab >/dev/null 2>&1
+}
+
+download_stereo_tool_enterprise(){
+  local url="$1"
+  local dl_dir="$2"
+  local target_bin="$3"
+  local target_tmp="${target_bin}.download"
+  local target=""
+
+  if [ -z "${url}" ]; then
+    echo "[WARNING] Stereo Tool Enterprise download requested but no URL was provided; skipping"
+    return 0
+  fi
+
+  case "${url}" in
+    http://*|https://*) ;;
+    *)
+      echo "[WARNING] Stereo Tool Enterprise URL must start with http:// or https://; skipping"
+      return 0
+      ;;
+  esac
+
+  mkdir -p "${dl_dir}"
+  target="${target_tmp}"
+
+  echo "[INFO] Downloading Stereo Tool Enterprise artifact..."
+  if command -v curl >/dev/null 2>&1; then
+    if ! curl -fL --retry 3 --connect-timeout 20 -o "${target}" "${url}"; then
+      echo "[WARNING] Stereo Tool Enterprise download failed via curl"
+      return 0
+    fi
+  elif command -v wget >/dev/null 2>&1; then
+    if ! wget -O "${target}" "${url}"; then
+      echo "[WARNING] Stereo Tool Enterprise download failed via wget"
+      return 0
+    fi
+  else
+    echo "[WARNING] Neither curl nor wget is available; skipping Stereo Tool Enterprise download"
+    return 0
+  fi
+
+  mv -f "${target_tmp}" "${target_bin}"
+  chmod 755 "${target_bin}" || true
+  chown "${OMPX_USER}:${OMPX_USER}" "${target_bin}" || true
+  echo "[SUCCESS] Downloaded Stereo Tool Enterprise binary to ${target_bin}"
+}
+
+install_stereo_tool_enterprise_service(){
+  local bin_path="$1"
+  local launcher_path="$2"
+  local bind_ip="$3"
+  local web_port="$4"
+  local whitelist="$5"
+
+  if [ ! -x "${bin_path}" ]; then
+    echo "[WARNING] Stereo Tool Enterprise binary not executable at ${bin_path}; skipping service install"
+    return 0
+  fi
+
+  cat > "${launcher_path}" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+exec "${bin_path}" \\
+  --listen-ip "${bind_ip}" \\
+  --port "${web_port}" \\
+  --allow-from "${whitelist}"
+EOF
+  chmod 755 "${launcher_path}"
+  chown root:root "${launcher_path}"
+
+  cat > "${STEREO_TOOL_ENTERPRISE_SERVICE}" <<EOF
+[Unit]
+Description=Stereo Tool Enterprise Web Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${OMPX_USER}
+Group=${OMPX_USER}
+WorkingDirectory=${OMPX_HOME}
+ExecStart=${launcher_path}
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  chmod 644 "${STEREO_TOOL_ENTERPRISE_SERVICE}"
+  chown root:root "${STEREO_TOOL_ENTERPRISE_SERVICE}"
+  echo "[SUCCESS] Installed Stereo Tool Enterprise service unit: ${STEREO_TOOL_ENTERPRISE_SERVICE}"
 }
 
 safe_apt_update(){
@@ -612,6 +716,24 @@ if [ -t 0 ]; then
   fi
   echo "[INFO] Selected streaming engine: ${STREAM_ENGINE}"
 
+  echo ""
+  read -t 45 -p "Download latest Stereo Tool Enterprise for Linux during install? [y/N] (default N): " cfg_st_fetch || cfg_st_fetch="N"
+  cfg_st_fetch=${cfg_st_fetch^^}
+  if [ "${cfg_st_fetch}" = "Y" ]; then
+    FETCH_STEREO_TOOL_ENTERPRISE=true
+    if [ -n "${STEREO_TOOL_ENTERPRISE_URL}" ]; then
+      echo "[INFO] Current Stereo Tool Enterprise URL from environment: ${STEREO_TOOL_ENTERPRISE_URL}"
+    fi
+    read -t 180 -p "Enter Stereo Tool Enterprise Linux URL (leave empty to keep current): " cfg_st_url || cfg_st_url=""
+    if [ -n "${cfg_st_url}" ]; then
+      STEREO_TOOL_ENTERPRISE_URL="${cfg_st_url}"
+    fi
+      ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
+  else
+    FETCH_STEREO_TOOL_ENTERPRISE=false
+    ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=false
+  fi
+
   read -t 30 -p "Run quick loopback test (write to ompx_prg1in, read from ompx_prg1in_cap) during install? [Y/n] (default Y): " cfg_quick_test || cfg_quick_test="Y"
   cfg_quick_test=${cfg_quick_test^^}
   if [ "${cfg_quick_test}" = "N" ]; then
@@ -722,9 +844,11 @@ R)
 echo "[INFO] Performing full cleanup before reinstall..."
 echo "[INFO] Stopping systemd services..."
 systemctl stop mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
+systemctl stop stereo-tool-enterprise.service 2>/dev/null || true
 echo "[INFO] Disabling systemd services..."
 systemctl disable mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
-rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service"
+systemctl disable stereo-tool-enterprise.service 2>/dev/null || true
+rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}"
 systemctl daemon-reload || true
 echo "[INFO] Removing old cron jobs..."
 if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
@@ -746,9 +870,11 @@ U)
 echo "[INFO] Performing full uninstall..."
 echo "[INFO] Stopping systemd services..."
 systemctl stop mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
+systemctl stop stereo-tool-enterprise.service 2>/dev/null || true
 echo "[INFO] Disabling systemd services..."
 systemctl disable mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
-rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service"
+systemctl disable stereo-tool-enterprise.service 2>/dev/null || true
+rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}"
 systemctl daemon-reload || true
 echo "[INFO] Removing cron jobs..."
 if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
@@ -779,12 +905,13 @@ echo "[INFO] Setting up oMPX system user..."
 
 if ! id -u "${OMPX_USER}" >/dev/null 2>&1; then
 echo "[INFO] Creating user ${OMPX_USER}..."
-useradd --system --home "${OMPX_HOME}" --create-home --shell "${OMPX_SHELL}" --comment "oMPX service account" "${OMPX_USER}"
+useradd --home-dir "${OMPX_HOME}" --create-home --shell "${OMPX_SHELL}" --comment "oMPX service account" "${OMPX_USER}"
 echo "[SUCCESS] User ${OMPX_USER} created"
 else
 echo "[INFO] User ${OMPX_USER} already exists; ensuring shell is ${OMPX_SHELL}."
 _log "User ${OMPX_USER} exists; ensuring shell is ${OMPX_SHELL}."
 usermod -s "${OMPX_SHELL}" "${OMPX_USER}" || true
+usermod -d "${OMPX_HOME}" -m "${OMPX_USER}" || true
 echo "[SUCCESS] User shell updated"
 fi
 # --- Write profile (overwrite) ---
@@ -810,6 +937,15 @@ else
   echo "[INFO] No automatic kernel helper package selected for this environment"
 fi
 echo "[SUCCESS] Dependencies installed"
+
+if [ "${FETCH_STEREO_TOOL_ENTERPRISE}" = true ]; then
+  download_stereo_tool_enterprise "${STEREO_TOOL_ENTERPRISE_URL}" "${STEREO_TOOL_DOWNLOAD_DIR}" "${STEREO_TOOL_ENTERPRISE_BIN}"
+  ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
+fi
+
+if [ "${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE}" = true ]; then
+  install_stereo_tool_enterprise_service "${STEREO_TOOL_ENTERPRISE_BIN}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" "${STEREO_TOOL_WEB_BIND}" "${STEREO_TOOL_WEB_PORT}" "${STEREO_TOOL_WEB_WHITELIST}"
+fi
 
 if [ "${STREAM_SETUP_MODE:-header}" != "later" ]; then
   validate_stream_source_interactive 1 RADIO1_URL
@@ -903,8 +1039,8 @@ else
   while true; do
     playback_ok=0
     capture_ok=0
-    if aplay -L 2>/dev/null | grep -Eq '(^|[[:space:]])(ompx_prg1in|prg1in)($|[[:space:]])'; then playback_ok=1; fi
-    if arecord -L 2>/dev/null | grep -Eq '(^|[[:space:]])(ompx_prg1in_cap|prg1in_cap)($|[[:space:]])'; then capture_ok=1; fi
+    if aplay -L 2>/dev/null | grep -Eq '(^|[[:space:]])ompx_prg1in($|[[:space:]])'; then playback_ok=1; fi
+    if arecord -L 2>/dev/null | grep -Eq '(^|[[:space:]])ompx_prg1in_cap($|[[:space:]])'; then capture_ok=1; fi
 
     if [ "${playback_ok}" -eq 1 ] && [ "${capture_ok}" -eq 1 ]; then
       break
@@ -919,7 +1055,7 @@ else
     fi
 
     if [ -f "${ASOUND_CONF_PATH}" ]; then
-      if grep -Eq '^[[:space:]]*pcm\.(ompx_prg1in|prg1in)[[:space:]]*\{' "${ASOUND_CONF_PATH}" && grep -Eq '^[[:space:]]*pcm\.(ompx_prg1in_cap|prg1in_cap)[[:space:]]*\{' "${ASOUND_CONF_PATH}"; then
+      if grep -Eq '^[[:space:]]*pcm\.ompx_prg1in[[:space:]]*\{' "${ASOUND_CONF_PATH}" && grep -Eq '^[[:space:]]*pcm\.ompx_prg1in_cap[[:space:]]*\{' "${ASOUND_CONF_PATH}"; then
         echo "[INFO] ${ASOUND_CONF_PATH} contains Program 1 input PCM definitions."
       else
         echo "[WARNING] ${ASOUND_CONF_PATH} does not appear to contain both Program 1 input write/capture definitions."
@@ -927,10 +1063,10 @@ else
     fi
 
     echo "[INFO] Current matching devices from ALSA discovery:"
-    echo "[INFO] aplay -L | grep -E 'ompx_prg1in|prg1in'"
-    aplay -L 2>/dev/null | grep -E 'ompx_prg1in|prg1in' || true
-    echo "[INFO] arecord -L | grep -E 'ompx_prg1in_cap|prg1in_cap'"
-    arecord -L 2>/dev/null | grep -E 'ompx_prg1in_cap|prg1in_cap' || true
+    echo "[INFO] aplay -L | grep -E 'ompx_prg1in'"
+    aplay -L 2>/dev/null | grep -E 'ompx_prg1in' || true
+    echo "[INFO] arecord -L | grep -E 'ompx_prg1in_cap'"
+    arecord -L 2>/dev/null | grep -E 'ompx_prg1in_cap' || true
 
     if [ -t 0 ]; then
       echo "[PROMPT] Named PCM check is incomplete."
@@ -1391,7 +1527,7 @@ echo "[INFO] Creating ompx_add_source helper..."
 cat > "${OMPX_ADD}" <<'ADD'
 #!/usr/bin/env bash
 set -euo pipefail
-SYS_SCRIPTS_DIR="/opt/mpx-radio"; OMPX_USER="oMPX"; OMPX_HOME="/var/lib/ompx"; OMPX_LOG_DIR="${OMPX_HOME}/logs"; CRON_SLEEP=10; LIQUIDSOAP_CONF_DIR="/opt/mpx-radio/liquidsoap"
+SYS_SCRIPTS_DIR="/opt/mpx-radio"; OMPX_USER="ompx"; OMPX_HOME="/home/ompx"; OMPX_LOG_DIR="${OMPX_HOME}/logs"; CRON_SLEEP=10; LIQUIDSOAP_CONF_DIR="/opt/mpx-radio/liquidsoap"
 detect_loopback_card_ref(){
   local card_ref=""
   card_ref=$(aplay -l 2>/dev/null | awk '/\[Loopback\]/{gsub(":", "", $2); print $2; exit}')
@@ -1408,7 +1544,7 @@ detect_loopback_card_ref(){
 }
 LOOPBACK_CARD_REF="${LOOPBACK_CARD_REF:-$(detect_loopback_card_ref)}"
 usage(){ cat <<USAGE
-Usage: $0 --radio 1|2 --url URL [--engine liquidsoap|ffmpeg] [--cron-user root|oMPX] [--start-now]
+Usage: $0 --radio 1|2 --url URL [--engine liquidsoap|ffmpeg] [--cron-user root|ompx] [--start-now]
 Adds or updates an existing radio source URL and wrapper.
 USAGE
 }
@@ -1525,14 +1661,14 @@ cat > "${SYS_SCRIPTS_DIR}/start_or_shell.sh" <<'STARTSH'
 #!/usr/bin/env bash
 set -euo pipefail
 
-OMPX_USER="oMPX"
+OMPX_USER="ompx"
 SYS_SCRIPTS_DIR="/opt/mpx-radio"
-OMPX_LOG_DIR="/var/lib/ompx/logs"
+OMPX_LOG_DIR="/home/ompx/logs"
 
 usage(){ cat <<USAGE
 Usage: $0 [--start] [--shell]
 --start   Ensure source1.sh and source2.sh are running (background, logs)
---shell   Drop to an interactive shell as oMPX (equivalent to su - oMPX)
+--shell   Drop to an interactive shell as ompx (equivalent to su - ompx)
 If neither flag given, acts as --start.
 USAGE
 }
@@ -1584,6 +1720,10 @@ echo "[INFO] Enabling mpx-processing-alsa.service..."
 systemctl enable --now mpx-processing-alsa.service || true
 echo "[INFO] Enabling mpx-watchdog.service..."
 systemctl enable --now mpx-watchdog.service || true
+if [ "${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE}" = true ]; then
+  echo "[INFO] Enabling stereo-tool-enterprise.service..."
+  systemctl enable --now stereo-tool-enterprise.service || true
+fi
 
 _log "Install complete. Profile: ${PROFILE}"
 echo ""
@@ -1599,6 +1739,7 @@ echo ""
 echo "  2. Check service status:"
 echo "     systemctl status mpx-processing-alsa.service"
 echo "     systemctl status mpx-watchdog.service"
+echo "     systemctl status stereo-tool-enterprise.service"
 echo ""
 echo "  3. View logs:"
 echo "     journalctl -u mpx-processing-alsa.service -f"
@@ -1617,7 +1758,11 @@ echo "  6. Print resolved sink-to-hardware map:"
 echo "     sudo ${ASOUND_MAP_HELPER}"
 echo ""
 echo "  7. Access oMPX user shell:"
-echo "     sudo su - oMPX"
+echo "     sudo su - ompx"
+echo ""
+echo "  8. Stereo Tool Enterprise web UI (if enabled):"
+echo "     http://<this-host>:${STEREO_TOOL_WEB_PORT}/"
+echo "     Bind: ${STEREO_TOOL_WEB_BIND}  Whitelist: ${STEREO_TOOL_WEB_WHITELIST}"
 echo ""
 
 if [ "$CONFIG_SKIP" = false ]; then
