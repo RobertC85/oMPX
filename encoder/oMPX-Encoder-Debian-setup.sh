@@ -32,6 +32,8 @@ RADIO1_URL="${RADIO1_URL:-https://example-icecast.local:8443/radio1.opus}"
 RADIO2_URL="${RADIO2_URL:-https://example-icecast.local:8443/radio2.opus}"
 AUTO_UPDATE_STREAM_URLS_FROM_HEADER="${AUTO_UPDATE_STREAM_URLS_FROM_HEADER:-true}"
 AUTO_START_STREAMS_FROM_HEADER="${AUTO_START_STREAMS_FROM_HEADER:-false}"
+STREAM_SETUP_MODE="${STREAM_SETUP_MODE:-header}"
+STREAM_ENGINE="${STREAM_ENGINE:-liquidsoap}"
 REMOVE_OLD_SINKS="${REMOVE_OLD_SINKS:-false}"
 RUN_QUICK_AUDIO_TEST="${RUN_QUICK_AUDIO_TEST:-true}"
 CONFIG_OVERWRITE="${CONFIG_OVERWRITE:-true}"
@@ -83,7 +85,7 @@ render_asound_config(){
   cat <<EOF
 # oMPX ALSA virtual PCM map (auto-generated)
 
-pcm.prg1in {
+pcm.ompx_program1_input {
   type plug
   slave.pcm "hw:${card_ref},0,0"
   hint {
@@ -92,7 +94,7 @@ pcm.prg1in {
   }
 }
 
-pcm.prg1in_cap {
+pcm.ompx_program1_input_capture {
   type plug
   slave.pcm "hw:${card_ref},1,0"
   hint {
@@ -101,7 +103,7 @@ pcm.prg1in_cap {
   }
 }
 
-pcm.prg2in {
+pcm.ompx_program2_input {
   type plug
   slave.pcm "hw:${card_ref},0,1"
   hint {
@@ -110,7 +112,7 @@ pcm.prg2in {
   }
 }
 
-pcm.prg2in_cap {
+pcm.ompx_program2_input_capture {
   type plug
   slave.pcm "hw:${card_ref},1,1"
   hint {
@@ -119,7 +121,7 @@ pcm.prg2in_cap {
   }
 }
 
-pcm.prg1prev {
+pcm.ompx_program1_preview {
   type plug
   slave.pcm "hw:${card_ref},0,2"
   hint {
@@ -128,7 +130,7 @@ pcm.prg1prev {
   }
 }
 
-pcm.prg1prev_cap {
+pcm.ompx_program1_preview_capture {
   type plug
   slave.pcm "hw:${card_ref},1,2"
   hint {
@@ -137,7 +139,7 @@ pcm.prg1prev_cap {
   }
 }
 
-pcm.prg2prev {
+pcm.ompx_program2_preview {
   type plug
   slave.pcm "hw:${card_ref},0,3"
   hint {
@@ -146,7 +148,7 @@ pcm.prg2prev {
   }
 }
 
-pcm.prg2prev_cap {
+pcm.ompx_program2_preview_capture {
   type plug
   slave.pcm "hw:${card_ref},1,3"
   hint {
@@ -155,7 +157,7 @@ pcm.prg2prev_cap {
   }
 }
 
-pcm.prg1mpx {
+pcm.ompx_program1_mpx_output {
   type plug
   slave.pcm "hw:${card_ref},0,4"
   hint {
@@ -164,7 +166,7 @@ pcm.prg1mpx {
   }
 }
 
-pcm.prg2mpx {
+pcm.ompx_program2_mpx_output {
   type plug
   slave.pcm "hw:${card_ref},0,5"
   hint {
@@ -173,7 +175,7 @@ pcm.prg2mpx {
   }
 }
 
-pcm.dsca_src {
+pcm.ompx_dsca_source {
   type plug
   slave.pcm "hw:${card_ref},0,6"
   hint {
@@ -182,7 +184,7 @@ pcm.dsca_src {
   }
 }
 
-pcm.dsca_src_cap {
+pcm.ompx_dsca_source_capture {
   type plug
   slave.pcm "hw:${card_ref},1,6"
   hint {
@@ -191,7 +193,7 @@ pcm.dsca_src_cap {
   }
 }
 
-pcm.dsca_injection {
+pcm.ompx_dsca_injection {
   type plug
   slave.pcm "hw:${card_ref},0,7"
   hint {
@@ -200,7 +202,7 @@ pcm.dsca_injection {
   }
 }
 
-pcm.mpx_to_icecast {
+pcm.ompx_mpx_to_icecast {
   type plug
   slave.pcm "hw:${card_ref},0,8"
   hint {
@@ -208,7 +210,178 @@ pcm.mpx_to_icecast {
     description "oMPX MPX To Icecast"
   }
 }
+
+pcm.prg1in { type plug slave.pcm "ompx_program1_input" }
+pcm.prg1in_cap { type plug slave.pcm "ompx_program1_input_capture" }
+pcm.prg2in { type plug slave.pcm "ompx_program2_input" }
+pcm.prg2in_cap { type plug slave.pcm "ompx_program2_input_capture" }
+pcm.prg1prev { type plug slave.pcm "ompx_program1_preview" }
+pcm.prg1prev_cap { type plug slave.pcm "ompx_program1_preview_capture" }
+pcm.prg2prev { type plug slave.pcm "ompx_program2_preview" }
+pcm.prg2prev_cap { type plug slave.pcm "ompx_program2_preview_capture" }
+pcm.prg1mpx { type plug slave.pcm "ompx_program1_mpx_output" }
+pcm.prg2mpx { type plug slave.pcm "ompx_program2_mpx_output" }
+pcm.dsca_src { type plug slave.pcm "ompx_dsca_source" }
+pcm.dsca_src_cap { type plug slave.pcm "ompx_dsca_source_capture" }
+pcm.dsca_injection { type plug slave.pcm "ompx_dsca_injection" }
+pcm.mpx_to_icecast { type plug slave.pcm "ompx_mpx_to_icecast" }
 EOF
+}
+
+write_profile_file(){
+  echo "[INFO] Creating user profile configuration..."
+  mkdir -p "${OMPX_HOME}"
+  PROFILE="${OMPX_HOME}/.profile"
+  cp -a "${PROFILE:-/dev/null}" "${PROFILE}.bak.$(date +%s)" 2>/dev/null || true
+  cat > "$PROFILE" <<PROFILE_WRITTEN
+# oMPX persistent environment (auto-generated)
+
+RADIO1_URL="${RADIO1_URL}"
+RADIO2_URL="${RADIO2_URL}"
+  STREAM_ENGINE="${STREAM_ENGINE}"
+PROFILE_WRITTEN
+  chown "${OMPX_USER}:${OMPX_USER}" "$PROFILE"
+  chmod 644 "$PROFILE"
+  _log "Wrote profile ${PROFILE}."
+  echo "[SUCCESS] Profile configuration created"
+}
+
+is_placeholder_stream_url(){
+  local url="$1"
+  [ -z "$url" ] && return 0
+  [[ "$url" == *"example-icecast.local"* ]] && return 0
+  [[ "$url" == *"your.stream/url"* ]] && return 0
+  return 1
+}
+
+probe_stream_source(){
+  local url="$1"
+  local http_code=""
+  local probe_output=""
+
+  STREAM_CHECK_STATUS="ok"
+  STREAM_CHECK_MESSAGE="stream responded with audio"
+
+  if [[ "$url" =~ ^https?:// ]]; then
+    http_code=$(curl -L -sS -o /dev/null --max-time 15 -w '%{http_code}' "$url" 2>/dev/null || echo "000")
+    case "$http_code" in
+      404)
+        STREAM_CHECK_STATUS="http_404"
+        STREAM_CHECK_MESSAGE="HTTP 404 Not Found"
+        return 0
+        ;;
+      401|403)
+        STREAM_CHECK_STATUS="http_auth"
+        STREAM_CHECK_MESSAGE="HTTP ${http_code} returned by stream server"
+        return 0
+        ;;
+      500|501|502|503|504|000)
+        STREAM_CHECK_STATUS="offline"
+        STREAM_CHECK_MESSAGE="HTTP/network probe failed with status ${http_code}"
+        ;;
+    esac
+  fi
+
+  probe_output=$(timeout 18 ffmpeg -hide_banner -loglevel info -t 10 -i "$url" -map 0:a:0? -af silencedetect=noise=-45dB:d=5 -f null - 2>&1 || true)
+
+  if printf '%s\n' "$probe_output" | grep -qiE '404 Not Found|Server returned 404|HTTP error 404'; then
+    STREAM_CHECK_STATUS="http_404"
+    STREAM_CHECK_MESSAGE="ffmpeg reported HTTP 404 Not Found"
+    return 0
+  fi
+  if printf '%s\n' "$probe_output" | grep -qiE '403 Forbidden|401 Unauthorized'; then
+    STREAM_CHECK_STATUS="http_auth"
+    STREAM_CHECK_MESSAGE="ffmpeg reported an authorization error"
+    return 0
+  fi
+  if printf '%s\n' "$probe_output" | grep -qiE 'Connection refused|timed out|Temporary failure|Name or service not known|No route to host|Failed to resolve|End of file'; then
+    STREAM_CHECK_STATUS="offline"
+    STREAM_CHECK_MESSAGE="stream appears unreachable or offline"
+    return 0
+  fi
+  if printf '%s\n' "$probe_output" | grep -qiE 'matches no streams|does not contain any stream|Invalid data found when processing input'; then
+    STREAM_CHECK_STATUS="no_audio"
+    STREAM_CHECK_MESSAGE="stream did not present a usable audio stream"
+    return 0
+  fi
+  if ! printf '%s\n' "$probe_output" | grep -q 'Audio:'; then
+    STREAM_CHECK_STATUS="no_audio"
+    STREAM_CHECK_MESSAGE="probe did not confirm an audio stream"
+    return 0
+  fi
+  if printf '%s\n' "$probe_output" | grep -q 'silence_start:' && ! printf '%s\n' "$probe_output" | grep -q 'silence_end:'; then
+    STREAM_CHECK_STATUS="silent"
+    STREAM_CHECK_MESSAGE="stream connected but only silence was detected during the probe window"
+    return 0
+  fi
+
+  if [ -n "$http_code" ] && [ "$http_code" != "000" ]; then
+    STREAM_CHECK_MESSAGE="stream responded with audio (HTTP ${http_code})"
+  fi
+}
+
+validate_stream_source_interactive(){
+  local radio_num="$1"
+  local var_name="$2"
+  local url=""
+  local choice=""
+  local edited_url=""
+
+  while true; do
+    url="${!var_name:-}"
+    if is_placeholder_stream_url "$url"; then
+      echo "[INFO] RADIO${radio_num}_URL is empty/placeholder; skipping stream validation"
+      return 0
+    fi
+
+    echo "[INFO] Validating RADIO${radio_num}_URL..."
+    probe_stream_source "$url"
+    if [ "$STREAM_CHECK_STATUS" = "ok" ]; then
+      echo "[SUCCESS] RADIO${radio_num}_URL check passed: ${STREAM_CHECK_MESSAGE}"
+      return 0
+    fi
+
+    echo "[WARNING] RADIO${radio_num}_URL check reported ${STREAM_CHECK_STATUS}: ${STREAM_CHECK_MESSAGE}"
+    if [ -t 0 ]; then
+      echo "[PROMPT] Stream validation for RADIO${radio_num}_URL needs a decision."
+      echo "  R) Retry validation"
+      echo "  E) Edit URL now"
+      echo "  S) Skip this stream for now"
+      echo "  C) Continue anyway"
+      echo "  A) Abort installation"
+      read -t 90 -p "Select [R/E/S/C/A] (default C): " choice || choice="C"
+      choice=${choice^^}
+      case "$choice" in
+        R)
+          continue
+          ;;
+        E)
+          read -t 180 -p "Enter new RADIO${radio_num}_URL: " edited_url || edited_url=""
+          if [ -n "$edited_url" ]; then
+            printf -v "$var_name" '%s' "$edited_url"
+          else
+            echo "[INFO] URL unchanged"
+          fi
+          ;;
+        S)
+          printf -v "$var_name" '%s' ""
+          echo "[INFO] RADIO${radio_num}_URL cleared; this stream will be skipped during install"
+          return 0
+          ;;
+        A)
+          echo "[ERROR] Aborting at user request due to stream validation failure"
+          exit 1
+          ;;
+        *)
+          echo "[INFO] Continuing installation with current RADIO${radio_num}_URL despite validation warning"
+          return 0
+          ;;
+      esac
+    else
+      echo "[INFO] Non-interactive mode: continuing despite validation warning for RADIO${radio_num}_URL"
+      return 0
+    fi
+  done
 }
 
 strip_old_ompx_sinks(){
@@ -313,6 +486,7 @@ if [ -t 0 ]; then
 
   case "${cfg_stream_mode}" in
     D)
+      STREAM_SETUP_MODE="define-now"
       read -t 120 -p "Enter RADIO1_URL (leave empty to keep current): " cfg_radio1 || cfg_radio1=""
       read -t 120 -p "Enter RADIO2_URL (leave empty to keep current): " cfg_radio2 || cfg_radio2=""
       if [ -n "${cfg_radio1}" ]; then RADIO1_URL="${cfg_radio1}"; fi
@@ -327,11 +501,13 @@ if [ -t 0 ]; then
       fi
       ;;
     L)
+      STREAM_SETUP_MODE="later"
       AUTO_UPDATE_STREAM_URLS_FROM_HEADER=false
       AUTO_START_STREAMS_FROM_HEADER=false
       echo "[INFO] Stream URLs will be defined after installation via ${OMPX_ADD}."
       ;;
     *)
+      STREAM_SETUP_MODE="header"
       read -t 30 -p "Sync header stream URLs during install? [Y/n] (default Y): " cfg_sync_header || cfg_sync_header="Y"
       cfg_sync_header=${cfg_sync_header^^}
       if [ "${cfg_sync_header}" = "N" ]; then
@@ -350,7 +526,24 @@ if [ -t 0 ]; then
       ;;
   esac
 
-  read -t 30 -p "Run quick loopback test (write to prg1in, read from prg1in_cap) during install? [Y/n] (default Y): " cfg_quick_test || cfg_quick_test="Y"
+  echo ""
+  echo "Streaming engine options:"
+  echo "  L) Liquidsoap"
+  echo "     Pros: cleaner stream orchestration, easier future routing/DSP changes, better fit with the existing audio pipeline"
+  echo "     Cons: more moving parts, Liquidsoap syntax/runtime errors can be less familiar"
+  echo "  F) FFmpeg"
+  echo "     Pros: simpler single-process ingest loop, familiar behavior, easier to debug with direct ffmpeg logs"
+  echo "     Cons: less flexible for stream-source logic, less structured than Liquidsoap for future expansion"
+  read -t 45 -p "Choose streaming engine [L/F] (default L): " cfg_stream_engine || cfg_stream_engine="L"
+  cfg_stream_engine=${cfg_stream_engine^^}
+  if [ "${cfg_stream_engine}" = "F" ]; then
+    STREAM_ENGINE="ffmpeg"
+  else
+    STREAM_ENGINE="liquidsoap"
+  fi
+  echo "[INFO] Selected streaming engine: ${STREAM_ENGINE}"
+
+  read -t 30 -p "Run quick loopback test (write to ompx_program1_input, read from ompx_program1_input_capture) during install? [Y/n] (default Y): " cfg_quick_test || cfg_quick_test="Y"
   cfg_quick_test=${cfg_quick_test^^}
   if [ "${cfg_quick_test}" = "N" ]; then
     RUN_QUICK_AUDIO_TEST=false
@@ -365,14 +558,16 @@ set -euo pipefail
 echo "oMPX sink map helper"
 echo "--------------------"
 echo "Write/playback endpoints (send audio into these):"
-for id in prg1in prg1prev prg2in prg2prev dsca_src prg1mpx prg2mpx dsca_injection mpx_to_icecast; do
+for id in ompx_program1_input ompx_program1_preview ompx_program2_input ompx_program2_preview ompx_dsca_source ompx_program1_mpx_output ompx_program2_mpx_output ompx_dsca_injection ompx_mpx_to_icecast; do
   printf '  %s\n' "$id"
 done
 echo ""
 echo "Read/capture endpoints (read audio back from these):"
-for id in prg1in_cap prg1prev_cap prg2in_cap prg2prev_cap dsca_src_cap; do
+for id in ompx_program1_input_capture ompx_program1_preview_capture ompx_program2_input_capture ompx_program2_preview_capture ompx_dsca_source_capture; do
   printf '  %s\n' "$id"
 done
+echo ""
+echo "Legacy compatibility aliases still available: prg1in/prg1in_cap, prg2in/prg2in_cap, prg1prev/prg1prev_cap, prg2prev/prg2prev_cap, dsca_src/dsca_src_cap"
 ASMAP
 chmod 755 "${ASOUND_MAP_HELPER}"
 chown root:root "${ASOUND_MAP_HELPER}"
@@ -526,20 +721,7 @@ usermod -s "${OMPX_SHELL}" "${OMPX_USER}" || true
 echo "[SUCCESS] User shell updated"
 fi
 # --- Write profile (overwrite) ---
-echo "[INFO] Creating user profile configuration..."
-
-mkdir -p "${OMPX_HOME}"
-PROFILE="${OMPX_HOME}/.profile"
-cp -a "${PROFILE:-/dev/null}" "${PROFILE}.bak.$(date +%s)" 2>/dev/null || true
-cat > "$PROFILE" <<PROFILE_WRITTEN
-# oMPX persistent environment (auto-generated)
-
-RADIO1_URL="${RADIO1_URL}"
-RADIO2_URL="${RADIO2_URL}"
-PROFILE_WRITTEN
-chown "${OMPX_USER}:${OMPX_USER}" "$PROFILE"; chmod 644 "$PROFILE"
-_log "Wrote profile ${PROFILE}."
-echo "[SUCCESS] Profile configuration created"
+write_profile_file
 # --- Create directories, install packages ---
 echo "[INFO] Creating system directories..."
 
@@ -561,6 +743,15 @@ else
   echo "[INFO] No automatic kernel helper package selected for this environment"
 fi
 echo "[SUCCESS] Dependencies installed"
+
+if [ "${STREAM_SETUP_MODE:-header}" != "later" ]; then
+  validate_stream_source_interactive 1 RADIO1_URL
+  validate_stream_source_interactive 2 RADIO2_URL
+  write_profile_file
+else
+  echo "[INFO] Stream setup mode is 'define later'; skipping stream validation"
+fi
+
 # --- Ensure snd_aloop loaded and show devices ---
 echo "[INFO] Verifying snd_aloop kernel module..."
 
@@ -617,7 +808,7 @@ echo "[INFO] Available ALSA devices:"
 aplay -l 2>/dev/null || echo "[WARNING] No ALSA devices found"
 echo "[INFO] Hardware-only list above (aplay -l). Virtual named PCMs are shown with: aplay -L"
 _log "ALSA devices listed above"
-echo "[INFO] Expected named ALSA PCMs: write/playback endpoints prg1in, prg2in, prg1prev, prg2prev, prg1mpx, prg2mpx, dsca_src, dsca_injection, mpx_to_icecast; read/capture endpoints prg1in_cap, prg2in_cap, prg1prev_cap, prg2prev_cap, dsca_src_cap"
+echo "[INFO] Expected named ALSA PCMs: write/playback endpoints ompx_program1_input, ompx_program2_input, ompx_program1_preview, ompx_program2_preview, ompx_program1_mpx_output, ompx_program2_mpx_output, ompx_dsca_source, ompx_dsca_injection, ompx_mpx_to_icecast; read/capture endpoints ompx_program1_input_capture, ompx_program2_input_capture, ompx_program1_preview_capture, ompx_program2_preview_capture, ompx_dsca_source_capture"
 echo "[INFO] Resolved sink map helper: ${ASOUND_MAP_HELPER}"
 "${ASOUND_MAP_HELPER}" || true
 
@@ -630,8 +821,8 @@ else
   while true; do
     playback_ok=0
     capture_ok=0
-    if aplay -L 2>/dev/null | grep -Eq '(^|[[:space:]])prg1in($|[[:space:]])'; then playback_ok=1; fi
-    if arecord -L 2>/dev/null | grep -Eq '(^|[[:space:]])prg1in_cap($|[[:space:]])'; then capture_ok=1; fi
+    if aplay -L 2>/dev/null | grep -Eq '(^|[[:space:]])(ompx_program1_input|prg1in)($|[[:space:]])'; then playback_ok=1; fi
+    if arecord -L 2>/dev/null | grep -Eq '(^|[[:space:]])(ompx_program1_input_capture|prg1in_cap)($|[[:space:]])'; then capture_ok=1; fi
 
     if [ "${playback_ok}" -eq 1 ] && [ "${capture_ok}" -eq 1 ]; then
       break
@@ -639,25 +830,25 @@ else
 
     echo "[WARNING] Named PCM discovery did not return expected endpoints yet."
     if [ "${playback_ok}" -ne 1 ]; then
-      echo "[WARNING] Missing from aplay -L: prg1in (write/playback endpoint)"
+      echo "[WARNING] Missing from aplay -L: ompx_program1_input (write/playback endpoint)"
     fi
     if [ "${capture_ok}" -ne 1 ]; then
-      echo "[WARNING] Missing from arecord -L: prg1in_cap (read/capture endpoint)"
+      echo "[WARNING] Missing from arecord -L: ompx_program1_input_capture (read/capture endpoint)"
     fi
 
     if [ -f "${ASOUND_CONF_PATH}" ]; then
-      if grep -Eq '^[[:space:]]*pcm\.prg1in[[:space:]]*\{' "${ASOUND_CONF_PATH}" && grep -Eq '^[[:space:]]*pcm\.prg1in_cap[[:space:]]*\{' "${ASOUND_CONF_PATH}"; then
-        echo "[INFO] ${ASOUND_CONF_PATH} contains prg1in/prg1in_cap definitions."
+      if grep -Eq '^[[:space:]]*pcm\.(ompx_program1_input|prg1in)[[:space:]]*\{' "${ASOUND_CONF_PATH}" && grep -Eq '^[[:space:]]*pcm\.(ompx_program1_input_capture|prg1in_cap)[[:space:]]*\{' "${ASOUND_CONF_PATH}"; then
+        echo "[INFO] ${ASOUND_CONF_PATH} contains Program 1 input PCM definitions."
       else
-        echo "[WARNING] ${ASOUND_CONF_PATH} does not appear to contain both prg1in and prg1in_cap definitions."
+        echo "[WARNING] ${ASOUND_CONF_PATH} does not appear to contain both Program 1 input write/capture definitions."
       fi
     fi
 
     echo "[INFO] Current matching devices from ALSA discovery:"
-    echo "[INFO] aplay -L | grep -E 'prg1in|prg1in_cap'"
-    aplay -L 2>/dev/null | grep -E 'prg1in|prg1in_cap' || true
-    echo "[INFO] arecord -L | grep -E 'prg1in|prg1in_cap'"
-    arecord -L 2>/dev/null | grep -E 'prg1in|prg1in_cap' || true
+    echo "[INFO] aplay -L | grep -E 'ompx_program1_input|prg1in'"
+    aplay -L 2>/dev/null | grep -E 'ompx_program1_input|prg1in' || true
+    echo "[INFO] arecord -L | grep -E 'ompx_program1_input_capture|prg1in_cap'"
+    arecord -L 2>/dev/null | grep -E 'ompx_program1_input_capture|prg1in_cap' || true
 
     if [ -t 0 ]; then
       echo "[PROMPT] Named PCM check is incomplete."
@@ -690,26 +881,26 @@ fi
 if [ "${RUN_QUICK_AUDIO_TEST}" = true ] && [ "${CONFIG_SKIP}" = false ] && [ "${CONFIG_OVERWRITE}" = true ]; then
   test_attempt=1
   while true; do
-    echo "[INFO] Running quick loopback self-test attempt ${test_attempt}: write to prg1in, read from prg1in_cap"
+    echo "[INFO] Running quick loopback self-test attempt ${test_attempt}: write to ompx_program1_input, read from ompx_program1_input_capture"
     test_wav=$(mktemp --suffix=.wav)
     test_tone=$(mktemp --suffix=.wav)
     test_capture_log=$(mktemp)
     test_inject_log=$(mktemp)
     sox -n -r ${SAMPLE_RATE} -c 2 -b 16 "${test_tone}" synth 1.8 sine 1000 vol 0.6 >/dev/null 2>&1 || true
 
-    if arecord -D prg1in_cap -f S16_LE -c 2 -r ${SAMPLE_RATE} -d 2 "${test_wav}" >"${test_capture_log}" 2>&1 & then
+    if arecord -D ompx_program1_input_capture -f S16_LE -c 2 -r ${SAMPLE_RATE} -d 2 "${test_wav}" >"${test_capture_log}" 2>&1 & then
       rec_pid=$!
       sleep 0.6
 
       inject_ok=0
       if [ -s "${test_tone}" ]; then
-        if timeout 4 aplay -q -D prg1in "${test_tone}" >"${test_inject_log}" 2>&1; then
+        if timeout 4 aplay -q -D ompx_program1_input "${test_tone}" >"${test_inject_log}" 2>&1; then
           inject_ok=1
         fi
       fi
 
       if [ "${inject_ok}" -ne 1 ]; then
-        if ffmpeg -hide_banner -loglevel error -f lavfi -i "sine=frequency=1000:sample_rate=${SAMPLE_RATE}:duration=1.8" -ac 2 -f alsa prg1in >"${test_inject_log}" 2>&1; then
+        if ffmpeg -hide_banner -loglevel error -f lavfi -i "sine=frequency=1000:sample_rate=${SAMPLE_RATE}:duration=1.8" -ac 2 -f alsa ompx_program1_input >"${test_inject_log}" 2>&1; then
           inject_ok=1
         fi
       fi
@@ -730,11 +921,11 @@ if [ "${RUN_QUICK_AUDIO_TEST}" = true ] && [ "${CONFIG_SKIP}" = false ] && [ "${
 
       echo "[WARNING] Quick loopback self-test detected silence/low signal (peak amplitude ${test_peak})"
       if [ "${inject_ok}" -ne 1 ]; then
-        echo "[WARNING] Tone injection into prg1in (write/playback endpoint) failed. Last injector output:"
+        echo "[WARNING] Tone injection into ompx_program1_input (write/playback endpoint) failed. Last injector output:"
         tail -n 3 "${test_inject_log}" 2>/dev/null || true
       fi
       if [ "${test_peak}" = "0" ]; then
-        echo "[WARNING] No measurable signal captured from prg1in_cap (read/capture endpoint). This can indicate missing ALSA routing or inactive source audio."
+        echo "[WARNING] No measurable signal captured from ompx_program1_input_capture (read/capture endpoint). This can indicate missing ALSA routing or inactive source audio."
         echo "[WARNING] Last capture output:"
         tail -n 3 "${test_capture_log}" 2>/dev/null || true
       fi
@@ -742,7 +933,7 @@ if [ "${RUN_QUICK_AUDIO_TEST}" = true ] && [ "${CONFIG_SKIP}" = false ] && [ "${
     else
       rm -f "${test_wav}" "${test_tone}" || true
       echo "[WARNING] Could not start arecord for loopback self-test"
-      echo "[WARNING] Check arecord -L for prg1in_cap (capture endpoint) and ensure snd_aloop is loaded"
+      echo "[WARNING] Check arecord -L for ompx_program1_input_capture (capture endpoint) and ensure snd_aloop is loaded"
       rm -f "${test_capture_log}" "${test_inject_log}" || true
     fi
 
@@ -791,9 +982,9 @@ echo "[INFO] Generating Liquidsoap configuration files..."
 cat > "${LIQUIDSOAP_CONF_DIR}/radio1.liq" <<'L1'
 set("log.stdout", true)
 sample_rate = 192000
-fifo_path = "/opt/mpx-radio/fifos/radio1.pcm"
-def write_fifo(fifo, src)
-cmd = "ffmpeg -hide_banner -loglevel warning -i - -f s16le -ac 2 -ar " ^ string_of_int(sample_rate) ^ " - 2>/dev/null > '" ^ fifo ^ "'"
+alsa_output = if getenv("ALSA_OUTPUT", "") <> "" then getenv("ALSA_OUTPUT") else "ompx_program1_input"
+def write_alsa(dev, src)
+cmd = "ffmpeg -hide_banner -loglevel warning -i - -ac 2 -ar " ^ string_of_int(sample_rate) ^ " -f alsa '" ^ dev ^ "'"
 output.exec(src, ["sh","-c", cmd])
 end
 default_url = "${RADIO1_URL}"
@@ -801,16 +992,16 @@ urL = if getenv("RADIO_URL", "") <> "" then getenv("RADIO_URL") else default_url
 s1 = request.create(urL)
 s1 = fallback(track_sensitive = true, [s1, blank(duration = 3600.)])
 s1 = convert(s1, samplerate = sample_rate, channels = 2)
-write_fifo(fifo_path, s1)
+write_alsa(alsa_output, s1)
 output.null(s1)
 L1
 
 cat > "${LIQUIDSOAP_CONF_DIR}/radio2.liq" <<'L2'
 set("log.stdout", true)
 sample_rate = 192000
-fifo_path = "/opt/mpx-radio/fifos/radio2.pcm"
-def write_fifo(fifo, src)
-cmd = "ffmpeg -hide_banner -loglevel warning -i - -f s16le -ac 2 -ar " ^ string_of_int(sample_rate) ^ " - 2>/dev/null > '" ^ fifo ^ "'"
+alsa_output = if getenv("ALSA_OUTPUT", "") <> "" then getenv("ALSA_OUTPUT") else "ompx_program2_input"
+def write_alsa(dev, src)
+cmd = "ffmpeg -hide_banner -loglevel warning -i - -ac 2 -ar " ^ string_of_int(sample_rate) ^ " -f alsa '" ^ dev ^ "'"
 output.exec(src, ["sh","-c", cmd])
 end
 default_url = "${RADIO2_URL}"
@@ -818,7 +1009,7 @@ urL = if getenv("RADIO_URL", "") <> "" then getenv("RADIO_URL") else default_url
 s1 = request.create(urL)
 s1 = fallback(track_sensitive = true, [s1, blank(duration = 3600.)])
 s1 = convert(s1, samplerate = sample_rate, channels = 2)
-write_fifo(fifo_path, s1)
+write_alsa(alsa_output, s1)
 output.null(s1)
 L2
 echo "[SUCCESS] Liquidsoap configs created (radio1.liq, radio2.liq)"
@@ -827,13 +1018,13 @@ echo "[INFO] Creating oMPX encoder Liquidsoap script..."
 cat > "${OMPX_ENCODER_LIQ}" <<'OMPX_LIQ'
 # /usr/local/bin/ompx_encoder.liq
 # oMPX named ALSA loopback endpoints for this installer profile:
-#   Write/playback: prg1in, prg2in, prg1prev, prg2prev, prg1mpx, prg2mpx, dsca_src, dsca_injection, mpx_to_icecast
-#   Read/capture: prg1in_cap, prg2in_cap, prg1prev_cap, prg2prev_cap, dsca_src_cap
+#   Write/playback: ompx_program1_input, ompx_program2_input, ompx_program1_preview, ompx_program2_preview, ompx_program1_mpx_output, ompx_program2_mpx_output, ompx_dsca_source, ompx_dsca_injection, ompx_mpx_to_icecast
+#   Read/capture: ompx_program1_input_capture, ompx_program2_input_capture, ompx_program1_preview_capture, ompx_program2_preview_capture, ompx_dsca_source_capture
 # Main stereo source: read/capture side of Program 1 input loopback pair.
-main = input.alsa(device="prg1in_cap")
+main = input.alsa(device="ompx_program1_input_capture")
 
 # Injector source: read/capture side of the DSCA source loopback pair.
-injector_mono = input.alsa(device="dsca_src_cap")
+injector_mono = input.alsa(device="ompx_dsca_source_capture")
 
 # Ensure both sources are resampled to 192kHz first for correct filtering and mixing
 main = convert_samplerate(main, 192000)
@@ -914,7 +1105,13 @@ PROFILE="${OMPX_HOME}/.profile"
 [ -f "\$PROFILE" ] && . "\$PROFILE"
 RADIO_VAR_NAME="RADIO${n}_URL"
 RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
-SINK_NAME="prg${n}in"
+LIQ_SCRIPT="${LIQUIDSOAP_CONF_DIR}/radio${n}.liq"
+STREAM_ENGINE_VALUE="\${STREAM_ENGINE:-liquidsoap}"
+if [ "${n}" = "1" ]; then
+  SINK_NAME="ompx_program1_input"
+else
+  SINK_NAME="ompx_program2_input"
+fi
 if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   if [ "${n}" = "1" ]; then
     SINK_NAME="plughw:${LOOPBACK_CARD_REF},0,0"
@@ -924,6 +1121,8 @@ if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   echo "[\$(date +'%F %T')] source${n}: named sink unavailable; using fallback \${SINK_NAME}"
 fi
 echo "[\$(date +'%F %T')] source${n}: using ALSA output endpoint \${SINK_NAME}"
+echo "[\$(date +'%F %T')] source${n}: using stream engine \${STREAM_ENGINE_VALUE}"
+echo "[\$(date +'%F %T')] source${n}: using Liquidsoap script \${LIQ_SCRIPT}"
 
 if [ -z "\${RADIO_URL_VALUE}" ] || [[ "\${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "\${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
   echo "[\$(date +'%F %T')] source${n}: RADIO${n}_URL is empty/placeholder; exiting"
@@ -933,10 +1132,17 @@ fi
 while true :
 do
   sleep 5
-  ffmpeg -re -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
-    -content_type "audio/ogg" \
-    -max_delay 5000000 \
-    -ar ${SAMPLE_RATE} -ac 2 -f alsa "\${SINK_NAME}" || true
+  case "\${STREAM_ENGINE_VALUE}" in
+    ffmpeg)
+      ffmpeg -re -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
+        -content_type "audio/ogg" \
+        -max_delay 5000000 \
+        -ar ${SAMPLE_RATE} -ac 2 -f alsa "\${SINK_NAME}" || true
+      ;;
+    *)
+      RADIO_URL="\${RADIO_URL_VALUE}" ALSA_OUTPUT="\${SINK_NAME}" /usr/bin/liquidsoap "\${LIQ_SCRIPT}" || true
+      ;;
+  esac
 done
 WRAP
 chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/source${n}.sh"
@@ -951,8 +1157,8 @@ cat > "${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh" <<'RUNP'
 set -euo pipefail
 STEREO_TOOL_CMD="/usr/local/bin/stereo-tool"
 SAMPLE_RATE=192000
-PROG1_ALSA_IN="${PROG1_ALSA_IN:-prg1in_cap}"
-PROG2_ALSA_IN="${PROG2_ALSA_IN:-prg2in_cap}"
+PROG1_ALSA_IN="${PROG1_ALSA_IN:-ompx_program1_input_capture}"
+PROG2_ALSA_IN="${PROG2_ALSA_IN:-ompx_program2_input_capture}"
 SYS_SCRIPTS_DIR="/opt/mpx-radio"
 OMPX_LOG_DIR="/var/lib/ompx/logs"
 MPX_LEFT_MONO="/tmp/mpx_left.pcm"; MPX_RIGHT_MONO="/tmp/mpx_right.pcm"
@@ -1107,16 +1313,19 @@ detect_loopback_card_ref(){
 }
 LOOPBACK_CARD_REF="${LOOPBACK_CARD_REF:-$(detect_loopback_card_ref)}"
 usage(){ cat <<USAGE
-Usage: $0 --radio 1|2 --url URL [--cron-user root|oMPX] [--start-now]
+Usage: $0 --radio 1|2 --url URL [--engine liquidsoap|ffmpeg] [--cron-user root|oMPX] [--start-now]
 Adds or updates an existing radio source URL and wrapper.
 USAGE
 }
-RADIO=""; URL=""; CRON_USER="${OMPX_USER}"; START_NOW=0
-while [ $# -gt 0 ]; do case "$1" in --radio) RADIO="$2"; shift 2;; --url) URL="$2"; shift 2;; --cron-user) CRON_USER="$2"; shift 2;; --start-now) START_NOW=1; shift;; -h|--help) usage; exit 0;; *) echo "Unknown arg: $1"; usage; exit 1;; esac; done
+RADIO=""; URL=""; ENGINE=""; CRON_USER="${OMPX_USER}"; START_NOW=0
+while [ $# -gt 0 ]; do case "$1" in --radio) RADIO="$2"; shift 2;; --url) URL="$2"; shift 2;; --engine) ENGINE="$2"; shift 2;; --cron-user) CRON_USER="$2"; shift 2;; --start-now) START_NOW=1; shift;; -h|--help) usage; exit 0;; *) echo "Unknown arg: $1"; usage; exit 1;; esac; done
 if [ -z "$RADIO" ] || [ -z "$URL" ]; then usage; exit 1; fi
 PROFILE="${OMPX_HOME}/.profile"; cp -a "$PROFILE" "${PROFILE}.bak.$(date +%s)"
 VAR="RADIO${RADIO}_URL"
 if grep -q "^${VAR}=" "$PROFILE"; then sed -i "s|^${VAR}=.*|${VAR}=\"${URL}\"|" "$PROFILE"; else echo "${VAR}=\"${URL}\"" >> "$PROFILE"; fi
+if [ -n "$ENGINE" ]; then
+  if grep -q '^STREAM_ENGINE=' "$PROFILE"; then sed -i "s|^STREAM_ENGINE=.*|STREAM_ENGINE=\"${ENGINE}\"|" "$PROFILE"; else echo "STREAM_ENGINE=\"${ENGINE}\"" >> "$PROFILE"; fi
+fi
 chown ${OMPX_USER}:${OMPX_USER} "$PROFILE"; chmod 644 "$PROFILE"
 WRAPPER="${SYS_SCRIPTS_DIR}/source${RADIO}.sh"
 LOG_FILE="${OMPX_LOG_DIR}/radio-opus${RADIO}.log"
@@ -1132,7 +1341,13 @@ PROFILE="${OMPX_HOME}/.profile"
 [ -f "$PROFILE" ] && . "$PROFILE"
 RADIO_VAR_NAME="RADIO${RADIO}_URL"
 RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
-SINK_NAME="prg${RADIO}in"
+LIQ_SCRIPT="${LIQUIDSOAP_CONF_DIR}/radio${RADIO}.liq"
+STREAM_ENGINE_VALUE="\${STREAM_ENGINE:-liquidsoap}"
+if [ "${RADIO}" = "1" ]; then
+  SINK_NAME="ompx_program1_input"
+else
+  SINK_NAME="ompx_program2_input"
+fi
 if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   if [ "${RADIO}" = "1" ]; then
     SINK_NAME="plughw:${LOOPBACK_CARD_REF},0,0"
@@ -1142,6 +1357,8 @@ if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   echo "[\$(date +'%F %T')] source${RADIO}: named sink unavailable; using fallback \${SINK_NAME}"
 fi
 echo "[\$(date +'%F %T')] source${RADIO}: using ALSA output endpoint \${SINK_NAME}"
+echo "[\$(date +'%F %T')] source${RADIO}: using Liquidsoap script \${LIQ_SCRIPT}"
+echo "[\$(date +'%F %T')] source${RADIO}: using stream engine \${STREAM_ENGINE_VALUE}"
 if [ -z "\${RADIO_URL_VALUE}" ] || [[ "\${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "\${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
   echo "[\$(date +'%F %T')] source${RADIO}: RADIO${RADIO}_URL is empty/placeholder; exiting"
   exit 0
@@ -1149,10 +1366,17 @@ fi
 while true :
 do
   sleep 5
-  ffmpeg -re -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
-    -content_type "audio/ogg" \
-    -max_delay 5000000 \
-    -ar 192000 -ac 2 -f alsa "\${SINK_NAME}" || true
+  case "\${STREAM_ENGINE_VALUE}" in
+    ffmpeg)
+      ffmpeg -re -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
+        -content_type "audio/ogg" \
+        -max_delay 5000000 \
+        -ar 192000 -ac 2 -f alsa "\${SINK_NAME}" || true
+      ;;
+    *)
+      RADIO_URL="\${RADIO_URL_VALUE}" ALSA_OUTPUT="\${SINK_NAME}" /usr/bin/liquidsoap "\${LIQ_SCRIPT}" || true
+      ;;
+  esac
 done
 WRAP
 chown ${OMPX_USER}:${OMPX_USER} "$WRAPPER"; chmod 750 "$WRAPPER"
@@ -1287,8 +1511,8 @@ echo "     tail -f ${OMPX_LOG_DIR}/radio-opus1.log"
 echo "     tail -f ${OMPX_LOG_DIR}/radio-opus2.log"
 echo ""
 echo "  4. Verify ALSA named sinks:"
-echo "     aplay -L | grep -E 'prg1in|prg2in|prg1prev|prg2prev|prg1mpx|prg2mpx|dsca_src|dsca_injection|mpx_to_icecast'"
-echo "     arecord -L | grep -E 'prg1in_cap|prg2in_cap|prg1prev_cap|prg2prev_cap|dsca_src_cap'"
+echo "     aplay -L | grep -E 'ompx_program1_input|ompx_program2_input|ompx_program1_preview|ompx_program2_preview|ompx_program1_mpx_output|ompx_program2_mpx_output|ompx_dsca_source|ompx_dsca_injection|ompx_mpx_to_icecast'"
+echo "     arecord -L | grep -E 'ompx_program1_input_capture|ompx_program2_input_capture|ompx_program1_preview_capture|ompx_program2_preview_capture|ompx_dsca_source_capture'"
 echo ""
 echo "  5. Runtime endpoint logs:"
 echo "     source*.sh logs print the chosen ALSA write/playback endpoint"
