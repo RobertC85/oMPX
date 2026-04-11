@@ -34,6 +34,7 @@ AUTO_UPDATE_STREAM_URLS_FROM_HEADER="${AUTO_UPDATE_STREAM_URLS_FROM_HEADER:-true
 AUTO_START_STREAMS_FROM_HEADER="${AUTO_START_STREAMS_FROM_HEADER:-false}"
 STREAM_SETUP_MODE="${STREAM_SETUP_MODE:-header}"
 STREAM_ENGINE="${STREAM_ENGINE:-liquidsoap}"
+STREAM_SILENCE_MAX_DBFS="${STREAM_SILENCE_MAX_DBFS:--85}"
 REMOVE_OLD_SINKS="${REMOVE_OLD_SINKS:-false}"
 RUN_QUICK_AUDIO_TEST="${RUN_QUICK_AUDIO_TEST:-true}"
 CONFIG_OVERWRITE="${CONFIG_OVERWRITE:-true}"
@@ -238,7 +239,8 @@ write_profile_file(){
 
 RADIO1_URL="${RADIO1_URL}"
 RADIO2_URL="${RADIO2_URL}"
-  STREAM_ENGINE="${STREAM_ENGINE}"
+STREAM_ENGINE="${STREAM_ENGINE}"
+STREAM_SILENCE_MAX_DBFS="${STREAM_SILENCE_MAX_DBFS}"
 PROFILE_WRITTEN
   chown "${OMPX_USER}:${OMPX_USER}" "$PROFILE"
   chmod 644 "$PROFILE"
@@ -260,6 +262,10 @@ probe_stream_source(){
   local probe_output=""
   local max_volume=""
   local mean_volume=""
+  local probe_attempt=1
+  local probe_attempts=3
+  local silent_attempts=0
+  local silence_max_dbfs="${STREAM_SILENCE_MAX_DBFS:--85}"
 
   STREAM_CHECK_STATUS="ok"
   STREAM_CHECK_MESSAGE="stream responded with audio"
@@ -284,49 +290,66 @@ probe_stream_source(){
     esac
   fi
 
-  probe_output=$(timeout 20 ffmpeg -hide_banner -loglevel info -t 12 -i "$url" -map 0:a:0? -vn -sn -dn -af volumedetect -f null - 2>&1 || true)
+  while [ "${probe_attempt}" -le "${probe_attempts}" ]; do
+    probe_output=$(timeout 20 ffmpeg -hide_banner -loglevel info -t 12 -i "$url" -map 0:a:0? -vn -sn -dn -af volumedetect -f null - 2>&1 || true)
 
-  if printf '%s\n' "$probe_output" | grep -qiE '404 Not Found|Server returned 404|HTTP error 404'; then
-    STREAM_CHECK_STATUS="http_404"
-    STREAM_CHECK_MESSAGE="ffmpeg reported HTTP 404 Not Found"
-    return 0
-  fi
-  if printf '%s\n' "$probe_output" | grep -qiE '403 Forbidden|401 Unauthorized'; then
-    STREAM_CHECK_STATUS="http_auth"
-    STREAM_CHECK_MESSAGE="ffmpeg reported an authorization error"
-    return 0
-  fi
-  if printf '%s\n' "$probe_output" | grep -qiE 'Connection refused|timed out|Temporary failure|Name or service not known|No route to host|Failed to resolve|End of file'; then
-    STREAM_CHECK_STATUS="offline"
-    STREAM_CHECK_MESSAGE="stream appears unreachable or offline"
-    return 0
-  fi
-  if printf '%s\n' "$probe_output" | grep -qiE 'matches no streams|does not contain any stream|Invalid data found when processing input'; then
-    STREAM_CHECK_STATUS="no_audio"
-    STREAM_CHECK_MESSAGE="stream did not present a usable audio stream"
-    return 0
-  fi
-  if ! printf '%s\n' "$probe_output" | grep -q 'Audio:'; then
-    STREAM_CHECK_STATUS="no_audio"
-    STREAM_CHECK_MESSAGE="probe did not confirm an audio stream"
-    return 0
-  fi
+    if printf '%s\n' "$probe_output" | grep -qiE '404 Not Found|Server returned 404|HTTP error 404'; then
+      STREAM_CHECK_STATUS="http_404"
+      STREAM_CHECK_MESSAGE="ffmpeg reported HTTP 404 Not Found"
+      return 0
+    fi
+    if printf '%s\n' "$probe_output" | grep -qiE '403 Forbidden|401 Unauthorized'; then
+      STREAM_CHECK_STATUS="http_auth"
+      STREAM_CHECK_MESSAGE="ffmpeg reported an authorization error"
+      return 0
+    fi
+    if printf '%s\n' "$probe_output" | grep -qiE 'Connection refused|timed out|Temporary failure|Name or service not known|No route to host|Failed to resolve|End of file'; then
+      STREAM_CHECK_STATUS="offline"
+      STREAM_CHECK_MESSAGE="stream appears unreachable or offline"
+      return 0
+    fi
+    if printf '%s\n' "$probe_output" | grep -qiE 'matches no streams|does not contain any stream|Invalid data found when processing input'; then
+      STREAM_CHECK_STATUS="no_audio"
+      STREAM_CHECK_MESSAGE="stream did not present a usable audio stream"
+      return 0
+    fi
+    if ! printf '%s\n' "$probe_output" | grep -q 'Audio:'; then
+      STREAM_CHECK_STATUS="no_audio"
+      STREAM_CHECK_MESSAGE="probe did not confirm an audio stream"
+      return 0
+    fi
 
-  max_volume=$(printf '%s\n' "$probe_output" | awk -F': ' '/max_volume/ {print $2; exit}')
-  mean_volume=$(printf '%s\n' "$probe_output" | awk -F': ' '/mean_volume/ {print $2; exit}')
-  max_volume=${max_volume%% *}
-  mean_volume=${mean_volume%% *}
+    max_volume=$(printf '%s\n' "$probe_output" | awk -F': ' '/max_volume/ {print $2; exit}')
+    mean_volume=$(printf '%s\n' "$probe_output" | awk -F': ' '/mean_volume/ {print $2; exit}')
+    max_volume=${max_volume%% *}
+    mean_volume=${mean_volume%% *}
 
-  if [ -n "$max_volume" ] && [ -n "$mean_volume" ] && [ "$max_volume" = "-inf" ] && [ "$mean_volume" = "-inf" ]; then
+    if [ -n "$max_volume" ] && [ -n "$mean_volume" ] && [ "$max_volume" = "-inf" ] && [ "$mean_volume" = "-inf" ]; then
+      silent_attempts=$((silent_attempts + 1))
+      probe_attempt=$((probe_attempt + 1))
+      continue
+    fi
+
+    # Treat extremely low decoded audio as silence, but keep threshold configurable.
+    if [ -n "$max_volume" ] && awk -v m="$max_volume" -v t="$silence_max_dbfs" 'BEGIN { exit !((m + 0) <= (t + 0)) }'; then
+      silent_attempts=$((silent_attempts + 1))
+      probe_attempt=$((probe_attempt + 1))
+      continue
+    fi
+
+    break
+  done
+
+  if [ "${silent_attempts}" -ge "${probe_attempts}" ]; then
     STREAM_CHECK_STATUS="silent"
-    STREAM_CHECK_MESSAGE="stream connected but decoded audio measured as silence during the probe window"
+    STREAM_CHECK_MESSAGE="stream connected but decoded audio stayed below ${silence_max_dbfs} dBFS across ${probe_attempts} probe windows"
     return 0
   fi
 
   if [ -n "$http_code" ] && [ "$http_code" != "000" ]; then
-    STREAM_CHECK_MESSAGE="stream responded with audio (HTTP ${http_code}, max_volume=${max_volume:-unknown}, mean_volume=${mean_volume:-unknown})"
+    STREAM_CHECK_MESSAGE="stream responded with audio (HTTP ${http_code}, max_volume=${max_volume:-unknown}, mean_volume=${mean_volume:-unknown}, silent_windows=${silent_attempts}/${probe_attempts}, silence_threshold=${silence_max_dbfs}dBFS)"
   elif [ -n "$max_volume" ] || [ -n "$mean_volume" ]; then
-    STREAM_CHECK_MESSAGE="stream responded with audio (max_volume=${max_volume:-unknown}, mean_volume=${mean_volume:-unknown})"
+    STREAM_CHECK_MESSAGE="stream responded with audio (max_volume=${max_volume:-unknown}, mean_volume=${mean_volume:-unknown}, silent_windows=${silent_attempts}/${probe_attempts}, silence_threshold=${silence_max_dbfs}dBFS)"
   fi
 }
 
@@ -497,8 +520,11 @@ if [ -t 0 ]; then
   case "${cfg_stream_mode}" in
     D)
       STREAM_SETUP_MODE="define-now"
-      read -t 120 -p "Enter RADIO1_URL (leave empty to keep current): " cfg_radio1 || cfg_radio1=""
-      read -t 120 -p "Enter RADIO2_URL (leave empty to keep current): " cfg_radio2 || cfg_radio2=""
+      echo "[INFO] Current RADIO1_URL: ${RADIO1_URL}"
+      echo "[INFO] Current RADIO2_URL: ${RADIO2_URL}"
+      echo "[INFO] RADIO2_URL is optional; a single live stream is supported."
+      read -t 120 -p "Enter RADIO1_URL (required only if you want Program 1 enabled; leave empty to keep current): " cfg_radio1 || cfg_radio1=""
+      read -t 120 -p "Enter RADIO2_URL (optional; leave empty to keep current or disable Program 2 later): " cfg_radio2 || cfg_radio2=""
       if [ -n "${cfg_radio1}" ]; then RADIO1_URL="${cfg_radio1}"; fi
       if [ -n "${cfg_radio2}" ]; then RADIO2_URL="${cfg_radio2}"; fi
       AUTO_UPDATE_STREAM_URLS_FROM_HEADER=true
@@ -757,6 +783,21 @@ echo "[SUCCESS] Dependencies installed"
 if [ "${STREAM_SETUP_MODE:-header}" != "later" ]; then
   validate_stream_source_interactive 1 RADIO1_URL
   validate_stream_source_interactive 2 RADIO2_URL
+
+  active_streams=0
+  if ! is_placeholder_stream_url "${RADIO1_URL}"; then
+    active_streams=$((active_streams + 1))
+  fi
+  if ! is_placeholder_stream_url "${RADIO2_URL}"; then
+    active_streams=$((active_streams + 1))
+  fi
+
+  if [ "${active_streams}" -ge 1 ]; then
+    echo "[INFO] Stream availability summary: ${active_streams} configured stream(s). One live stream is sufficient; Program 2 is optional."
+  else
+    echo "[INFO] Stream availability summary: no active stream URLs configured yet. Installation will continue; you can add streams later with ${OMPX_ADD}."
+  fi
+
   write_profile_file
 else
   echo "[INFO] Stream setup mode is 'define later'; skipping stream validation"
@@ -1158,7 +1199,7 @@ do
   case "\${STREAM_ENGINE_VALUE}" in
     ffmpeg)
       ffmpeg -re -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
-        -content_type "audio/ogg" \
+        -vn -sn -dn \
         -max_delay 5000000 \
         -ar ${SAMPLE_RATE} -ac 2 -f alsa "\${SINK_NAME}" || true
       ;;
@@ -1392,7 +1433,7 @@ do
   case "\${STREAM_ENGINE_VALUE}" in
     ffmpeg)
       ffmpeg -re -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
-        -content_type "audio/ogg" \
+        -vn -sn -dn \
         -max_delay 5000000 \
         -ar 192000 -ac 2 -f alsa "\${SINK_NAME}" || true
       ;;
