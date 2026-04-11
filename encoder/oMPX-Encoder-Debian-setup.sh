@@ -258,6 +258,8 @@ probe_stream_source(){
   local url="$1"
   local http_code=""
   local probe_output=""
+  local max_volume=""
+  local mean_volume=""
 
   STREAM_CHECK_STATUS="ok"
   STREAM_CHECK_MESSAGE="stream responded with audio"
@@ -282,7 +284,7 @@ probe_stream_source(){
     esac
   fi
 
-  probe_output=$(timeout 18 ffmpeg -hide_banner -loglevel info -t 10 -i "$url" -map 0:a:0? -af silencedetect=noise=-45dB:d=5 -f null - 2>&1 || true)
+  probe_output=$(timeout 20 ffmpeg -hide_banner -loglevel info -t 12 -i "$url" -map 0:a:0? -vn -sn -dn -af volumedetect -f null - 2>&1 || true)
 
   if printf '%s\n' "$probe_output" | grep -qiE '404 Not Found|Server returned 404|HTTP error 404'; then
     STREAM_CHECK_STATUS="http_404"
@@ -309,14 +311,22 @@ probe_stream_source(){
     STREAM_CHECK_MESSAGE="probe did not confirm an audio stream"
     return 0
   fi
-  if printf '%s\n' "$probe_output" | grep -q 'silence_start:' && ! printf '%s\n' "$probe_output" | grep -q 'silence_end:'; then
+
+  max_volume=$(printf '%s\n' "$probe_output" | awk -F': ' '/max_volume/ {print $2; exit}')
+  mean_volume=$(printf '%s\n' "$probe_output" | awk -F': ' '/mean_volume/ {print $2; exit}')
+  max_volume=${max_volume%% *}
+  mean_volume=${mean_volume%% *}
+
+  if [ -n "$max_volume" ] && [ -n "$mean_volume" ] && [ "$max_volume" = "-inf" ] && [ "$mean_volume" = "-inf" ]; then
     STREAM_CHECK_STATUS="silent"
-    STREAM_CHECK_MESSAGE="stream connected but only silence was detected during the probe window"
+    STREAM_CHECK_MESSAGE="stream connected but decoded audio measured as silence during the probe window"
     return 0
   fi
 
   if [ -n "$http_code" ] && [ "$http_code" != "000" ]; then
-    STREAM_CHECK_MESSAGE="stream responded with audio (HTTP ${http_code})"
+    STREAM_CHECK_MESSAGE="stream responded with audio (HTTP ${http_code}, max_volume=${max_volume:-unknown}, mean_volume=${mean_volume:-unknown})"
+  elif [ -n "$max_volume" ] || [ -n "$mean_volume" ]; then
+    STREAM_CHECK_MESSAGE="stream responded with audio (max_volume=${max_volume:-unknown}, mean_volume=${mean_volume:-unknown})"
   fi
 }
 
@@ -886,6 +896,10 @@ if [ "${RUN_QUICK_AUDIO_TEST}" = true ] && [ "${CONFIG_SKIP}" = false ] && [ "${
     test_tone=$(mktemp --suffix=.wav)
     test_capture_log=$(mktemp)
     test_inject_log=$(mktemp)
+    test_size=0
+    test_rms=0
+    ffmpeg_volume_output=""
+    ffmpeg_max_volume=""
     sox -n -r ${SAMPLE_RATE} -c 2 -b 16 "${test_tone}" synth 1.8 sine 1000 vol 0.6 >/dev/null 2>&1 || true
 
     if arecord -D ompx_program1_input_capture -f S16_LE -c 2 -r ${SAMPLE_RATE} -d 2 "${test_wav}" >"${test_capture_log}" 2>&1 & then
@@ -910,21 +924,30 @@ if [ "${RUN_QUICK_AUDIO_TEST}" = true ] && [ "${CONFIG_SKIP}" = false ] && [ "${
       sox_stats=""
       sox_stats=$(sox "${test_wav}" -n stat 2>&1 || true)
       test_peak=$(printf '%s\n' "${sox_stats}" | awk '/Maximum amplitude/ {print $3; exit}')
+      test_rms=$(printf '%s\n' "${sox_stats}" | awk '/RMS[[:space:]]+amplitude/ {print $3; exit}')
       test_peak=${test_peak:-0}
+      test_rms=${test_rms:-0}
+      test_size=$(stat -c %s "${test_wav}" 2>/dev/null || echo 0)
+
+      if ! awk -v p="${test_peak:-0}" -v r="${test_rms:-0}" 'BEGIN { exit !((p + 0) > 0.0005 || (r + 0) > 0.0001) }'; then
+        ffmpeg_volume_output=$(ffmpeg -hide_banner -loglevel info -i "${test_wav}" -af volumedetect -f null - 2>&1 || true)
+        ffmpeg_max_volume=$(printf '%s\n' "${ffmpeg_volume_output}" | awk -F': ' '/max_volume/ {print $2; exit}')
+        ffmpeg_max_volume=${ffmpeg_max_volume%% *}
+      fi
       rm -f "${test_wav}" "${test_tone}" || true
 
-      if awk -v p="${test_peak:-0}" 'BEGIN { exit !(p > 0.0005) }'; then
-        echo "[SUCCESS] Quick loopback self-test passed (peak amplitude ${test_peak})"
+      if awk -v p="${test_peak:-0}" -v r="${test_rms:-0}" -v s="${test_size:-0}" -v m="${ffmpeg_max_volume:--inf}" 'BEGIN { exit !(((p + 0) > 0.0005) || ((r + 0) > 0.0001) || ((s + 0) > 4096 && m != "-inf" && m != "")) }'; then
+        echo "[SUCCESS] Quick loopback self-test passed (peak amplitude ${test_peak}, RMS amplitude ${test_rms}, capture bytes ${test_size})"
         rm -f "${test_capture_log}" "${test_inject_log}" || true
         break
       fi
 
-      echo "[WARNING] Quick loopback self-test detected silence/low signal (peak amplitude ${test_peak})"
+      echo "[WARNING] Quick loopback self-test detected silence/low signal (peak amplitude ${test_peak}, RMS amplitude ${test_rms}, capture bytes ${test_size}, ffmpeg max_volume ${ffmpeg_max_volume:--inf})"
       if [ "${inject_ok}" -ne 1 ]; then
         echo "[WARNING] Tone injection into ompx_program1_input (write/playback endpoint) failed. Last injector output:"
         tail -n 3 "${test_inject_log}" 2>/dev/null || true
       fi
-      if [ "${test_peak}" = "0" ]; then
+      if awk -v p="${test_peak:-0}" -v r="${test_rms:-0}" 'BEGIN { exit !((p + 0) == 0 && (r + 0) == 0) }'; then
         echo "[WARNING] No measurable signal captured from ompx_program1_input_capture (read/capture endpoint). This can indicate missing ALSA routing or inactive source audio."
         echo "[WARNING] Last capture output:"
         tail -n 3 "${test_capture_log}" 2>/dev/null || true
