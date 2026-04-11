@@ -111,7 +111,7 @@ render_asound_config(){
   cat <<EOF
 # oMPX ALSA virtual PCM map (auto-generated)
 
-pcm.ompx_program1_input {
+pcm.ompx_prg1in {
   type plug
   slave.pcm "hw:${card_ref},0,0"
   hint {
@@ -120,7 +120,7 @@ pcm.ompx_program1_input {
   }
 }
 
-pcm.ompx_program1_input_capture {
+pcm.ompx_prg1in_cap {
   type plug
   slave.pcm "hw:${card_ref},1,0"
   hint {
@@ -129,7 +129,7 @@ pcm.ompx_program1_input_capture {
   }
 }
 
-pcm.ompx_program2_input {
+pcm.ompx_prg2in {
   type plug
   slave.pcm "hw:${card_ref},0,1"
   hint {
@@ -138,7 +138,7 @@ pcm.ompx_program2_input {
   }
 }
 
-pcm.ompx_program2_input_capture {
+pcm.ompx_prg2in_cap {
   type plug
   slave.pcm "hw:${card_ref},1,1"
   hint {
@@ -147,7 +147,7 @@ pcm.ompx_program2_input_capture {
   }
 }
 
-pcm.ompx_program1_preview {
+pcm.ompx_prg1prev {
   type plug
   slave.pcm "hw:${card_ref},0,2"
   hint {
@@ -156,7 +156,7 @@ pcm.ompx_program1_preview {
   }
 }
 
-pcm.ompx_program1_preview_capture {
+pcm.ompx_prg1prev_cap {
   type plug
   slave.pcm "hw:${card_ref},1,2"
   hint {
@@ -165,7 +165,7 @@ pcm.ompx_program1_preview_capture {
   }
 }
 
-pcm.ompx_program2_preview {
+pcm.ompx_prg2prev {
   type plug
   slave.pcm "hw:${card_ref},0,3"
   hint {
@@ -174,7 +174,7 @@ pcm.ompx_program2_preview {
   }
 }
 
-pcm.ompx_program2_preview_capture {
+pcm.ompx_prg2prev_cap {
   type plug
   slave.pcm "hw:${card_ref},1,3"
   hint {
@@ -183,7 +183,7 @@ pcm.ompx_program2_preview_capture {
   }
 }
 
-pcm.ompx_program1_mpx_output {
+pcm.ompx_prg1mpx {
   type plug
   slave.pcm "hw:${card_ref},0,4"
   hint {
@@ -192,7 +192,7 @@ pcm.ompx_program1_mpx_output {
   }
 }
 
-pcm.ompx_program2_mpx_output {
+pcm.ompx_prg2mpx {
   type plug
   slave.pcm "hw:${card_ref},0,5"
   hint {
@@ -201,7 +201,7 @@ pcm.ompx_program2_mpx_output {
   }
 }
 
-pcm.ompx_dsca_source {
+pcm.ompx_dsca_src {
   type plug
   slave.pcm "hw:${card_ref},0,6"
   hint {
@@ -210,7 +210,7 @@ pcm.ompx_dsca_source {
   }
 }
 
-pcm.ompx_dsca_source_capture {
+pcm.ompx_dsca_src_cap {
   type plug
   slave.pcm "hw:${card_ref},1,6"
   hint {
@@ -237,20 +237,6 @@ pcm.ompx_mpx_to_icecast {
   }
 }
 
-pcm.prg1in { type plug slave.pcm "ompx_program1_input" }
-pcm.prg1in_cap { type plug slave.pcm "ompx_program1_input_capture" }
-pcm.prg2in { type plug slave.pcm "ompx_program2_input" }
-pcm.prg2in_cap { type plug slave.pcm "ompx_program2_input_capture" }
-pcm.prg1prev { type plug slave.pcm "ompx_program1_preview" }
-pcm.prg1prev_cap { type plug slave.pcm "ompx_program1_preview_capture" }
-pcm.prg2prev { type plug slave.pcm "ompx_program2_preview" }
-pcm.prg2prev_cap { type plug slave.pcm "ompx_program2_preview_capture" }
-pcm.prg1mpx { type plug slave.pcm "ompx_program1_mpx_output" }
-pcm.prg2mpx { type plug slave.pcm "ompx_program2_mpx_output" }
-pcm.dsca_src { type plug slave.pcm "ompx_dsca_source" }
-pcm.dsca_src_cap { type plug slave.pcm "ompx_dsca_source_capture" }
-pcm.dsca_injection { type plug slave.pcm "ompx_dsca_injection" }
-pcm.mpx_to_icecast { type plug slave.pcm "ompx_mpx_to_icecast" }
 EOF
 }
 
@@ -469,7 +455,7 @@ strip_old_ompx_sinks(){
   local out_file="$2"
   awk '
     BEGIN {
-      split("prg1in prg1in_cap prg2in prg2in_cap prg1prev prg1prev_cap prg2prev prg2prev_cap prg1mpx prg2mpx dsca_src dsca_src_cap dsca_injection mpx_to_icecast", a, " ")
+      split("prg1in prg1in_cap prg2in prg2in_cap prg1prev prg1prev_cap prg2prev prg2prev_cap prg1mpx prg2mpx dsca_src dsca_src_cap dsca_injection mpx_to_icecast ompx_program1_input ompx_program1_input_capture ompx_program2_input ompx_program2_input_capture ompx_program1_preview ompx_program1_preview_capture ompx_program2_preview ompx_program2_preview_capture ompx_program1_mpx_output ompx_program2_mpx_output ompx_dsca_source ompx_dsca_source_capture ompx_dsca_injection ompx_mpx_to_icecast", a, " ")
       for (i in a) names[a[i]] = 1
       skip = 0
       depth = 0
@@ -626,7 +612,7 @@ if [ -t 0 ]; then
   fi
   echo "[INFO] Selected streaming engine: ${STREAM_ENGINE}"
 
-  read -t 30 -p "Run quick loopback test (write to ompx_program1_input, read from ompx_program1_input_capture) during install? [Y/n] (default Y): " cfg_quick_test || cfg_quick_test="Y"
+  read -t 30 -p "Run quick loopback test (write to ompx_prg1in, read from ompx_prg1in_cap) during install? [Y/n] (default Y): " cfg_quick_test || cfg_quick_test="Y"
   cfg_quick_test=${cfg_quick_test^^}
   if [ "${cfg_quick_test}" = "N" ]; then
     RUN_QUICK_AUDIO_TEST=false
@@ -641,16 +627,14 @@ set -euo pipefail
 echo "oMPX sink map helper"
 echo "--------------------"
 echo "Write/playback endpoints (send audio into these):"
-for id in ompx_program1_input ompx_program1_preview ompx_program2_input ompx_program2_preview ompx_dsca_source ompx_program1_mpx_output ompx_program2_mpx_output ompx_dsca_injection ompx_mpx_to_icecast; do
+for id in ompx_prg1in ompx_prg1prev ompx_prg2in ompx_prg2prev ompx_dsca_src ompx_prg1mpx ompx_prg2mpx ompx_dsca_injection ompx_mpx_to_icecast; do
   printf '  %s\n' "$id"
 done
 echo ""
 echo "Read/capture endpoints (read audio back from these):"
-for id in ompx_program1_input_capture ompx_program1_preview_capture ompx_program2_input_capture ompx_program2_preview_capture ompx_dsca_source_capture; do
+for id in ompx_prg1in_cap ompx_prg1prev_cap ompx_prg2in_cap ompx_prg2prev_cap ompx_dsca_src_cap; do
   printf '  %s\n' "$id"
 done
-echo ""
-echo "Legacy compatibility aliases still available: prg1in/prg1in_cap, prg2in/prg2in_cap, prg1prev/prg1prev_cap, prg2prev/prg2prev_cap, dsca_src/dsca_src_cap"
 ASMAP
 chmod 755 "${ASOUND_MAP_HELPER}"
 chown root:root "${ASOUND_MAP_HELPER}"
@@ -906,7 +890,7 @@ echo "[INFO] Available ALSA devices:"
 aplay -l 2>/dev/null || echo "[WARNING] No ALSA devices found"
 echo "[INFO] Hardware-only list above (aplay -l). Virtual named PCMs are shown with: aplay -L"
 _log "ALSA devices listed above"
-echo "[INFO] Expected named ALSA PCMs: write/playback endpoints ompx_program1_input, ompx_program2_input, ompx_program1_preview, ompx_program2_preview, ompx_program1_mpx_output, ompx_program2_mpx_output, ompx_dsca_source, ompx_dsca_injection, ompx_mpx_to_icecast; read/capture endpoints ompx_program1_input_capture, ompx_program2_input_capture, ompx_program1_preview_capture, ompx_program2_preview_capture, ompx_dsca_source_capture"
+echo "[INFO] Expected named ALSA PCMs: write/playback endpoints ompx_prg1in, ompx_prg2in, ompx_prg1prev, ompx_prg2prev, ompx_prg1mpx, ompx_prg2mpx, ompx_dsca_src, ompx_dsca_injection, ompx_mpx_to_icecast; read/capture endpoints ompx_prg1in_cap, ompx_prg2in_cap, ompx_prg1prev_cap, ompx_prg2prev_cap, ompx_dsca_src_cap"
 echo "[INFO] Resolved sink map helper: ${ASOUND_MAP_HELPER}"
 "${ASOUND_MAP_HELPER}" || true
 
@@ -919,8 +903,8 @@ else
   while true; do
     playback_ok=0
     capture_ok=0
-    if aplay -L 2>/dev/null | grep -Eq '(^|[[:space:]])(ompx_program1_input|prg1in)($|[[:space:]])'; then playback_ok=1; fi
-    if arecord -L 2>/dev/null | grep -Eq '(^|[[:space:]])(ompx_program1_input_capture|prg1in_cap)($|[[:space:]])'; then capture_ok=1; fi
+    if aplay -L 2>/dev/null | grep -Eq '(^|[[:space:]])(ompx_prg1in|prg1in)($|[[:space:]])'; then playback_ok=1; fi
+    if arecord -L 2>/dev/null | grep -Eq '(^|[[:space:]])(ompx_prg1in_cap|prg1in_cap)($|[[:space:]])'; then capture_ok=1; fi
 
     if [ "${playback_ok}" -eq 1 ] && [ "${capture_ok}" -eq 1 ]; then
       break
@@ -928,14 +912,14 @@ else
 
     echo "[WARNING] Named PCM discovery did not return expected endpoints yet."
     if [ "${playback_ok}" -ne 1 ]; then
-      echo "[WARNING] Missing from aplay -L: ompx_program1_input (write/playback endpoint)"
+      echo "[WARNING] Missing from aplay -L: ompx_prg1in (write/playback endpoint)"
     fi
     if [ "${capture_ok}" -ne 1 ]; then
-      echo "[WARNING] Missing from arecord -L: ompx_program1_input_capture (read/capture endpoint)"
+      echo "[WARNING] Missing from arecord -L: ompx_prg1in_cap (read/capture endpoint)"
     fi
 
     if [ -f "${ASOUND_CONF_PATH}" ]; then
-      if grep -Eq '^[[:space:]]*pcm\.(ompx_program1_input|prg1in)[[:space:]]*\{' "${ASOUND_CONF_PATH}" && grep -Eq '^[[:space:]]*pcm\.(ompx_program1_input_capture|prg1in_cap)[[:space:]]*\{' "${ASOUND_CONF_PATH}"; then
+      if grep -Eq '^[[:space:]]*pcm\.(ompx_prg1in|prg1in)[[:space:]]*\{' "${ASOUND_CONF_PATH}" && grep -Eq '^[[:space:]]*pcm\.(ompx_prg1in_cap|prg1in_cap)[[:space:]]*\{' "${ASOUND_CONF_PATH}"; then
         echo "[INFO] ${ASOUND_CONF_PATH} contains Program 1 input PCM definitions."
       else
         echo "[WARNING] ${ASOUND_CONF_PATH} does not appear to contain both Program 1 input write/capture definitions."
@@ -943,10 +927,10 @@ else
     fi
 
     echo "[INFO] Current matching devices from ALSA discovery:"
-    echo "[INFO] aplay -L | grep -E 'ompx_program1_input|prg1in'"
-    aplay -L 2>/dev/null | grep -E 'ompx_program1_input|prg1in' || true
-    echo "[INFO] arecord -L | grep -E 'ompx_program1_input_capture|prg1in_cap'"
-    arecord -L 2>/dev/null | grep -E 'ompx_program1_input_capture|prg1in_cap' || true
+    echo "[INFO] aplay -L | grep -E 'ompx_prg1in|prg1in'"
+    aplay -L 2>/dev/null | grep -E 'ompx_prg1in|prg1in' || true
+    echo "[INFO] arecord -L | grep -E 'ompx_prg1in_cap|prg1in_cap'"
+    arecord -L 2>/dev/null | grep -E 'ompx_prg1in_cap|prg1in_cap' || true
 
     if [ -t 0 ]; then
       echo "[PROMPT] Named PCM check is incomplete."
@@ -979,7 +963,7 @@ fi
 if [ "${RUN_QUICK_AUDIO_TEST}" = true ] && [ "${CONFIG_SKIP}" = false ] && [ "${CONFIG_OVERWRITE}" = true ]; then
   test_attempt=1
   while true; do
-    echo "[INFO] Running quick loopback self-test attempt ${test_attempt}: write to ompx_program1_input, read from ompx_program1_input_capture"
+    echo "[INFO] Running quick loopback self-test attempt ${test_attempt}: write to ompx_prg1in, read from ompx_prg1in_cap"
     test_wav=$(mktemp --suffix=.wav)
     test_tone=$(mktemp --suffix=.wav)
     test_capture_log=$(mktemp)
@@ -990,19 +974,19 @@ if [ "${RUN_QUICK_AUDIO_TEST}" = true ] && [ "${CONFIG_SKIP}" = false ] && [ "${
     ffmpeg_max_volume=""
     sox -n -r ${SAMPLE_RATE} -c 2 -b 16 "${test_tone}" synth 1.8 sine 1000 vol 0.6 >/dev/null 2>&1 || true
 
-    if arecord -D ompx_program1_input_capture -f S16_LE -c 2 -r ${SAMPLE_RATE} -d 2 "${test_wav}" >"${test_capture_log}" 2>&1 & then
+    if arecord -D ompx_prg1in_cap -f S16_LE -c 2 -r ${SAMPLE_RATE} -d 2 "${test_wav}" >"${test_capture_log}" 2>&1 & then
       rec_pid=$!
       sleep 0.6
 
       inject_ok=0
       if [ -s "${test_tone}" ]; then
-        if timeout 4 aplay -q -D ompx_program1_input "${test_tone}" >"${test_inject_log}" 2>&1; then
+        if timeout 4 aplay -q -D ompx_prg1in "${test_tone}" >"${test_inject_log}" 2>&1; then
           inject_ok=1
         fi
       fi
 
       if [ "${inject_ok}" -ne 1 ]; then
-        if ffmpeg -hide_banner -loglevel error -f lavfi -i "sine=frequency=1000:sample_rate=${SAMPLE_RATE}:duration=1.8" -ac 2 -f alsa ompx_program1_input >"${test_inject_log}" 2>&1; then
+        if ffmpeg -hide_banner -loglevel error -f lavfi -i "sine=frequency=1000:sample_rate=${SAMPLE_RATE}:duration=1.8" -ac 2 -f alsa ompx_prg1in >"${test_inject_log}" 2>&1; then
           inject_ok=1
         fi
       fi
@@ -1032,11 +1016,11 @@ if [ "${RUN_QUICK_AUDIO_TEST}" = true ] && [ "${CONFIG_SKIP}" = false ] && [ "${
 
       echo "[WARNING] Quick loopback self-test detected silence/low signal (peak amplitude ${test_peak}, RMS amplitude ${test_rms}, capture bytes ${test_size}, ffmpeg max_volume ${ffmpeg_max_volume:--inf})"
       if [ "${inject_ok}" -ne 1 ]; then
-        echo "[WARNING] Tone injection into ompx_program1_input (write/playback endpoint) failed. Last injector output:"
+        echo "[WARNING] Tone injection into ompx_prg1in (write/playback endpoint) failed. Last injector output:"
         tail -n 3 "${test_inject_log}" 2>/dev/null || true
       fi
       if awk -v p="${test_peak:-0}" -v r="${test_rms:-0}" 'BEGIN { exit !((p + 0) == 0 && (r + 0) == 0) }'; then
-        echo "[WARNING] No measurable signal captured from ompx_program1_input_capture (read/capture endpoint). This can indicate missing ALSA routing or inactive source audio."
+        echo "[WARNING] No measurable signal captured from ompx_prg1in_cap (read/capture endpoint). This can indicate missing ALSA routing or inactive source audio."
         echo "[WARNING] Last capture output:"
         tail -n 3 "${test_capture_log}" 2>/dev/null || true
       fi
@@ -1044,7 +1028,7 @@ if [ "${RUN_QUICK_AUDIO_TEST}" = true ] && [ "${CONFIG_SKIP}" = false ] && [ "${
     else
       rm -f "${test_wav}" "${test_tone}" || true
       echo "[WARNING] Could not start arecord for loopback self-test"
-      echo "[WARNING] Check arecord -L for ompx_program1_input_capture (capture endpoint) and ensure snd_aloop is loaded"
+      echo "[WARNING] Check arecord -L for ompx_prg1in_cap (capture endpoint) and ensure snd_aloop is loaded"
       rm -f "${test_capture_log}" "${test_inject_log}" || true
     fi
 
@@ -1093,7 +1077,7 @@ echo "[INFO] Generating Liquidsoap configuration files..."
 cat > "${LIQUIDSOAP_CONF_DIR}/radio1.liq" <<'L1'
 set("log.stdout", true)
 sample_rate = 192000
-alsa_output = if getenv("ALSA_OUTPUT", "") <> "" then getenv("ALSA_OUTPUT") else "ompx_program1_input"
+alsa_output = if getenv("ALSA_OUTPUT", "") <> "" then getenv("ALSA_OUTPUT") else "ompx_prg1in"
 def write_alsa(dev, src)
 cmd = "ffmpeg -hide_banner -loglevel warning -i - -ac 2 -ar " ^ string_of_int(sample_rate) ^ " -f alsa '" ^ dev ^ "'"
 output.exec(src, ["sh","-c", cmd])
@@ -1110,7 +1094,7 @@ L1
 cat > "${LIQUIDSOAP_CONF_DIR}/radio2.liq" <<'L2'
 set("log.stdout", true)
 sample_rate = 192000
-alsa_output = if getenv("ALSA_OUTPUT", "") <> "" then getenv("ALSA_OUTPUT") else "ompx_program2_input"
+alsa_output = if getenv("ALSA_OUTPUT", "") <> "" then getenv("ALSA_OUTPUT") else "ompx_prg2in"
 def write_alsa(dev, src)
 cmd = "ffmpeg -hide_banner -loglevel warning -i - -ac 2 -ar " ^ string_of_int(sample_rate) ^ " -f alsa '" ^ dev ^ "'"
 output.exec(src, ["sh","-c", cmd])
@@ -1129,13 +1113,13 @@ echo "[INFO] Creating oMPX encoder Liquidsoap script..."
 cat > "${OMPX_ENCODER_LIQ}" <<'OMPX_LIQ'
 # /usr/local/bin/ompx_encoder.liq
 # oMPX named ALSA loopback endpoints for this installer profile:
-#   Write/playback: ompx_program1_input, ompx_program2_input, ompx_program1_preview, ompx_program2_preview, ompx_program1_mpx_output, ompx_program2_mpx_output, ompx_dsca_source, ompx_dsca_injection, ompx_mpx_to_icecast
-#   Read/capture: ompx_program1_input_capture, ompx_program2_input_capture, ompx_program1_preview_capture, ompx_program2_preview_capture, ompx_dsca_source_capture
+#   Write/playback: ompx_prg1in, ompx_prg2in, ompx_prg1prev, ompx_prg2prev, ompx_prg1mpx, ompx_prg2mpx, ompx_dsca_src, ompx_dsca_injection, ompx_mpx_to_icecast
+#   Read/capture: ompx_prg1in_cap, ompx_prg2in_cap, ompx_prg1prev_cap, ompx_prg2prev_cap, ompx_dsca_src_cap
 # Main stereo source: read/capture side of Program 1 input loopback pair.
-main = input.alsa(device="ompx_program1_input_capture")
+main = input.alsa(device="ompx_prg1in_cap")
 
 # Injector source: read/capture side of the DSCA source loopback pair.
-injector_mono = input.alsa(device="ompx_dsca_source_capture")
+injector_mono = input.alsa(device="ompx_dsca_src_cap")
 
 # Ensure both sources are resampled to 192kHz first for correct filtering and mixing
 main = convert_samplerate(main, 192000)
@@ -1219,9 +1203,9 @@ RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
 LIQ_SCRIPT="${LIQUIDSOAP_CONF_DIR}/radio${n}.liq"
 STREAM_ENGINE_VALUE="\${STREAM_ENGINE:-liquidsoap}"
 if [ "${n}" = "1" ]; then
-  SINK_NAME="ompx_program1_input"
+  SINK_NAME="ompx_prg1in"
 else
-  SINK_NAME="ompx_program2_input"
+  SINK_NAME="ompx_prg2in"
 fi
 if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   if [ "${n}" = "1" ]; then
@@ -1268,8 +1252,8 @@ cat > "${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh" <<'RUNP'
 set -euo pipefail
 STEREO_TOOL_CMD="/usr/local/bin/stereo-tool"
 SAMPLE_RATE=192000
-PROG1_ALSA_IN="${PROG1_ALSA_IN:-ompx_program1_input_capture}"
-PROG2_ALSA_IN="${PROG2_ALSA_IN:-ompx_program2_input_capture}"
+PROG1_ALSA_IN="${PROG1_ALSA_IN:-ompx_prg1in_cap}"
+PROG2_ALSA_IN="${PROG2_ALSA_IN:-ompx_prg2in_cap}"
 SYS_SCRIPTS_DIR="/opt/mpx-radio"
 OMPX_LOG_DIR="/var/lib/ompx/logs"
 MPX_LEFT_MONO="/tmp/mpx_left.pcm"; MPX_RIGHT_MONO="/tmp/mpx_right.pcm"
@@ -1455,9 +1439,9 @@ RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
 LIQ_SCRIPT="${LIQUIDSOAP_CONF_DIR}/radio${RADIO}.liq"
 STREAM_ENGINE_VALUE="\${STREAM_ENGINE:-liquidsoap}"
 if [ "${RADIO}" = "1" ]; then
-  SINK_NAME="ompx_program1_input"
+  SINK_NAME="ompx_prg1in"
 else
-  SINK_NAME="ompx_program2_input"
+  SINK_NAME="ompx_prg2in"
 fi
 if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   if [ "${RADIO}" = "1" ]; then
@@ -1622,8 +1606,8 @@ echo "     tail -f ${OMPX_LOG_DIR}/radio-opus1.log"
 echo "     tail -f ${OMPX_LOG_DIR}/radio-opus2.log"
 echo ""
 echo "  4. Verify ALSA named sinks:"
-echo "     aplay -L | grep -E 'ompx_program1_input|ompx_program2_input|ompx_program1_preview|ompx_program2_preview|ompx_program1_mpx_output|ompx_program2_mpx_output|ompx_dsca_source|ompx_dsca_injection|ompx_mpx_to_icecast'"
-echo "     arecord -L | grep -E 'ompx_program1_input_capture|ompx_program2_input_capture|ompx_program1_preview_capture|ompx_program2_preview_capture|ompx_dsca_source_capture'"
+echo "     aplay -L | grep -E 'ompx_prg1in|ompx_prg2in|ompx_prg1prev|ompx_prg2prev|ompx_prg1mpx|ompx_prg2mpx|ompx_dsca_src|ompx_dsca_injection|ompx_mpx_to_icecast'"
+echo "     arecord -L | grep -E 'ompx_prg1in_cap|ompx_prg2in_cap|ompx_prg1prev_cap|ompx_prg2prev_cap|ompx_dsca_src_cap'"
 echo ""
 echo "  5. Runtime endpoint logs:"
 echo "     source*.sh logs print the chosen ALSA write/playback endpoint"
