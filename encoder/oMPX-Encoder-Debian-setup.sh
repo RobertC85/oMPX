@@ -773,18 +773,28 @@ PROFILE="${OMPX_HOME}/.profile"
 RADIO_VAR_NAME="RADIO${n}_URL"
 RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
 SINK_NAME="prg${n}in"
+if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
+  if [ "${n}" = "1" ]; then
+    SINK_NAME="plughw:Loopback,0,0"
+  else
+    SINK_NAME="plughw:Loopback,0,1"
+  fi
+  echo "[\$(date +'%F %T')] source${n}: named sink unavailable; using fallback \${SINK_NAME}"
+fi
+echo "[\$(date +'%F %T')] source${n}: using ALSA output endpoint \${SINK_NAME}"
 
 if [ -z "\${RADIO_URL_VALUE}" ] || [[ "\${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "\${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
   echo "[\$(date +'%F %T')] source${n}: RADIO${n}_URL is empty/placeholder; exiting"
   exit 0
 fi
 
-while true; do
+while true :
+do
+  sleep 5
   ffmpeg -re -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
     -content_type "audio/ogg" \
     -max_delay 5000000 \
     -ar ${SAMPLE_RATE} -ac 2 -f alsa "\${SINK_NAME}" || true
-  sleep 5
 done
 WRAP
 chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/source${n}.sh"
@@ -818,10 +828,20 @@ for n in 1 2; do
   fi
 done
 
+if ! arecord -L 2>/dev/null | grep -q "^${PROG1_ALSA_IN}$"; then
+  PROG1_ALSA_IN="hw:Loopback,1,0"
+  _log "Fallback capture endpoint for Program 1: ${PROG1_ALSA_IN}"
+fi
+if ! arecord -L 2>/dev/null | grep -q "^${PROG2_ALSA_IN}$"; then
+  PROG2_ALSA_IN="hw:Loopback,1,1"
+  _log "Fallback capture endpoint for Program 2: ${PROG2_ALSA_IN}"
+fi
+_log "Using capture endpoints: PROG1_ALSA_IN=${PROG1_ALSA_IN}, PROG2_ALSA_IN=${PROG2_ALSA_IN}"
+
 for p in "$MPX_LEFT_MONO" "$MPX_RIGHT_MONO" "$MPX_LEFT_OUT" "$MPX_RIGHT_OUT" "$MPX_STEREO_FIFO"; do rm -f "$p" || true; mkfifo "$p"; done
 ffmpeg -hide_banner -loglevel warning -f alsa -thread_queue_size 10240 -i "${PROG1_ALSA_IN}" -map_channel 0.0.0 -f s16le -ac 1 -ar ${SAMPLE_RATE} - > "${MPX_LEFT_MONO}" &
 FF_PROG1_MONO_PID=$!; _log "Spawned PROG1 mono extractor pid $FF_PROG1_MONO_PID"
-if aplay -L 2>/dev/null | grep -q "^${PROG2_ALSA_IN}$"; then
+if arecord -L 2>/dev/null | grep -q "^${PROG2_ALSA_IN}$" || [[ "${PROG2_ALSA_IN}" == hw:Loopback,* ]]; then
 ffmpeg -hide_banner -loglevel warning -f alsa -thread_queue_size 10240 -i "${PROG2_ALSA_IN}" -map_channel 0.0.0 -f s16le -ac 1 -ar ${SAMPLE_RATE} - > "${MPX_RIGHT_MONO}" &
 FF_PROG2_MONO_PID=$!; _log "Spawned PROG2 mono extractor pid ${FF_PROG2_MONO_PID:-0}"
 else
@@ -956,16 +976,26 @@ PROFILE="${OMPX_HOME}/.profile"
 RADIO_VAR_NAME="RADIO${RADIO}_URL"
 RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
 SINK_NAME="prg${RADIO}in"
+if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
+  if [ "${RADIO}" = "1" ]; then
+    SINK_NAME="plughw:Loopback,0,0"
+  else
+    SINK_NAME="plughw:Loopback,0,1"
+  fi
+  echo "[\$(date +'%F %T')] source${RADIO}: named sink unavailable; using fallback \${SINK_NAME}"
+fi
+echo "[\$(date +'%F %T')] source${RADIO}: using ALSA output endpoint \${SINK_NAME}"
 if [ -z "\${RADIO_URL_VALUE}" ] || [[ "\${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "\${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
-  echo "[$(date +'%F %T')] source${RADIO}: RADIO${RADIO}_URL is empty/placeholder; exiting"
+  echo "[\$(date +'%F %T')] source${RADIO}: RADIO${RADIO}_URL is empty/placeholder; exiting"
   exit 0
 fi
-while true; do
+while true :
+do
+  sleep 5
   ffmpeg -re -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
     -content_type "audio/ogg" \
     -max_delay 5000000 \
     -ar 192000 -ac 2 -f alsa "\${SINK_NAME}" || true
-  sleep 5
 done
 WRAP
 chown ${OMPX_USER}:${OMPX_USER} "$WRAPPER"; chmod 750 "$WRAPPER"
@@ -1096,15 +1126,21 @@ echo "     systemctl status mpx-watchdog.service"
 echo ""
 echo "  3. View logs:"
 echo "     journalctl -u mpx-processing-alsa.service -f"
+echo "     tail -f ${OMPX_LOG_DIR}/radio-opus1.log"
+echo "     tail -f ${OMPX_LOG_DIR}/radio-opus2.log"
 echo ""
 echo "  4. Verify ALSA named sinks:"
 echo "     aplay -L | grep -E 'prg1in|prg2in|prg1prev|prg2prev|prg1mpx|prg2mpx|dsca_src|dsca_injection|mpx_to_icecast'"
 echo "     arecord -L | grep -E 'prg1in_cap|prg2in_cap|prg1prev_cap|prg2prev_cap|dsca_src_cap'"
 echo ""
-echo "  5. Print resolved sink-to-hardware map:"
+echo "  5. Runtime endpoint logs:"
+echo "     source*.sh logs print the chosen ALSA write/playback endpoint"
+echo "     mpx-processing-alsa.service logs print the chosen capture endpoints"
+echo ""
+echo "  6. Print resolved sink-to-hardware map:"
 echo "     sudo ${ASOUND_MAP_HELPER}"
 echo ""
-echo "  6. Access oMPX user shell:"
+echo "  7. Access oMPX user shell:"
 echo "     sudo su - oMPX"
 echo ""
 
