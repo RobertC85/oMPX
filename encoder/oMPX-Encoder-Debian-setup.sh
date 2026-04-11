@@ -38,8 +38,40 @@ have_crontab(){ command -v crontab >/dev/null 2>&1; }
 
 ALOOP_IDS="program1in,program1preview,program2in,program2preview,dscasource,mpxmix,ompxaux1,ompxaux2"
 ALOOP_ENABLE="1,1,1,1,1,1,1,1"
-ALOOP_INDEX="-2,-2,-2,-2,-2,-2,-2,-2"
+ALOOP_INDEX=""
 ALOOP_SUBSTREAMS="2,2,2,2,2,2,2,2"
+
+select_aloop_indices(){
+  local used idx count
+  local -a chosen=()
+  used=" $(awk '/^[[:space:]]*[0-9]+ \[/{gsub(":","",$1); print $1}' /proc/asound/cards 2>/dev/null | tr '\n' ' ') "
+  for idx in $(seq 8 31); do
+    if [[ "${used}" != *" ${idx} "* ]]; then
+      chosen+=("${idx}")
+      if [ "${#chosen[@]}" -eq 8 ]; then
+        break
+      fi
+    fi
+  done
+  if [ "${#chosen[@]}" -eq 8 ]; then
+    ALOOP_INDEX="$(IFS=,; echo "${chosen[*]}")"
+  else
+    ALOOP_INDEX="-2,-2,-2,-2,-2,-2,-2,-2"
+  fi
+  echo "[INFO] snd_aloop index profile: ${ALOOP_INDEX}"
+}
+
+show_stereotool_hw_map(){
+  local ids id card
+  ids="program1in program1preview program2in program2preview dscasource mpxmix"
+  echo "[INFO] Stereo Tool hardware map (uses numeric hw card numbers):"
+  for id in ${ids}; do
+    card="$(awk -F'[][]' -v id="${id}" '$2==id {gsub(/^[[:space:]]+/,"",$1); split($1,a," "); print a[1]; exit}' /proc/asound/cards 2>/dev/null || true)"
+    if [ -n "${card}" ]; then
+      printf '[INFO]   %-15s -> hw:%s,0\n' "${id}" "${card}"
+    fi
+  done
+}
 
 load_ompx_aloop_profile(){
   modprobe -r snd_aloop 2>/dev/null || true
@@ -256,6 +288,8 @@ else
   echo "[INFO] Skipping legacy loopback cleanup"
 fi
 
+select_aloop_indices
+
 # --- Ensure snd_aloop loads and write modprobe options ---
 
 if [ "$CONFIG_SKIP" = true ]; then
@@ -276,11 +310,11 @@ if [ "$CONFIG_BACKUP" = true ] && [ -f /etc/modprobe.d/snd-aloop.conf ]; then
 cp -a /etc/modprobe.d/snd-aloop.conf /etc/modprobe.d/snd-aloop.conf.bak.$(date +%s) || true
 echo "[INFO] Backed up existing /etc/modprobe.d/snd-aloop.conf"
 fi
-cat > /etc/modprobe.d/snd-aloop.conf <<'EOF'
-options snd-aloop enable=1,1,1,1,1,1,1,1
-options snd-aloop index=-2,-2,-2,-2,-2,-2,-2,-2
-options snd-aloop id=program1in,program1preview,program2in,program2preview,dscasource,mpxmix,ompxaux1,ompxaux2
-options snd-aloop pcm_substreams=2,2,2,2,2,2,2,2
+cat > /etc/modprobe.d/snd-aloop.conf <<EOF
+options snd-aloop enable=${ALOOP_ENABLE}
+options snd-aloop index=${ALOOP_INDEX}
+options snd-aloop id=${ALOOP_IDS}
+options snd-aloop pcm_substreams=${ALOOP_SUBSTREAMS}
 EOF
 echo "[INFO] Created /etc/modprobe.d/snd-aloop.conf for 8 separate named loopback cards"
 fi
@@ -298,6 +332,7 @@ if [ "${OMPX_LOOPBACK_COUNT:-0}" -lt 6 ]; then
 else
   echo "[SUCCESS] Detected ${OMPX_LOOPBACK_COUNT} oMPX loopback cards"
 fi
+show_stereotool_hw_map
 # --- Prepare desired /etc/asound.conf content ---
 echo "[INFO] Preparing ALSA asound.conf configuration..."
 
@@ -621,6 +656,16 @@ aplay -L 2>/dev/null | grep -E '^(prg1in|prg2in|prg1prev|prg2prev|prg1mpx|prg2mp
 echo ""
 echo "Detected ALSA cards for oMPX loopbacks:"
 awk -F'[][]' '/program1in|program1preview|program2in|program2preview|dscasource|mpxmix|ompxaux1|ompxaux2/{print $1"["$2"]"}' /proc/asound/cards 2>/dev/null || true
+echo ""
+echo "Stereo Tool numeric hardware mapping:"
+for id in program1in program1preview program2in program2preview dscasource mpxmix; do
+  card=$(awk -F'[][]' -v id="$id" '$2==id {gsub(/^[[:space:]]+/,"",$1); split($1,a," "); print a[1]; exit}' /proc/asound/cards 2>/dev/null || true)
+  if [ -n "${card}" ]; then
+    printf '  %-15s -> hw:%s,0\n' "$id" "$card"
+  else
+    printf '  %-15s -> not detected\n' "$id"
+  fi
+done
 count=$(awk -F'[][]' '/program1in|program1preview|program2in|program2preview|dscasource|mpxmix|ompxaux1|ompxaux2/{c++} END{print c+0}' /proc/asound/cards 2>/dev/null)
 if [ "${count:-0}" -lt 6 ]; then
   echo ""
