@@ -36,7 +36,7 @@ _log(){ logger -t mpx-installer "$*"; echo "$(date +'%F %T') $*"; }
 
 have_crontab(){ command -v crontab >/dev/null 2>&1; }
 
-ALOOP_IDS="ompx_prg1in,ompx_prg1prev,ompx_prg2in,ompx_prg2prev,ompx_dsca_src,ompx_mpx_mix,ompx_aux1,ompx_aux2"
+ALOOP_IDS="program1in,program1preview,program2in,program2preview,dscasource,mpxmix,ompxaux1,ompxaux2"
 ALOOP_ENABLE="1,1,1,1,1,1,1,1"
 ALOOP_INDEX="-2,-2,-2,-2,-2,-2,-2,-2"
 ALOOP_SUBSTREAMS="2,2,2,2,2,2,2,2"
@@ -51,7 +51,7 @@ load_ompx_aloop_profile(){
 }
 
 count_ompx_loopback_cards(){
-  awk -F'[][]' '/ompx_/{c++} END{print c+0}' /proc/asound/cards 2>/dev/null
+  awk -F'[][]' '/program1in|program1preview|program2in|program2preview|dscasource|mpxmix|ompxaux1|ompxaux2/{c++} END{print c+0}' /proc/asound/cards 2>/dev/null
 }
 
 fix_yarn_apt_repo(){
@@ -279,7 +279,7 @@ fi
 cat > /etc/modprobe.d/snd-aloop.conf <<'EOF'
 options snd-aloop enable=1,1,1,1,1,1,1,1
 options snd-aloop index=-2,-2,-2,-2,-2,-2,-2,-2
-options snd-aloop id=ompx_prg1in,ompx_prg1prev,ompx_prg2in,ompx_prg2prev,ompx_dsca_src,ompx_mpx_mix,ompx_aux1,ompx_aux2
+options snd-aloop id=program1in,program1preview,program2in,program2preview,dscasource,mpxmix,ompxaux1,ompxaux2
 options snd-aloop pcm_substreams=2,2,2,2,2,2,2,2
 EOF
 echo "[INFO] Created /etc/modprobe.d/snd-aloop.conf for 8 separate named loopback cards"
@@ -428,16 +428,16 @@ defaults.namehint.extended on
 
 # Minimal oMPX sink set for Stereo Tool Enterprise style routing.
 # Hardware mapping:
-# - ompx_prg1in,0,0: Program 1 input
-# - ompx_prg1prev,0,0: Program 1 preview
-# - ompx_prg2in,0,0: Program 2 input
-# - ompx_prg2prev,0,0: Program 2 preview
-# - ompx_dsca_src,0,0: DSCA source input
-# - ompx_mpx_mix,0,0: Final MPX mix/output
+# - program1in,0,0: Program 1 input
+# - program1preview,0,0: Program 1 preview
+# - program2in,0,0: Program 2 input
+# - program2preview,0,0: Program 2 preview
+# - dscasource,0,0: DSCA source input
+# - mpxmix,0,0: Final MPX mix/output
 
 pcm.prg1in {
   type plug
-  slave.pcm "hw:ompx_prg1in,0,0"
+  slave.pcm "hw:program1in,0,0"
   slave.rate 192000
   slave.channels 2
   hint { show on; description "Program 1 Input" }
@@ -445,7 +445,7 @@ pcm.prg1in {
 
 pcm.prg1prev {
   type plug
-  slave.pcm "hw:ompx_prg1prev,0,0"
+  slave.pcm "hw:program1preview,0,0"
   slave.rate 192000
   slave.channels 2
   hint { show on; description "Program 1 Preview" }
@@ -453,7 +453,7 @@ pcm.prg1prev {
 
 pcm.prg2in {
   type plug
-  slave.pcm "hw:ompx_prg2in,0,0"
+  slave.pcm "hw:program2in,0,0"
   slave.rate 192000
   slave.channels 2
   hint { show on; description "Program 2 Input" }
@@ -461,7 +461,7 @@ pcm.prg2in {
 
 pcm.prg2prev {
   type plug
-  slave.pcm "hw:ompx_prg2prev,0,0"
+  slave.pcm "hw:program2preview,0,0"
   slave.rate 192000
   slave.channels 2
   hint { show on; description "Program 2 Preview" }
@@ -469,7 +469,7 @@ pcm.prg2prev {
 
 pcm.dsca_src {
   type plug
-  slave.pcm "hw:ompx_dsca_src,0,0"
+  slave.pcm "hw:dscasource,0,0"
   slave.rate 192000
   slave.channels 2
   hint { show on; description "DSCA Source" }
@@ -479,7 +479,7 @@ pcm.mpx_mix {
   type dmix
   ipc_key 2048
   slave {
-    pcm "hw:ompx_mpx_mix,0,0"
+    pcm "hw:mpxmix,0,0"
     rate 192000
     channels 2
     format "S16_LE"
@@ -527,7 +527,7 @@ pcm.mpx_to_icecast {
 }
 
 pcm.!default { type plug; slave.pcm "mpx_to_icecast" }
-ctl.!default { type hw; card ompx_mpx_mix }
+ctl.!default { type hw; card mpxmix }
 ASND_TEST
 )
 # --- Write /etc/asound.conf ---
@@ -594,25 +594,25 @@ set -euo pipefail
 
 cat <<EOF
 Configured loopback card IDs:
-  ompx_prg1in
-  ompx_prg1prev
-  ompx_prg2in
-  ompx_prg2prev
-  ompx_dsca_src
-  ompx_mpx_mix
-  ompx_aux1
-  ompx_aux2
+  program1in
+  program1preview
+  program2in
+  program2preview
+  dscasource
+  mpxmix
+  ompxaux1
+  ompxaux2
 
-prg1in         -> hw:ompx_prg1in,0,0
-prg1prev       -> hw:ompx_prg1prev,0,0
-prg2in         -> hw:ompx_prg2in,0,0
-prg2prev       -> hw:ompx_prg2prev,0,0
-dsca_src       -> hw:ompx_dsca_src,0,0
+prg1in         -> hw:program1in,0,0
+prg1prev       -> hw:program1preview,0,0
+prg2in         -> hw:program2in,0,0
+prg2prev       -> hw:program2preview,0,0
+dsca_src       -> hw:dscasource,0,0
 
-prg1mpx        -> mpx_mix -> hw:ompx_mpx_mix,0,0
-prg2mpx        -> mpx_mix -> hw:ompx_mpx_mix,0,0
-dsca_injection -> mpx_mix -> hw:ompx_mpx_mix,0,0
-mpx_to_icecast -> mpx_mix -> hw:ompx_mpx_mix,0,0
+prg1mpx        -> mpx_mix -> hw:mpxmix,0,0
+prg2mpx        -> mpx_mix -> hw:mpxmix,0,0
+dsca_injection -> mpx_mix -> hw:mpxmix,0,0
+mpx_to_icecast -> mpx_mix -> hw:mpxmix,0,0
 EOF
 
 echo ""
@@ -620,8 +620,8 @@ echo "Named PCM entries visible to apps:"
 aplay -L 2>/dev/null | grep -E '^(prg1in|prg2in|prg1prev|prg2prev|prg1mpx|prg2mpx|dsca_src|dsca_injection|mpx_to_icecast)$' || true
 echo ""
 echo "Detected ALSA cards for oMPX loopbacks:"
-awk -F'[][]' '/ompx_prg1in|ompx_prg1prev|ompx_prg2in|ompx_prg2prev|ompx_dsca_src|ompx_mpx_mix|ompx_aux1|ompx_aux2/{print $1"["$2"]"}' /proc/asound/cards 2>/dev/null || true
-count=$(awk -F'[][]' '/ompx_/{c++} END{print c+0}' /proc/asound/cards 2>/dev/null)
+awk -F'[][]' '/program1in|program1preview|program2in|program2preview|dscasource|mpxmix|ompxaux1|ompxaux2/{print $1"["$2"]"}' /proc/asound/cards 2>/dev/null || true
+count=$(awk -F'[][]' '/program1in|program1preview|program2in|program2preview|dscasource|mpxmix|ompxaux1|ompxaux2/{c++} END{print c+0}' /proc/asound/cards 2>/dev/null)
 if [ "${count:-0}" -lt 6 ]; then
   echo ""
   echo "WARNING: kernel currently exposes ${count:-0} oMPX loopback cards; it may have collapsed to a single Loopback card with subdevices."
