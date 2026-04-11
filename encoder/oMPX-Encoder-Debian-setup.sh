@@ -36,6 +36,24 @@ _log(){ logger -t mpx-installer "$*"; echo "$(date +'%F %T') $*"; }
 
 have_crontab(){ command -v crontab >/dev/null 2>&1; }
 
+ALOOP_IDS="ompx_prg1in,ompx_prg1prev,ompx_prg2in,ompx_prg2prev,ompx_dsca_src,ompx_mpx_mix,ompx_aux1,ompx_aux2"
+ALOOP_ENABLE="1,1,1,1,1,1,1,1"
+ALOOP_INDEX="-2,-2,-2,-2,-2,-2,-2,-2"
+ALOOP_SUBSTREAMS="2,2,2,2,2,2,2,2"
+
+load_ompx_aloop_profile(){
+  modprobe -r snd_aloop 2>/dev/null || true
+  modprobe snd_aloop \
+    enable="${ALOOP_ENABLE}" \
+    index="${ALOOP_INDEX}" \
+    id="${ALOOP_IDS}" \
+    pcm_substreams="${ALOOP_SUBSTREAMS}" 2>/dev/null
+}
+
+count_ompx_loopback_cards(){
+  awk -F'[][]' '/ompx_/{c++} END{print c+0}' /proc/asound/cards 2>/dev/null
+}
+
 fix_yarn_apt_repo(){
   echo "[INFO] Attempting to repair Yarn APT repository signing setup..."
   install -d -m 0755 /usr/share/keyrings
@@ -267,11 +285,19 @@ EOF
 echo "[INFO] Created /etc/modprobe.d/snd-aloop.conf for 8 separate named loopback cards"
 fi
 echo "[INFO] Attempting to load snd_aloop module..."
-modprobe snd_aloop 2>/dev/null && echo "[SUCCESS] snd_aloop loaded" || {
+load_ompx_aloop_profile && echo "[SUCCESS] snd_aloop loaded" || {
     echo "[WARNING] Failed to load snd_aloop. Ensure you're running a standard Debian kernel (linux-image-amd64)."
     echo "[WARNING] Audio routing will not work without this module."
     read -p "Press Enter to continue anyway..." || true
 }
+OMPX_LOOPBACK_COUNT="$(count_ompx_loopback_cards)"
+if [ "${OMPX_LOOPBACK_COUNT:-0}" -lt 6 ]; then
+  echo "[WARNING] Kernel exposed ${OMPX_LOOPBACK_COUNT:-0} oMPX loopback cards, not the requested 8."
+  echo "[WARNING] Some kernels collapse snd_aloop into a single Loopback card with subdevices."
+  echo "[WARNING] Stereo Tool may then show one device with many subdevices."
+else
+  echo "[SUCCESS] Detected ${OMPX_LOOPBACK_COUNT} oMPX loopback cards"
+fi
 # --- Prepare desired /etc/asound.conf content ---
 echo "[INFO] Preparing ALSA asound.conf configuration..."
 
@@ -595,6 +621,11 @@ aplay -L 2>/dev/null | grep -E '^(prg1in|prg2in|prg1prev|prg2prev|prg1mpx|prg2mp
 echo ""
 echo "Detected ALSA cards for oMPX loopbacks:"
 awk -F'[][]' '/ompx_prg1in|ompx_prg1prev|ompx_prg2in|ompx_prg2prev|ompx_dsca_src|ompx_mpx_mix|ompx_aux1|ompx_aux2/{print $1"["$2"]"}' /proc/asound/cards 2>/dev/null || true
+count=$(awk -F'[][]' '/ompx_/{c++} END{print c+0}' /proc/asound/cards 2>/dev/null)
+if [ "${count:-0}" -lt 6 ]; then
+  echo ""
+  echo "WARNING: kernel currently exposes ${count:-0} oMPX loopback cards; it may have collapsed to a single Loopback card with subdevices."
+fi
 ASMAP
 chmod 755 "${ASOUND_MAP_HELPER}"
 chown root:root "${ASOUND_MAP_HELPER}"
@@ -759,7 +790,7 @@ echo "[INFO] Verifying snd_aloop kernel module..."
 
 if ! lsmod | grep -q snd_aloop; then 
   echo "[INFO] Attempting to load snd_aloop..."
-  if ! modprobe snd_aloop; then
+  if ! load_ompx_aloop_profile; then
     if [ -n "${KERNEL_HELPER_PACKAGE}" ]; then
       echo "[WARNING] Initial snd_aloop load failed. Trying kernel helper package: ${KERNEL_HELPER_PACKAGE}"
       if ! DEBIAN_FRONTEND=noninteractive apt install -y "${KERNEL_HELPER_PACKAGE}"; then
@@ -773,7 +804,7 @@ if ! lsmod | grep -q snd_aloop; then
       echo "[WARNING] No kernel helper package configured for this OS (${OS_ID}); continuing."
     fi
     echo "[INFO] Retrying snd_aloop load after helper/workaround step..."
-    if modprobe snd_aloop; then
+    if load_ompx_aloop_profile; then
       echo "[SUCCESS] snd_aloop loaded after helper/workaround step"
       _log "snd_aloop loaded after helper/workaround step"
     else
