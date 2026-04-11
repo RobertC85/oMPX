@@ -36,10 +36,10 @@ _log(){ logger -t mpx-installer "$*"; echo "$(date +'%F %T') $*"; }
 
 have_crontab(){ command -v crontab >/dev/null 2>&1; }
 
-ALOOP_IDS="program1in,program1preview,program2in,program2preview,dscasource,mpxmix,ompxaux1,ompxaux2"
-ALOOP_ENABLE="1,1,1,1,1,1,1,1"
+ALOOP_IDS="program1in,program1preview,program2in,program2preview,dscasource,program1mpxsrc,program2mpxsrc,dscainjectionsrc,mpxmix,ompxaux1,ompxaux2"
+ALOOP_ENABLE="1,1,1,1,1,1,1,1,1,1,1"
 ALOOP_INDEX=""
-ALOOP_SUBSTREAMS="2,2,2,2,2,2,2,2"
+ALOOP_SUBSTREAMS="2,2,2,2,2,2,2,2,2,2,2"
 
 select_aloop_indices(){
   local used idx count
@@ -48,22 +48,22 @@ select_aloop_indices(){
   for idx in $(seq 8 31); do
     if [[ "${used}" != *" ${idx} "* ]]; then
       chosen+=("${idx}")
-      if [ "${#chosen[@]}" -eq 8 ]; then
+      if [ "${#chosen[@]}" -eq 11 ]; then
         break
       fi
     fi
   done
-  if [ "${#chosen[@]}" -eq 8 ]; then
+  if [ "${#chosen[@]}" -eq 11 ]; then
     ALOOP_INDEX="$(IFS=,; echo "${chosen[*]}")"
   else
-    ALOOP_INDEX="-2,-2,-2,-2,-2,-2,-2,-2"
+    ALOOP_INDEX="-2,-2,-2,-2,-2,-2,-2,-2,-2,-2,-2"
   fi
   echo "[INFO] snd_aloop index profile: ${ALOOP_INDEX}"
 }
 
 show_stereotool_hw_map(){
   local ids id card
-  ids="program1in program1preview program2in program2preview dscasource mpxmix"
+  ids="program1in program1preview program2in program2preview dscasource program1mpxsrc program2mpxsrc dscainjectionsrc mpxmix"
   echo "[INFO] Stereo Tool hardware map (uses numeric hw card numbers):"
   for id in ${ids}; do
     card="$(awk -F'[][]' -v id="${id}" '$2==id {gsub(/^[[:space:]]+/,"",$1); split($1,a," "); print a[1]; exit}' /proc/asound/cards 2>/dev/null || true)"
@@ -83,7 +83,7 @@ load_ompx_aloop_profile(){
 }
 
 count_ompx_loopback_cards(){
-  awk -F'[][]' '/program1in|program1preview|program2in|program2preview|dscasource|mpxmix|ompxaux1|ompxaux2/{c++} END{print c+0}' /proc/asound/cards 2>/dev/null
+  awk -F'[][]' '/program1in|program1preview|program2in|program2preview|dscasource|program1mpxsrc|program2mpxsrc|dscainjectionsrc|mpxmix|ompxaux1|ompxaux2/{c++} END{print c+0}' /proc/asound/cards 2>/dev/null
 }
 
 fix_yarn_apt_repo(){
@@ -468,6 +468,9 @@ defaults.namehint.extended on
 # - program2in,0,0: Program 2 input
 # - program2preview,0,0: Program 2 preview
 # - dscasource,0,0: DSCA source input
+# - program1mpxsrc,0,0: Program 1 MPX pre-mix source
+# - program2mpxsrc,0,0: Program 2 MPX pre-mix source
+# - dscainjectionsrc,0,0: DSCA pre-mix injection source
 # - mpxmix,0,0: Final MPX mix/output
 
 pcm.prg1in {
@@ -508,6 +511,31 @@ pcm.dsca_src {
   slave.rate 192000
   slave.channels 2
   hint { show on; description "DSCA Source" }
+}
+
+# Hardware-visible pre-mix sources for Stereo Tool hardware-only selection.
+pcm.prg1mpx_src {
+  type plug
+  slave.pcm "hw:program1mpxsrc,0,0"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "Program 1 MPX Source (pre-mix)" }
+}
+
+pcm.prg2mpx_src {
+  type plug
+  slave.pcm "hw:program2mpxsrc,0,0"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "Program 2 MPX Source (pre-mix)" }
+}
+
+pcm.dsca_injection_src {
+  type plug
+  slave.pcm "hw:dscainjectionsrc,0,0"
+  slave.rate 192000
+  slave.channels 2
+  hint { show on; description "DSCA Injection Source (pre-mix)" }
 }
 
 pcm.mpx_mix {
@@ -634,6 +662,9 @@ Configured loopback card IDs:
   program2in
   program2preview
   dscasource
+  program1mpxsrc
+  program2mpxsrc
+  dscainjectionsrc
   mpxmix
   ompxaux1
   ompxaux2
@@ -643,6 +674,9 @@ prg1prev       -> hw:program1preview,0,0
 prg2in         -> hw:program2in,0,0
 prg2prev       -> hw:program2preview,0,0
 dsca_src       -> hw:dscasource,0,0
+prg1mpx_src    -> hw:program1mpxsrc,0,0
+prg2mpx_src    -> hw:program2mpxsrc,0,0
+dsca_inj_src   -> hw:dscainjectionsrc,0,0
 
 prg1mpx        -> mpx_mix -> hw:mpxmix,0,0
 prg2mpx        -> mpx_mix -> hw:mpxmix,0,0
@@ -652,13 +686,13 @@ EOF
 
 echo ""
 echo "Named PCM entries visible to apps:"
-aplay -L 2>/dev/null | grep -E '^(prg1in|prg2in|prg1prev|prg2prev|prg1mpx|prg2mpx|dsca_src|dsca_injection|mpx_to_icecast)$' || true
+aplay -L 2>/dev/null | grep -E '^(prg1in|prg2in|prg1prev|prg2prev|dsca_src|prg1mpx_src|prg2mpx_src|dsca_injection_src|prg1mpx|prg2mpx|dsca_injection|mpx_to_icecast)$' || true
 echo ""
 echo "Detected ALSA cards for oMPX loopbacks:"
-awk -F'[][]' '/program1in|program1preview|program2in|program2preview|dscasource|mpxmix|ompxaux1|ompxaux2/{print $1"["$2"]"}' /proc/asound/cards 2>/dev/null || true
+awk -F'[][]' '/program1in|program1preview|program2in|program2preview|dscasource|program1mpxsrc|program2mpxsrc|dscainjectionsrc|mpxmix|ompxaux1|ompxaux2/{print $1"["$2"]"}' /proc/asound/cards 2>/dev/null || true
 echo ""
 echo "Stereo Tool numeric hardware mapping:"
-for id in program1in program1preview program2in program2preview dscasource mpxmix; do
+for id in program1in program1preview program2in program2preview dscasource program1mpxsrc program2mpxsrc dscainjectionsrc mpxmix; do
   card=$(awk -F'[][]' -v id="$id" '$2==id {gsub(/^[[:space:]]+/,"",$1); split($1,a," "); print a[1]; exit}' /proc/asound/cards 2>/dev/null || true)
   if [ -n "${card}" ]; then
     printf '  %-15s -> hw:%s,0\n' "$id" "$card"
@@ -666,7 +700,7 @@ for id in program1in program1preview program2in program2preview dscasource mpxmi
     printf '  %-15s -> not detected\n' "$id"
   fi
 done
-count=$(awk -F'[][]' '/program1in|program1preview|program2in|program2preview|dscasource|mpxmix|ompxaux1|ompxaux2/{c++} END{print c+0}' /proc/asound/cards 2>/dev/null)
+count=$(awk -F'[][]' '/program1in|program1preview|program2in|program2preview|dscasource|program1mpxsrc|program2mpxsrc|dscainjectionsrc|mpxmix|ompxaux1|ompxaux2/{c++} END{print c+0}' /proc/asound/cards 2>/dev/null)
 if [ "${count:-0}" -lt 6 ]; then
   echo ""
   echo "WARNING: kernel currently exposes ${count:-0} oMPX loopback cards; it may have collapsed to a single Loopback card with subdevices."
