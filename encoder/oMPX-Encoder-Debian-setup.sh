@@ -30,6 +30,7 @@ AUTO_START_STREAMS_FROM_HEADER=false
 ASOUND_CONF_PATH="/etc/asound.conf"
 ASOUND_TEST_PATH="/etc/asound.conf.ompx-test"
 ASOUND_SWITCH_HELPER="/usr/local/sbin/ompx_apply_asound_test"
+ASOUND_MAP_HELPER="/usr/local/sbin/ompx_show_sink_map"
 
 _log(){ logger -t mpx-installer "$*"; echo "$(date +'%F %T') $*"; }
 
@@ -500,6 +501,39 @@ chmod 750 "${ASOUND_SWITCH_HELPER}"
 chown root:root "${ASOUND_SWITCH_HELPER}"
 echo "[SUCCESS] Created ${ASOUND_SWITCH_HELPER} helper"
 
+cat > "${ASOUND_MAP_HELPER}" <<'ASMAP'
+#!/usr/bin/env bash
+set -euo pipefail
+
+LOOPBACK_CARD_ID="$(awk -F'[][]' '/Loopback/{print $2; exit}' /proc/asound/cards 2>/dev/null || true)"
+if [ -z "${LOOPBACK_CARD_ID}" ]; then
+  echo "Loopback card not detected. Ensure snd_aloop is loaded." >&2
+  exit 1
+fi
+
+cat <<EOF
+Detected loopback card ID: ${LOOPBACK_CARD_ID}
+
+prg1in         -> hw:${LOOPBACK_CARD_ID},0,0
+prg1prev       -> hw:${LOOPBACK_CARD_ID},0,1
+prg2in         -> hw:${LOOPBACK_CARD_ID},0,2
+prg2prev       -> hw:${LOOPBACK_CARD_ID},0,3
+dsca_src       -> hw:${LOOPBACK_CARD_ID},0,4
+
+prg1mpx        -> mpx_mix -> hw:${LOOPBACK_CARD_ID},1,0
+prg2mpx        -> mpx_mix -> hw:${LOOPBACK_CARD_ID},1,0
+dsca_injection -> mpx_mix -> hw:${LOOPBACK_CARD_ID},1,0
+mpx_to_icecast -> mpx_mix -> hw:${LOOPBACK_CARD_ID},1,0
+EOF
+
+echo ""
+echo "Named PCM entries visible to apps:"
+aplay -L 2>/dev/null | grep -E '^(prg1in|prg2in|prg1prev|prg2prev|prg1mpx|prg2mpx|dsca_src|dsca_injection|mpx_to_icecast)$' || true
+ASMAP
+chmod 755 "${ASOUND_MAP_HELPER}"
+chown root:root "${ASOUND_MAP_HELPER}"
+echo "[SUCCESS] Created ${ASOUND_MAP_HELPER} helper"
+
 if [ "$CONFIG_OVERWRITE" = false ]; then
 echo "[INFO] Keeping existing ALSA configuration unchanged"
 echo "[INFO] Staged test profile only. Promote it with: sudo ${ASOUND_SWITCH_HELPER}"
@@ -696,6 +730,8 @@ aplay -l 2>/dev/null || echo "[WARNING] No ALSA devices found"
 echo "[INFO] Hardware-only list above (aplay -l). Virtual named PCMs are shown with: aplay -L"
 _log "ALSA devices listed above"
 echo "[INFO] Expected named ALSA PCMs: prg1in, prg2in, prg1prev, prg2prev, prg1mpx, prg2mpx, dsca_src, dsca_injection, mpx_to_icecast"
+echo "[INFO] Resolved sink map helper: ${ASOUND_MAP_HELPER}"
+"${ASOUND_MAP_HELPER}" || true
 # --- Create FIFOs for liquidsoap outputs ---
 echo "[INFO] Creating FIFOs for radio streams..."
 
@@ -1110,7 +1146,10 @@ echo ""
 echo "  4. Verify ALSA named sinks:"
 echo "     aplay -L | grep -E 'prg1in|prg2in|prg1prev|prg2prev|prg1mpx|prg2mpx|dsca_src|dsca_injection|mpx_to_icecast'"
 echo ""
-echo "  5. Access oMPX user shell:"
+echo "  5. Print resolved sink-to-hardware map:"
+echo "     sudo ${ASOUND_MAP_HELPER}"
+echo ""
+echo "  6. Access oMPX user shell:"
 echo "     sudo su - oMPX"
 echo ""
 
