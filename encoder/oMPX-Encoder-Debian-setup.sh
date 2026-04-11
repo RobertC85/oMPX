@@ -506,23 +506,35 @@ cat > "${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh" <<'RUNP'
 set -euo pipefail
 STEREO_TOOL_CMD="/usr/local/bin/stereo-tool"
 SAMPLE_RATE=192000
-PROG1_FIFO="/opt/mpx-radio/fifos/radio1.pcm"
-PROG2_FIFO="/opt/mpx-radio/fifos/radio2.pcm"
+PROG1_ALSA_IN="${PROG1_ALSA_IN:-prg1in_cap}"
+PROG2_ALSA_IN="${PROG2_ALSA_IN:-prg2in_cap}"
+SYS_SCRIPTS_DIR="/opt/mpx-radio"
+OMPX_LOG_DIR="/var/lib/ompx/logs"
 MPX_LEFT_MONO="/tmp/mpx_left.pcm"; MPX_RIGHT_MONO="/tmp/mpx_right.pcm"
 MPX_LEFT_OUT="${MPX_LEFT_MONO}.out"; MPX_RIGHT_OUT="${MPX_RIGHT_MONO}.out"
 MPX_STEREO_FIFO="/tmp/mpx_stereo.pcm"
 _log(){ logger -t mpx "$*"; echo "$(date +'%F %T') $*"; }
+mkdir -p "${OMPX_LOG_DIR}" || true
+
+for n in 1 2; do
+  wrapper="${SYS_SCRIPTS_DIR}/source${n}.sh"
+  log_file="${OMPX_LOG_DIR}/radio-opus${n}.log"
+  if [ -x "${wrapper}" ] && ! pgrep -f "${wrapper}" >/dev/null 2>&1; then
+    nohup "${wrapper}" >>"${log_file}" 2>&1 &
+    _log "Started ${wrapper} for upstream ingest"
+  fi
+done
+
 for p in "$MPX_LEFT_MONO" "$MPX_RIGHT_MONO" "$MPX_LEFT_OUT" "$MPX_RIGHT_OUT" "$MPX_STEREO_FIFO"; do rm -f "$p" || true; mkfifo "$p"; done
-wait_for_fifo(){ local f="$1"; local timeout=${2:-30}; local e=0; while [ ! -p "$f" ] && [ $e -lt $timeout ]; do sleep 1; e=$((e+1)); done; [ -p "$f" ]; }
-wait_for_fifo "$PROG1_FIFO" 60 || exit 1
-ffmpeg -hide_banner -loglevel warning -f s16le -ar ${SAMPLE_RATE} -ac 2 -i "${PROG1_FIFO}" -map_channel 0.0.0 -f s16le -ac 1 - > "${MPX_LEFT_MONO}" &
+ffmpeg -hide_banner -loglevel warning -f alsa -thread_queue_size 10240 -i "${PROG1_ALSA_IN}" -map_channel 0.0.0 -f s16le -ac 1 -ar ${SAMPLE_RATE} - > "${MPX_LEFT_MONO}" &
 FF_PROG1_MONO_PID=$!; _log "Spawned PROG1 mono extractor pid $FF_PROG1_MONO_PID"
-if wait_for_fifo "$PROG2_FIFO" 10; then
-ffmpeg -hide_banner -loglevel warning -f s16le -ar ${SAMPLE_RATE} -ac 2 -i "${PROG2_FIFO}" -map_channel 0.0.0 -f s16le -ac 1 - > "${MPX_RIGHT_MONO}" &
+if aplay -L 2>/dev/null | grep -q "^${PROG2_ALSA_IN}$"; then
+ffmpeg -hide_banner -loglevel warning -f alsa -thread_queue_size 10240 -i "${PROG2_ALSA_IN}" -map_channel 0.0.0 -f s16le -ac 1 -ar ${SAMPLE_RATE} - > "${MPX_RIGHT_MONO}" &
 FF_PROG2_MONO_PID=$!; _log "Spawned PROG2 mono extractor pid ${FF_PROG2_MONO_PID:-0}"
 else
 ( while :; do dd if=/dev/zero bs=4096 count=256 status=none; sleep 0.1; done ) > "${MPX_RIGHT_MONO}" &
 SILENCE_PID=$!
+_log "${PROG2_ALSA_IN} not found; injecting silence on right channel"
 fi
 "${STEREO_TOOL_CMD}" --mode live --left-fifo "${MPX_LEFT_MONO}" --right-fifo "${MPX_RIGHT_MONO}" --out-left-fifo "${MPX_LEFT_OUT}" --out-right-fifo "${MPX_RIGHT_OUT}" &
 STEREO_PID=$!; _log "Started stereo-tool wrapper pid ${STEREO_PID}"
