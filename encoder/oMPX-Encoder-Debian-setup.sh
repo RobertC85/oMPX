@@ -71,7 +71,7 @@ ICECAST_PORT="${ICECAST_PORT:-8000}"
 ICECAST_SOURCE_USER="${ICECAST_SOURCE_USER:-source}"
 ICECAST_PASSWORD="${ICECAST_PASSWORD:-hackme}"
 ICECAST_ADMIN_USER="${ICECAST_ADMIN_USER:-admin}"
-ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx}"
+ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx.flac}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
 # ICECAST_MODE: local | remote | disabled
 ICECAST_MODE="${ICECAST_MODE:-disabled}"
@@ -364,8 +364,8 @@ configure_icecast_dialog(){
       ICECAST_SOURCE_USER="${_ice_source_user:-source}"
       read -t 60 -p "Icecast source password (default hackme): " _ice_pass || _ice_pass=""
       ICECAST_PASSWORD="${_ice_pass:-hackme}"
-      read -t 60 -p "Mount point (default /mpx): " _ice_mount || _ice_mount=""
-      _ice_mount="${_ice_mount:-mpx}"; ICECAST_MOUNT="/${_ice_mount#/}"
+      read -t 60 -p "Mount point (default /mpx.flac): " _ice_mount || _ice_mount=""
+      _ice_mount="${_ice_mount:-mpx.flac}"; ICECAST_MOUNT="/${_ice_mount#/}"
       read -t 60 -p "Icecast admin username (default admin): " _ice_admin_user || _ice_admin_user=""
       ICECAST_ADMIN_USER="${_ice_admin_user:-admin}"
       read -t 60 -p "Icecast admin password (default admin): " _ice_admin || _ice_admin=""
@@ -392,8 +392,8 @@ configure_icecast_dialog(){
         echo "[WARNING] No password entered — Icecast mode set to disabled"; ICECAST_MODE="disabled"; return
       fi
       ICECAST_PASSWORD="${_ice_pass}"
-      read -t 60 -p "Mount point (default /mpx): " _ice_mount || _ice_mount=""
-      _ice_mount="${_ice_mount:-mpx}"; ICECAST_MOUNT="/${_ice_mount#/}"
+      read -t 60 -p "Mount point (default /mpx.flac): " _ice_mount || _ice_mount=""
+      _ice_mount="${_ice_mount:-mpx.flac}"; ICECAST_MOUNT="/${_ice_mount#/}"
       echo "[INFO] Remote Icecast push → ${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
       ;;
     *)
@@ -1882,14 +1882,14 @@ out_src = add([composite_band, protected_band])
 # Stream as FLAC to Icecast
 output.icecast(
   %flac(compression=8),
-  mount="/mpx",
+  mount="/mpx.flac",
   host="127.0.0.1",
   port=8000,
   password="bbkrb494b3fy8qqcrym6fvbfgdxk7jcher-mpx",
   name="MPX FLAC 192kHz (stereo with 80kHz injector)",
   description="Native 192kHz FLAC stereo (L=PROG1, R=PROG2) with shared ~80kHz injection and composite clipping",
   genre="Radio",
-  url="http://127.0.0.1:8000/mpx",
+  url="http://127.0.0.1:8000/mpx.flac",
   out_src
 )
 OMPX_LIQ
@@ -2081,7 +2081,7 @@ ICECAST_HOST="${ICECAST_HOST:-127.0.0.1}"
 ICECAST_PORT="${ICECAST_PORT:-8000}"
 ICECAST_SOURCE_USER="${ICECAST_SOURCE_USER:-source}"
 ICECAST_PASSWORD="${ICECAST_PASSWORD:-hackme}"
-ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx}"
+ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx.flac}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
 ICECAST_MODE="${ICECAST_MODE:-disabled}"
 ST_OUT_P1="${ST_OUT_P1:-ompx_prg1mpx_cap}"
