@@ -191,6 +191,13 @@ install_stereo_tool_enterprise_service(){
     return 0
   fi
 
+  # Ensure ALSA config is promoted so service can see named sinks
+  if [ -f /etc/asound.conf.ompx-staged ] && ( [ ! -f /etc/asound.conf ] || [ ! -s /etc/asound.conf ] ); then
+    cp -f /etc/asound.conf.ompx-staged /etc/asound.conf
+    chmod 644 /etc/asound.conf
+    echo "[INFO] Promoted staged ALSA config for Stereo Tool service"
+  fi
+
   cat > "${launcher_path}" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
