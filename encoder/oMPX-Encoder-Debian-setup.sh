@@ -68,14 +68,16 @@ START_STEREO_TOOL_AFTER_INSTALL="${START_STEREO_TOOL_AFTER_INSTALL:-true}"
 # Icecast output (MPX mix → Icecast)
 ICECAST_HOST="${ICECAST_HOST:-127.0.0.1}"
 ICECAST_PORT="${ICECAST_PORT:-8000}"
+ICECAST_SOURCE_USER="${ICECAST_SOURCE_USER:-source}"
 ICECAST_PASSWORD="${ICECAST_PASSWORD:-hackme}"
+ICECAST_ADMIN_USER="${ICECAST_ADMIN_USER:-admin}"
 ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
 # ICECAST_MODE: local | remote | disabled
 ICECAST_MODE="${ICECAST_MODE:-disabled}"
 # ALSA capture endpoints Stereo Tool Enterprise writes its processed output to
-ST_OUT_P1="${ST_OUT_P1:-ompx_prg1prev_cap}"
-ST_OUT_P2="${ST_OUT_P2:-ompx_prg2prev_cap}"
+ST_OUT_P1="${ST_OUT_P1:-ompx_prg1mpx_cap}"
+ST_OUT_P2="${ST_OUT_P2:-ompx_prg2mpx_cap}"
 CONFIG_OVERWRITE="${CONFIG_OVERWRITE:-true}"
 CONFIG_BACKUP="${CONFIG_BACKUP:-true}"
 CONFIG_SKIP="${CONFIG_SKIP:-false}"
@@ -358,10 +360,18 @@ configure_icecast_dialog(){
       ICECAST_HOST="127.0.0.1"
       read -t 60 -p "Icecast HTTP port (default 8000): " _ice_port || _ice_port=""
       [[ "${_ice_port}" =~ ^[0-9]+$ ]] && ICECAST_PORT="${_ice_port}" || ICECAST_PORT=8000
+      read -t 60 -p "Icecast source username (default source): " _ice_source_user || _ice_source_user=""
+      ICECAST_SOURCE_USER="${_ice_source_user:-source}"
+      if [ "${ICECAST_SOURCE_USER}" != "source" ]; then
+        echo "[WARNING] Local Icecast2 expects source user 'source'; forcing ICECAST_SOURCE_USER=source"
+        ICECAST_SOURCE_USER="source"
+      fi
       read -t 60 -p "Icecast source password (default hackme): " _ice_pass || _ice_pass=""
       ICECAST_PASSWORD="${_ice_pass:-hackme}"
       read -t 60 -p "Mount point (default /mpx): " _ice_mount || _ice_mount=""
       _ice_mount="${_ice_mount:-mpx}"; ICECAST_MOUNT="/${_ice_mount#/}"
+      read -t 60 -p "Icecast admin username (default admin): " _ice_admin_user || _ice_admin_user=""
+      ICECAST_ADMIN_USER="${_ice_admin_user:-admin}"
       read -t 60 -p "Icecast admin password (default admin): " _ice_admin || _ice_admin=""
       _ICE_ADMIN_PASS="${_ice_admin:-admin}"
       read -t 60 -p "Max simultaneous listeners (default 25): " _ice_clients || _ice_clients=""
@@ -379,6 +389,8 @@ configure_icecast_dialog(){
       ICECAST_HOST="${_ice_host}"
       read -t 60 -p "Remote Icecast port (default 8000): " _ice_port || _ice_port=""
       [[ "${_ice_port}" =~ ^[0-9]+$ ]] && ICECAST_PORT="${_ice_port}" || ICECAST_PORT=8000
+      read -t 60 -p "Source username (default source): " _ice_source_user || _ice_source_user=""
+      ICECAST_SOURCE_USER="${_ice_source_user:-source}"
       read -t 60 -p "Source password: " _ice_pass || _ice_pass=""
       if [ -z "${_ice_pass}" ]; then
         echo "[WARNING] No password entered — Icecast mode set to disabled"; ICECAST_MODE="disabled"; return
@@ -400,18 +412,20 @@ configure_icecast_dialog(){
   echo "[INFO] Icecast encoder sample rate: ${ICECAST_SAMPLE_RATE} Hz"
 
   echo ""
-  echo "Stereo Tool output ALSA devices (capture endpoints ST Enterprise writes processed audio to):"
-  read -t 60 -p "Program 1 output device (default ompx_prg1prev_cap): " _st_p1 || _st_p1=""
-  ST_OUT_P1="${_st_p1:-ompx_prg1prev_cap}"
-  read -t 60 -p "Program 2 output device (default ompx_prg2prev_cap, 'none' to disable): " _st_p2 || _st_p2=""
-  [ "${_st_p2,,}" = "none" ] && ST_OUT_P2="" || ST_OUT_P2="${_st_p2:-ompx_prg2prev_cap}"
+  echo "MPX capture endpoints consumed by mpx-mix (read/capture side of ST's MPX output loopbacks):"
+  read -t 60 -p "Program 1 MPX capture device (default ompx_prg1mpx_cap): " _st_p1 || _st_p1=""
+  ST_OUT_P1="${_st_p1:-ompx_prg1mpx_cap}"
+  read -t 60 -p "Program 2 MPX capture device (default ompx_prg2mpx_cap, 'none' to disable): " _st_p2 || _st_p2=""
+  [ "${_st_p2,,}" = "none" ] && ST_OUT_P2="" || ST_OUT_P2="${_st_p2:-ompx_prg2mpx_cap}"
 }
 
 install_icecast_local(){
   echo "[INFO] Installing icecast2..."
   DEBIAN_FRONTEND=noninteractive apt install -y icecast2 || { echo "[WARNING] icecast2 install failed"; return 1; }
   local admin_pass="${_ICE_ADMIN_PASS:-admin}"
+  local source_user="${ICECAST_SOURCE_USER:-source}"
   local source_pass="${ICECAST_PASSWORD:-hackme}"
+  local admin_user="${ICECAST_ADMIN_USER:-admin}"
   local port="${ICECAST_PORT:-8000}"
   local max_clients="${_ICE_MAX_LISTENERS:-25}"
   local station="${_ICE_STATION:-oMPX}"
@@ -426,7 +440,7 @@ install_icecast_local(){
   <authentication>
     <source-password>${source_pass}</source-password>
     <relay-password>${source_pass}</relay-password>
-    <admin-user>admin</admin-user>
+    <admin-user>${admin_user}</admin-user>
     <admin-password>${admin_pass}</admin-password>
   </authentication>
   <hostname>localhost</hostname>
@@ -457,7 +471,7 @@ ICEXML
   systemctl daemon-reload || true
   systemctl enable icecast2 || true
   systemctl restart icecast2 || true
-  echo "[SUCCESS] icecast2 running on port ${port}, mount ${ICECAST_MOUNT}"
+  echo "[SUCCESS] icecast2 running on port ${port}, mount ${ICECAST_MOUNT}, source user ${source_user}"
 }
 
 prompt_stereo_tool_limit_preset(){
@@ -605,12 +619,30 @@ pcm.ompx_prg1mpx {
   }
 }
 
+pcm.ompx_prg1mpx_cap {
+  type plug
+  slave.pcm "hw:program1mpxsrc,1"
+  hint {
+    show on
+    description "oMPX Program 1 MPX Output Capture (read/capture)"
+  }
+}
+
 pcm.ompx_prg2mpx {
   type plug
   slave.pcm "hw:program2mpxsrc,0"
   hint {
     show on
     description "oMPX Program 2 MPX Output"
+  }
+}
+
+pcm.ompx_prg2mpx_cap {
+  type plug
+  slave.pcm "hw:program2mpxsrc,1"
+  hint {
+    show on
+    description "oMPX Program 2 MPX Output Capture (read/capture)"
   }
 }
 
@@ -732,12 +764,30 @@ pcm.ompx_program1_mpx_output {
   }
 }
 
+pcm.ompx_program1_mpx_output_capture {
+  type plug
+  slave.pcm "ompx_prg1mpx_cap"
+  hint {
+    show on
+    description "oMPX Program 1 MPX Output Capture (alias)"
+  }
+}
+
 pcm.ompx_program2_mpx_output {
   type plug
   slave.pcm "ompx_prg2mpx"
   hint {
     show on
     description "oMPX Program 2 MPX Output (alias)"
+  }
+}
+
+pcm.ompx_program2_mpx_output_capture {
+  type plug
+  slave.pcm "ompx_prg2mpx_cap"
+  hint {
+    show on
+    description "oMPX Program 2 MPX Output Capture (alias)"
   }
 }
 
@@ -801,7 +851,9 @@ STREAM_SILENCE_MAX_DBFS="${STREAM_SILENCE_MAX_DBFS}"
 ICECAST_MODE="${ICECAST_MODE}"
 ICECAST_HOST="${ICECAST_HOST}"
 ICECAST_PORT="${ICECAST_PORT}"
+ICECAST_SOURCE_USER="${ICECAST_SOURCE_USER}"
 ICECAST_PASSWORD="${ICECAST_PASSWORD}"
+ICECAST_ADMIN_USER="${ICECAST_ADMIN_USER}"
 ICECAST_MOUNT="${ICECAST_MOUNT}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE}"
 ST_OUT_P1="${ST_OUT_P1}"
@@ -987,7 +1039,7 @@ strip_old_ompx_sinks(){
   local out_file="$2"
   awk '
     BEGIN {
-      split("ompx_prg1in ompx_prg1in_cap ompx_prg2in ompx_prg2in_cap ompx_prg1prev ompx_prg1prev_cap ompx_prg2prev ompx_prg2prev_cap ompx_prg1mpx ompx_prg2mpx ompx_dsca_src ompx_dsca_src_cap ompx_dsca_injection ompx_mpx_to_icecast ompx_program1_input ompx_program1_input_capture ompx_program2_input ompx_program2_input_capture ompx_program1_preview ompx_program1_preview_capture ompx_program2_preview ompx_program2_preview_capture ompx_program1_mpx_output ompx_program2_mpx_output ompx_dsca_source ompx_dsca_source_capture", a, " ")
+      split("ompx_prg1in ompx_prg1in_cap ompx_prg2in ompx_prg2in_cap ompx_prg1prev ompx_prg1prev_cap ompx_prg2prev ompx_prg2prev_cap ompx_prg1mpx ompx_prg1mpx_cap ompx_prg2mpx ompx_prg2mpx_cap ompx_dsca_src ompx_dsca_src_cap ompx_dsca_injection ompx_mpx_to_icecast ompx_program1_input ompx_program1_input_capture ompx_program2_input ompx_program2_input_capture ompx_program1_preview ompx_program1_preview_capture ompx_program2_preview ompx_program2_preview_capture ompx_program1_mpx_output ompx_program1_mpx_output_capture ompx_program2_mpx_output ompx_program2_mpx_output_capture ompx_dsca_source ompx_dsca_source_capture", a, " ")
       for (i in a) names[a[i]] = 1
       skip = 0
       depth = 0
@@ -1254,11 +1306,11 @@ for id in ompx_program1_input ompx_program2_input ompx_program1_preview ompx_pro
 done
 echo ""
 echo "Read/capture endpoints (read audio back from these):"
-for id in ompx_prg1in_cap ompx_prg1prev_cap ompx_prg2in_cap ompx_prg2prev_cap ompx_dsca_src_cap; do
+for id in ompx_prg1in_cap ompx_prg1prev_cap ompx_prg2in_cap ompx_prg2prev_cap ompx_prg1mpx_cap ompx_prg2mpx_cap ompx_dsca_src_cap; do
   printf '  %s\n' "$id"
 done
 echo "Friendly capture aliases:"
-for id in ompx_program1_input_capture ompx_program2_input_capture ompx_program1_preview_capture ompx_program2_preview_capture ompx_dsca_source_capture; do
+for id in ompx_program1_input_capture ompx_program2_input_capture ompx_program1_preview_capture ompx_program2_preview_capture ompx_program1_mpx_output_capture ompx_program2_mpx_output_capture ompx_dsca_source_capture; do
   printf '  %s\n' "$id"
 done
 ASMAP
@@ -1562,7 +1614,7 @@ echo "[INFO] Available ALSA devices:"
 aplay -l 2>/dev/null || echo "[WARNING] No ALSA devices found"
 echo "[INFO] Hardware-only list above (aplay -l). Virtual named PCMs are shown with: aplay -L"
 _log "ALSA devices listed above"
-echo "[INFO] Expected named ALSA PCMs: write/playback endpoints ompx_prg1in, ompx_prg2in, ompx_prg1prev, ompx_prg2prev, ompx_prg1mpx, ompx_prg2mpx, ompx_dsca_src, ompx_dsca_injection, ompx_mpx_to_icecast; read/capture endpoints ompx_prg1in_cap, ompx_prg2in_cap, ompx_prg1prev_cap, ompx_prg2prev_cap, ompx_dsca_src_cap"
+echo "[INFO] Expected named ALSA PCMs: write/playback endpoints ompx_prg1in, ompx_prg2in, ompx_prg1prev, ompx_prg2prev, ompx_prg1mpx, ompx_prg2mpx, ompx_dsca_src, ompx_dsca_injection, ompx_mpx_to_icecast; read/capture endpoints ompx_prg1in_cap, ompx_prg2in_cap, ompx_prg1prev_cap, ompx_prg2prev_cap, ompx_prg1mpx_cap, ompx_prg2mpx_cap, ompx_dsca_src_cap"
 echo "[INFO] Resolved sink map helper: ${ASOUND_MAP_HELPER}"
 "${ASOUND_MAP_HELPER}" || true
 
@@ -1786,7 +1838,7 @@ cat > "${OMPX_ENCODER_LIQ}" <<'OMPX_LIQ'
 # /usr/local/bin/ompx_encoder.liq
 # oMPX named ALSA loopback endpoints for this installer profile:
 #   Write/playback: ompx_prg1in, ompx_prg2in, ompx_prg1prev, ompx_prg2prev, ompx_prg1mpx, ompx_prg2mpx, ompx_dsca_src, ompx_dsca_injection, ompx_mpx_to_icecast
-#   Read/capture: ompx_prg1in_cap, ompx_prg2in_cap, ompx_prg1prev_cap, ompx_prg2prev_cap, ompx_dsca_src_cap
+#   Read/capture: ompx_prg1in_cap, ompx_prg2in_cap, ompx_prg1prev_cap, ompx_prg2prev_cap, ompx_prg1mpx_cap, ompx_prg2mpx_cap, ompx_dsca_src_cap
 # Main stereo source: read/capture side of Program 1 input loopback pair.
 main = input.alsa(device="ompx_prg1in_cap")
 
@@ -2031,12 +2083,13 @@ PROFILE="/home/ompx/.profile"
 
 ICECAST_HOST="${ICECAST_HOST:-127.0.0.1}"
 ICECAST_PORT="${ICECAST_PORT:-8000}"
+ICECAST_SOURCE_USER="${ICECAST_SOURCE_USER:-source}"
 ICECAST_PASSWORD="${ICECAST_PASSWORD:-hackme}"
 ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
 ICECAST_MODE="${ICECAST_MODE:-disabled}"
-ST_OUT_P1="${ST_OUT_P1:-ompx_prg1prev_cap}"
-ST_OUT_P2="${ST_OUT_P2:-ompx_prg2prev_cap}"
+ST_OUT_P1="${ST_OUT_P1:-ompx_prg1mpx_cap}"
+ST_OUT_P2="${ST_OUT_P2:-ompx_prg2mpx_cap}"
 OMPX_LOG_DIR="/home/ompx/logs"
 
 mkdir -p "${OMPX_LOG_DIR}"
@@ -2084,7 +2137,7 @@ if [ "${P2_AVAILABLE}" -eq 1 ]; then
     -ice_name "oMPX Stereo 192k" \
     -ice_description "P1 (L) + P2 (R) mono-summed, hard-panned" \
     -f flac \
-    "icecast://source:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
+    "icecast://${ICECAST_SOURCE_USER}:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
 else
   # Only P1: mono sum, duplicate to both L and R
   _log "P2 not available — broadcasting P1 mono on both channels"
@@ -2100,7 +2153,7 @@ else
     -ice_name "oMPX Stereo 192k" \
     -ice_description "P1 mono (both channels) — P2 not configured" \
     -f flac \
-    "icecast://source:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
+    "icecast://${ICECAST_SOURCE_USER}:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
 fi
 MPXMIX
 chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/mpx-mix.sh"
