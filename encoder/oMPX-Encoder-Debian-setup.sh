@@ -362,10 +362,6 @@ configure_icecast_dialog(){
       [[ "${_ice_port}" =~ ^[0-9]+$ ]] && ICECAST_PORT="${_ice_port}" || ICECAST_PORT=8000
       read -t 60 -p "Icecast source username (default source): " _ice_source_user || _ice_source_user=""
       ICECAST_SOURCE_USER="${_ice_source_user:-source}"
-      if [ "${ICECAST_SOURCE_USER}" != "source" ]; then
-        echo "[WARNING] Local Icecast2 expects source user 'source'; forcing ICECAST_SOURCE_USER=source"
-        ICECAST_SOURCE_USER="source"
-      fi
       read -t 60 -p "Icecast source password (default hackme): " _ice_pass || _ice_pass=""
       ICECAST_PASSWORD="${_ice_pass:-hackme}"
       read -t 60 -p "Mount point (default /mpx): " _ice_mount || _ice_mount=""
