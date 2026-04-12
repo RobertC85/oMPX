@@ -45,7 +45,7 @@ RADIO2_URL="${RADIO2_URL:-https://example-icecast.local:8443/radio2.opus}"
 AUTO_UPDATE_STREAM_URLS_FROM_HEADER="${AUTO_UPDATE_STREAM_URLS_FROM_HEADER:-true}"
 AUTO_START_STREAMS_FROM_HEADER="${AUTO_START_STREAMS_FROM_HEADER:-false}"
 STREAM_SETUP_MODE="${STREAM_SETUP_MODE:-header}"
-STREAM_ENGINE="${STREAM_ENGINE:-liquidsoap}"
+STREAM_ENGINE="${STREAM_ENGINE:-ffmpeg}"
 STREAM_SILENCE_MAX_DBFS="${STREAM_SILENCE_MAX_DBFS:--85}"
 ALLOW_PLACEHOLDER_STREAM_OVERWRITE="${ALLOW_PLACEHOLDER_STREAM_OVERWRITE:-false}"
 REMOVE_OLD_SINKS="${REMOVE_OLD_SINKS:-false}"
@@ -1038,12 +1038,12 @@ if [ -t 0 ]; then
   echo "  F) FFmpeg"
   echo "     Pros: simpler single-process ingest loop, familiar behavior, easier to debug with direct ffmpeg logs"
   echo "     Cons: less flexible for stream-source logic, less structured than Liquidsoap for future expansion"
-  read -t 45 -p "Choose streaming engine [L/F] (default L): " cfg_stream_engine || cfg_stream_engine="L"
+  read -t 45 -p "Choose streaming engine [L/F] (default F): " cfg_stream_engine || cfg_stream_engine="F"
   cfg_stream_engine=${cfg_stream_engine^^}
-  if [ "${cfg_stream_engine}" = "F" ]; then
-    STREAM_ENGINE="ffmpeg"
-  else
+  if [ "${cfg_stream_engine}" = "L" ]; then
     STREAM_ENGINE="liquidsoap"
+  else
+    STREAM_ENGINE="ffmpeg"
   fi
   echo "[INFO] Selected streaming engine: ${STREAM_ENGINE}"
 
@@ -1729,7 +1729,7 @@ PROFILE="${OMPX_HOME}/.profile"
 RADIO_VAR_NAME="RADIO${n}_URL"
 RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
 LIQ_SCRIPT="${LIQUIDSOAP_CONF_DIR}/radio${n}.liq"
-STREAM_ENGINE_VALUE="\${STREAM_ENGINE:-liquidsoap}"
+STREAM_ENGINE_VALUE="\${STREAM_ENGINE:-ffmpeg}"
 if [ "${n}" = "1" ]; then
   SINK_NAME="ompx_prg1in"
 else
@@ -1757,7 +1757,7 @@ do
   sleep 5
   case "\${STREAM_ENGINE_VALUE}" in
     ffmpeg)
-      ffmpeg -re -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
+      ffmpeg -nostdin -reconnect 1 -reconnect_streamed 1 -reconnect_at_eof 1 -reconnect_delay_max 5 -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
         -vn -sn -dn \
         -max_delay 5000000 \
         -ar ${SAMPLE_RATE} -ac 2 -f alsa "\${SINK_NAME}" || true
@@ -2045,7 +2045,7 @@ PROFILE="${OMPX_HOME}/.profile"
 RADIO_VAR_NAME="RADIO${RADIO}_URL"
 RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
 LIQ_SCRIPT="${LIQUIDSOAP_CONF_DIR}/radio${RADIO}.liq"
-STREAM_ENGINE_VALUE="\${STREAM_ENGINE:-liquidsoap}"
+STREAM_ENGINE_VALUE="\${STREAM_ENGINE:-ffmpeg}"
 if [ "${RADIO}" = "1" ]; then
   SINK_NAME="ompx_prg1in"
 else
@@ -2071,7 +2071,8 @@ do
   sleep 5
   case "\${STREAM_ENGINE_VALUE}" in
     ffmpeg)
-      ffmpeg -re -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
+      ffmpeg -nostdin -reconnect 1 -reconnect_streamed 1 -reconnect_at_eof 1 -reconnect_delay_max 5 \
+        -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
         -vn -sn -dn \
         -max_delay 5000000 \
         -ar 192000 -ac 2 -f alsa "\${SINK_NAME}" || true
