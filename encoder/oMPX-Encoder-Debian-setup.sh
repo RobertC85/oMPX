@@ -236,8 +236,8 @@ SupplementaryGroups=audio
 WorkingDirectory=${OMPX_HOME}
 Environment=HOME=${OMPX_HOME}
 Environment=ALSA_CONFIG_PATH=/etc/asound.conf
-ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do [ -d /dev/snd ] && [ -n "$(ls -A /dev/snd 2>/dev/null)" ] && exit 0; sleep 1; done; exit 0'
-ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do runuser -u ${OMPX_USER} -- aplay -l >/dev/null 2>&1 && exit 0; sleep 1; done; exit 0'
+ExecStartPre=/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do [ -d /dev/snd ] && ls -A /dev/snd >/dev/null 2>&1 && exit 0; sleep 1; done; exit 0'
+ExecStartPre=/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do runuser -u ${OMPX_USER} -- aplay -l >/dev/null 2>&1 && exit 0; sleep 1; done; exit 0'
 ExecStart=${launcher_path}
 Restart=on-failure
 RestartSec=1
