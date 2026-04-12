@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 set -euo pipefail
 # oMPX unified installer + ALSA asound.conf setup (192kHz sample rate, 80kHz subcarrier frequency)
@@ -8,7 +7,6 @@ set -euo pipefail
 
 echo "[$(date +'%F %T')] oMPX installer starting..."
 # --- Configurable variables ---
-
 ENV_RADIO1_SET="${RADIO1_URL+x}"
 ENV_RADIO1_VAL="${RADIO1_URL-}"
 ENV_RADIO2_SET="${RADIO2_URL+x}"
@@ -32,6 +30,7 @@ STEREO_TOOL_WRAPPER="/usr/local/bin/stereo-tool"
 STEREO_TOOL_ENTERPRISE_BIN="${OMPX_HOME}/stereo-tool-enterprise/stereo-tool-enterprise"
 STEREO_TOOL_ENTERPRISE_LAUNCHER="/usr/local/bin/stereo-tool-enterprise-launch"
 STEREO_TOOL_ENTERPRISE_SERVICE="${SYSTEMD_DIR}/stereo-tool-enterprise.service"
+OMPX_STREAM_PULL_SERVICE="${SYSTEMD_DIR}/mpx-stream-pull.service"
 OMPX_ADD="/usr/local/bin/ompx_add_source"
 ASOUND_CONF_PATH="/etc/asound.conf"
 ASOUND_MAP_HELPER="/usr/local/bin/asound-map"
@@ -96,6 +95,10 @@ _log(){
 
 have_crontab(){
   command -v crontab >/dev/null 2>&1
+}
+
+has_systemd(){
+  command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]
 }
 
 download_stereo_tool_enterprise(){
@@ -231,6 +234,8 @@ SupplementaryGroups=audio
 WorkingDirectory=${OMPX_HOME}
 Environment=HOME=${OMPX_HOME}
 Environment=ALSA_CONFIG_PATH=/etc/asound.conf
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do [ -d /dev/snd ] && [ -n "$(ls -A /dev/snd 2>/dev/null)" ] && exit 0; sleep 1; done; exit 0'
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do runuser -u ${OMPX_USER} -- aplay -l >/dev/null 2>&1 && exit 0; sleep 1; done; exit 0'
 ExecStart=${launcher_path}
 Restart=on-failure
 RestartSec=1
@@ -1067,7 +1072,7 @@ found=0
 msg=""
 if id -u "${OMPX_USER}" >/dev/null 2>&1; then found=1; msg="${msg}user:${OMPX_USER} "; fi
 if [ -d "${SYS_SCRIPTS_DIR}" ]; then found=1; msg="${msg}${SYS_SCRIPTS_DIR} "; fi
-if systemctl list-unit-files | grep -q '^mpx-processing-alsa.service'; then found=1; msg="${msg}mpx-processing-alsa.service "; fi
+if has_systemd && systemctl list-unit-files | grep -q '^mpx-processing-alsa.service'; then found=1; msg="${msg}mpx-processing-alsa.service "; fi
 [ "$found" -eq 0 ] && echo "[INFO] No existing installation detected (fresh install)" || echo "[WARNING] Existing installation found: $msg"
 
 if [ "$found" -eq 1 ]; then
@@ -1086,12 +1091,12 @@ case "$choice" in
 R)
 echo "[INFO] Performing full cleanup before reinstall..."
 echo "[INFO] Stopping systemd services..."
-systemctl stop mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
+systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service 2>/dev/null || true
 systemctl stop stereo-tool-enterprise.service 2>/dev/null || true
 echo "[INFO] Disabling systemd services..."
-systemctl disable mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
+systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service 2>/dev/null || true
 systemctl disable stereo-tool-enterprise.service 2>/dev/null || true
-rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}"
+rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}"
 systemctl daemon-reload || true
 echo "[INFO] Removing old cron jobs..."
 if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
@@ -1112,12 +1117,12 @@ echo "[SUCCESS] Cleanup complete, ready for fresh install"
 U)
 echo "[INFO] Performing full uninstall..."
 echo "[INFO] Stopping systemd services..."
-systemctl stop mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
+systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service 2>/dev/null || true
 systemctl stop stereo-tool-enterprise.service 2>/dev/null || true
 echo "[INFO] Disabling systemd services..."
-systemctl disable mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
+systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service 2>/dev/null || true
 systemctl disable stereo-tool-enterprise.service 2>/dev/null || true
-rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}"
+rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}"
 systemctl daemon-reload || true
 echo "[INFO] Removing cron jobs..."
 if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
@@ -1223,7 +1228,7 @@ fi
 # --- Ensure snd_aloop loaded and show devices ---
 echo "[INFO] Verifying snd_aloop kernel module..."
 
-if ! lsmod | grep -q snd_aloop; then 
+if ! lsmod | grep -q snd_aloop; then
   echo "[INFO] Attempting to load snd_aloop..."
   if ! load_ompx_aloop_profile; then
     if [ -n "${KERNEL_HELPER_PACKAGE}" ]; then
@@ -1251,7 +1256,7 @@ if ! lsmod | grep -q snd_aloop; then
       echo "[WARNING] Could not load snd_aloop after kernel package install"
     fi
   fi
-else 
+else
   echo "[SUCCESS] snd_aloop is loaded"
   _log "snd_aloop loaded"
 fi
@@ -1760,6 +1765,25 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
+cat > "${OMPX_STREAM_PULL_SERVICE}" <<EOF
+[Unit]
+Description=MPX stream pull bootstrap
+After=network-online.target sound.target
+Wants=network-online.target sound.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=${SYS_SCRIPTS_DIR}/start_or_shell.sh --start
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 cat > "${SYS_SCRIPTS_DIR}/mpx-watchdog.sh" <<'WD'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -1988,9 +2012,27 @@ STARTSH
 chmod 750 "${SYS_SCRIPTS_DIR}/start_or_shell.sh"
 chown root:root "${SYS_SCRIPTS_DIR}/start_or_shell.sh"
 echo "[SUCCESS] start_or_shell wrapper created"
-# --- Install @reboot cron for oMPX to start sources at boot ---
-echo "[INFO] Setting up cron jobs..."
+# --- Startup integration ---
+if has_systemd; then
+echo "[INFO] Enabling and starting systemd services..."
+systemctl daemon-reload || true
+echo "[INFO] Enabling mpx-processing-alsa.service..."
+systemctl enable --now mpx-processing-alsa.service || true
+echo "[INFO] Enabling mpx-watchdog.service..."
+systemctl enable --now mpx-watchdog.service || true
+echo "[INFO] Enabling mpx-stream-pull.service..."
+systemctl enable --now mpx-stream-pull.service || true
+if [ "${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE}" = true ]; then
+  echo "[INFO] Enabling stereo-tool-enterprise.service..."
+  systemctl enable --now stereo-tool-enterprise.service || true
+fi
 
+# Remove old cron boot starter if present to avoid duplicate starts on systemd hosts.
+if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
+  crontab -u "${OMPX_USER}" -l 2>/dev/null | grep -v "${SYS_SCRIPTS_DIR}/start_or_shell.sh --start" | sed '/^$/d' | crontab -u "${OMPX_USER}" - 2>/dev/null || true
+fi
+else
+echo "[INFO] systemd not detected; configuring cron @reboot stream startup fallback"
 CRON_LINE1="@reboot sleep ${CRON_SLEEP} && ${SYS_SCRIPTS_DIR}/start_or_shell.sh --start >>${OMPX_LOG_DIR}/radio-opus-start.log 2>&1 &"
 if have_crontab; then
 existing=$(crontab -u "${OMPX_USER}" -l 2>/dev/null || true)
@@ -1998,23 +2040,11 @@ new_cron="${existing}"
 echo "$existing" | grep -F -q "${SYS_SCRIPTS_DIR}/source1.sh" >/dev/null 2>&1 || new_cron="${new_cron}
 ${CRON_LINE1}"
 printf "%s\n" "${new_cron}" | sed '/^$/d' | crontab -u "${OMPX_USER}" -
-echo "[SUCCESS] Cron job configured for ${OMPX_USER}"
+echo "[SUCCESS] Cron fallback configured for ${OMPX_USER}"
 else
-echo "[WARNING] crontab command not found; skipping cron job setup"
+echo "[WARNING] crontab command not found; no automatic stream startup is configured"
 fi
-# --- Enable and start services ---
-echo "[INFO] Enabling and starting systemd services..."
-
-systemctl daemon-reload
-echo "[INFO] Enabling mpx-processing-alsa.service..."
-systemctl enable --now mpx-processing-alsa.service || true
-echo "[INFO] Enabling mpx-watchdog.service..."
-systemctl enable --now mpx-watchdog.service || true
-if [ "${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE}" = true ]; then
-  echo "[INFO] Enabling stereo-tool-enterprise.service..."
-  systemctl enable --now stereo-tool-enterprise.service || true
 fi
-
 _log "Install complete. Profile: ${PROFILE}"
 echo ""
 echo "╔════════════════════════════════════════════════════════════════════════╗"
@@ -2027,9 +2057,14 @@ echo "     ${OMPX_ADD} --radio 1 --url 'https://your.stream/url' --cron-user oMP
 echo "     ${OMPX_ADD} --radio 2 --url 'https://your.stream/url' --cron-user oMPX --start-now"
 echo ""
 echo "  2. Check service status:"
-echo "     systemctl status mpx-processing-alsa.service"
-echo "     systemctl status mpx-watchdog.service"
-echo "     systemctl status stereo-tool-enterprise.service"
+if has_systemd; then
+  echo "     systemctl status mpx-processing-alsa.service"
+  echo "     systemctl status mpx-watchdog.service"
+  echo "     systemctl status mpx-stream-pull.service"
+  echo "     systemctl status stereo-tool-enterprise.service"
+else
+  echo "     crontab -u ${OMPX_USER} -l"
+fi
 echo ""
 echo "  3. View logs:"
 echo "     journalctl -u mpx-processing-alsa.service -f"
@@ -2070,8 +2105,12 @@ case "$apply_choice" in
       echo "[INFO] Promoting staged test profile with ${ASOUND_SWITCH_HELPER}..."
       "${ASOUND_SWITCH_HELPER}" || true
     fi
-    echo "[INFO] Restarting oMPX services to apply runtime changes..."
-    systemctl restart mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
+    echo "[INFO] Restarting oMPX runtime to apply changes..."
+    if has_systemd; then
+      systemctl restart mpx-stream-pull.service mpx-processing-alsa.service mpx-watchdog.service 2>/dev/null || true
+    else
+      "${SYS_SCRIPTS_DIR}/start_or_shell.sh" --start || true
+    fi
     echo "[SUCCESS] Applied runtime settings without reboot"
     ;;
   R)
