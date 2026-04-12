@@ -457,6 +457,115 @@ pcm.ompx_mpx_to_icecast {
   }
 }
 
+# Friendly alias layer (restored): readable names mapped to canonical ompx_prg* endpoints.
+pcm.ompx_program1_input {
+  type plug
+  slave.pcm "ompx_prg1in"
+  hint {
+    show on
+    description "oMPX Program 1 Input (alias)"
+  }
+}
+
+pcm.ompx_program1_input_capture {
+  type plug
+  slave.pcm "ompx_prg1in_cap"
+  hint {
+    show on
+    description "oMPX Program 1 Input Capture (alias)"
+  }
+}
+
+pcm.ompx_program2_input {
+  type plug
+  slave.pcm "ompx_prg2in"
+  hint {
+    show on
+    description "oMPX Program 2 Input (alias)"
+  }
+}
+
+pcm.ompx_program2_input_capture {
+  type plug
+  slave.pcm "ompx_prg2in_cap"
+  hint {
+    show on
+    description "oMPX Program 2 Input Capture (alias)"
+  }
+}
+
+pcm.ompx_program1_preview {
+  type plug
+  slave.pcm "ompx_prg1prev"
+  hint {
+    show on
+    description "oMPX Program 1 Preview (alias)"
+  }
+}
+
+pcm.ompx_program1_preview_capture {
+  type plug
+  slave.pcm "ompx_prg1prev_cap"
+  hint {
+    show on
+    description "oMPX Program 1 Preview Capture (alias)"
+  }
+}
+
+pcm.ompx_program2_preview {
+  type plug
+  slave.pcm "ompx_prg2prev"
+  hint {
+    show on
+    description "oMPX Program 2 Preview (alias)"
+  }
+}
+
+pcm.ompx_program2_preview_capture {
+  type plug
+  slave.pcm "ompx_prg2prev_cap"
+  hint {
+    show on
+    description "oMPX Program 2 Preview Capture (alias)"
+  }
+}
+
+pcm.ompx_program1_mpx_output {
+  type plug
+  slave.pcm "ompx_prg1mpx"
+  hint {
+    show on
+    description "oMPX Program 1 MPX Output (alias)"
+  }
+}
+
+pcm.ompx_program2_mpx_output {
+  type plug
+  slave.pcm "ompx_prg2mpx"
+  hint {
+    show on
+    description "oMPX Program 2 MPX Output (alias)"
+  }
+}
+
+pcm.ompx_dsca_source {
+  type plug
+  slave.pcm "ompx_dsca_src"
+  hint {
+    show on
+    description "oMPX DSCA Source (alias)"
+  }
+}
+
+pcm.ompx_dsca_source_capture {
+  type plug
+  slave.pcm "ompx_dsca_src_cap"
+  hint {
+    show on
+    description "oMPX DSCA Source Capture (alias)"
+  }
+}
+
 EOF
 }
 
@@ -878,9 +987,17 @@ echo "Write/playback endpoints (send audio into these):"
 for id in ompx_prg1in ompx_prg1prev ompx_prg2in ompx_prg2prev ompx_dsca_src ompx_prg1mpx ompx_prg2mpx ompx_dsca_injection ompx_mpx_to_icecast; do
   printf '  %s\n' "$id"
 done
+echo "Friendly playback aliases:"
+for id in ompx_program1_input ompx_program2_input ompx_program1_preview ompx_program2_preview ompx_program1_mpx_output ompx_program2_mpx_output ompx_dsca_source ompx_dsca_injection ompx_mpx_to_icecast; do
+  printf '  %s\n' "$id"
+done
 echo ""
 echo "Read/capture endpoints (read audio back from these):"
 for id in ompx_prg1in_cap ompx_prg1prev_cap ompx_prg2in_cap ompx_prg2prev_cap ompx_dsca_src_cap; do
+  printf '  %s\n' "$id"
+done
+echo "Friendly capture aliases:"
+for id in ompx_program1_input_capture ompx_program2_input_capture ompx_program1_preview_capture ompx_program2_preview_capture ompx_dsca_source_capture; do
   printf '  %s\n' "$id"
 done
 ASMAP
