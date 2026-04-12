@@ -211,6 +211,19 @@ if [ ! -x "${bin_path}" ]; then
   exit 126
 fi
 
+# Debug: Check ALSA visibility
+{
+  echo "stereo-tool-enterprise-launch: ALSA diagnostics"
+  echo "  User: \$(whoami)"
+  echo "  Groups: \$(id -nG)"
+  echo "  /dev/snd permissions: \$(ls -ld /dev/snd 2>/dev/null || echo 'N/A')"
+  echo "  /dev/snd contents: \$(ls -la /dev/snd 2>/dev/null | wc -l) items"
+  echo "  aplay -l output:"
+  aplay -l 2>&1 | head -10 || true
+  echo "  aplay -L output (friendly names):"
+  aplay -L 2>&1 | head -10 || true
+} >&2
+
 help_text="\$(${bin_path} --help 2>&1 || true)"
 args=()
 
@@ -272,6 +285,10 @@ SupplementaryGroups=audio
 WorkingDirectory=${OMPX_HOME}
 Environment=HOME=${OMPX_HOME}
 Environment=ALSA_CONFIG_PATH=/etc/asound.conf
+ExecStartPre=/bin/sh -c 'usermod -aG audio ${OMPX_USER} >/dev/null 2>&1 || true'
+ExecStartPre=/bin/sh -c 'if getent group audio >/dev/null 2>&1; then gpasswd -a ${OMPX_USER} audio >/dev/null 2>&1 || true; fi'
+ExecStartPre=/bin/sh -c 'if command -v udevadm >/dev/null 2>&1; then udevadm control --reload-rules >/dev/null 2>&1 || true; udevadm trigger --subsystem-match=sound >/dev/null 2>&1 || true; fi'
+ExecStartPre=/bin/sh -c 'if [ -d /dev/snd ]; then chgrp -R audio /dev/snd >/dev/null 2>&1 || true; chmod -R g+rw /dev/snd >/dev/null 2>&1 || true; fi'
 ExecStartPre=/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do [ -d /dev/snd ] && ls -A /dev/snd >/dev/null 2>&1 && exit 0; sleep 1; done; exit 0'
 ExecStartPre=/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do runuser -u ${OMPX_USER} -- aplay -l >/dev/null 2>&1 && exit 0; sleep 1; done; exit 0'
 ExecStart=${launcher_path}
