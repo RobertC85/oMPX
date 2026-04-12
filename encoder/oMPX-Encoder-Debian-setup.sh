@@ -2120,12 +2120,18 @@ _log "Icecast: flac ${ICECAST_SAMPLE_RATE}Hz → icecast://${ICECAST_HOST}:${ICE
 
 if [ "${P2_AVAILABLE}" -eq 1 ]; then
   # Both programs available: P1 mono → L, P2 mono → R
+  # anoisesrc at -80 dBFS (amplitude 0.0001) split to both channels keeps VLC/players
+  # alive even when one program carries silence — FLAC all-zero frames cause many
+  # players to never activate their audio output.
   exec ffmpeg -nostdin \
     -f alsa -thread_queue_size 16384 -i "${ST_OUT_P1}" \
     -f alsa -thread_queue_size 16384 -i "${ST_OUT_P2}" \
     -filter_complex \
-      "[0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[p1];\
-       [1:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[p2];\
+      "anoisesrc=r=${ICECAST_SAMPLE_RATE}:amplitude=0.0001,asplit=2[kpl][kpr];\
+       [0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[p1raw];\
+       [1:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[p2raw];\
+       [p1raw][kpl]amix=inputs=2:normalize=0[p1];\
+       [p2raw][kpr]amix=inputs=2:normalize=0[p2];\
        [p1][p2]join=inputs=2:channel_layout=stereo[out]" \
     -map "[out]" \
     -c:a flac -compression_level 0 \
@@ -2135,12 +2141,14 @@ if [ "${P2_AVAILABLE}" -eq 1 ]; then
     -f flac \
     "icecast://${ICECAST_SOURCE_USER}:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
 else
-  # Only P1: mono sum, duplicate to both L and R
+  # Only P1: mono sum, duplicate to both L and R, comfort noise keeps stream alive
   _log "P2 not available — broadcasting P1 mono on both channels"
   exec ffmpeg -nostdin \
     -f alsa -thread_queue_size 16384 -i "${ST_OUT_P1}" \
     -filter_complex \
-      "[0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[mono];\
+      "anoisesrc=r=${ICECAST_SAMPLE_RATE}:amplitude=0.0001[kp];\
+       [0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[p1raw];\
+       [p1raw][kp]amix=inputs=2:normalize=0[mono];\
        [mono]asplit=2[l][r];\
        [l][r]join=inputs=2:channel_layout=stereo[out]" \
     -map "[out]" \
