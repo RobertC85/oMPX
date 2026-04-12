@@ -2141,21 +2141,19 @@ if [ "${P2_AVAILABLE}" -eq 1 ]; then
     -f flac \
     "icecast://${ICECAST_SOURCE_USER}:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
 else
-  # Only P1: mono sum, duplicate to both L and R, comfort noise keeps stream alive
-  _log "P2 not available — broadcasting P1 mono on both channels"
+  # Only P1: keep true stereo shape (L=program, R=comfort noise only)
+  _log "P2 not available — broadcasting P1 on LEFT only with low-level keepalive on RIGHT"
   exec ffmpeg -nostdin \
     -f alsa -thread_queue_size 16384 -i "${ST_OUT_P1}" \
     -filter_complex \
       "anoisesrc=r=${ICECAST_SAMPLE_RATE}:amplitude=0.0001[kp];\
-       [0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[p1raw];\
-       [p1raw][kp]amix=inputs=2:normalize=0[mono];\
-       [mono]asplit=2[l][r];\
-       [l][r]join=inputs=2:channel_layout=stereo[out]" \
+       [0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[l];\
+       [l][kp]join=inputs=2:channel_layout=stereo[out]" \
     -map "[out]" \
     -c:a flac -compression_level 0 \
     -content_type audio/flac \
     -ice_name "oMPX Stereo 192k" \
-    -ice_description "P1 mono (both channels) — P2 not configured" \
+    -ice_description "P1 on LEFT, low-level keepalive on RIGHT — P2 not configured" \
     -f flac \
     "icecast://${ICECAST_SOURCE_USER}:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
 fi
