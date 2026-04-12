@@ -60,6 +60,7 @@ STEREO_TOOL_START_LIMIT_INTERVAL_SEC="${STEREO_TOOL_START_LIMIT_INTERVAL_SEC:-60
 STEREO_TOOL_START_LIMIT_BURST="${STEREO_TOOL_START_LIMIT_BURST:-10}"
 ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE="${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE:-false}"
 AUTO_ENABLE_STEREO_TOOL_IF_PRESENT="${AUTO_ENABLE_STEREO_TOOL_IF_PRESENT:-true}"
+START_STEREO_TOOL_AFTER_INSTALL="${START_STEREO_TOOL_AFTER_INSTALL:-true}"
 CONFIG_OVERWRITE="${CONFIG_OVERWRITE:-true}"
 CONFIG_BACKUP="${CONFIG_BACKUP:-true}"
 CONFIG_SKIP="${CONFIG_SKIP:-false}"
@@ -957,6 +958,13 @@ if [ -t 0 ]; then
     if [ "${cfg_st_enable_existing}" != "N" ]; then
       ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
       prompt_stereo_tool_limit_preset
+      read -t 45 -p "Start Stereo Tool Enterprise immediately after install (no reboot)? [Y/n] (default Y): " cfg_st_start_now || cfg_st_start_now="Y"
+      cfg_st_start_now=${cfg_st_start_now^^}
+      if [ "${cfg_st_start_now}" = "N" ]; then
+        START_STEREO_TOOL_AFTER_INSTALL=false
+      else
+        START_STEREO_TOOL_AFTER_INSTALL=true
+      fi
     fi
   else
     read -t 45 -p "Stereo Tool Enterprise not found locally. Download latest for Linux during install? [y/N] (default N): " cfg_st_fetch || cfg_st_fetch="N"
@@ -972,6 +980,13 @@ if [ -t 0 ]; then
       fi
       ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
       prompt_stereo_tool_limit_preset
+      read -t 45 -p "Start Stereo Tool Enterprise immediately after install (no reboot)? [Y/n] (default Y): " cfg_st_start_now || cfg_st_start_now="Y"
+      cfg_st_start_now=${cfg_st_start_now^^}
+      if [ "${cfg_st_start_now}" = "N" ]; then
+        START_STEREO_TOOL_AFTER_INSTALL=false
+      else
+        START_STEREO_TOOL_AFTER_INSTALL=true
+      fi
     fi
   fi
 
@@ -2032,8 +2047,13 @@ systemctl enable --now mpx-watchdog.service || true
 echo "[INFO] Enabling mpx-stream-pull.service..."
 systemctl enable --now mpx-stream-pull.service || true
 if [ "${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE}" = true ]; then
-  echo "[INFO] Enabling stereo-tool-enterprise.service..."
-  systemctl enable --now stereo-tool-enterprise.service || true
+  if [ "${START_STEREO_TOOL_AFTER_INSTALL}" = true ]; then
+    echo "[INFO] Enabling and starting stereo-tool-enterprise.service..."
+    systemctl enable --now stereo-tool-enterprise.service || true
+  else
+    echo "[INFO] Enabling stereo-tool-enterprise.service for next boot (not starting now)..."
+    systemctl enable stereo-tool-enterprise.service || true
+  fi
 fi
 
 # Remove old cron boot starter if present to avoid duplicate starts on systemd hosts.
@@ -2052,6 +2072,10 @@ printf "%s\n" "${new_cron}" | sed '/^$/d' | crontab -u "${OMPX_USER}" -
 echo "[SUCCESS] Cron fallback configured for ${OMPX_USER}"
 else
 echo "[WARNING] crontab command not found; no automatic stream startup is configured"
+fi
+if [ "${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE}" = true ] && [ "${START_STEREO_TOOL_AFTER_INSTALL}" = true ] && [ -x "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" ]; then
+  echo "[INFO] Starting Stereo Tool Enterprise immediately (non-systemd fallback)..."
+  runuser -u "${OMPX_USER}" -- nohup "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" >/dev/null 2>&1 &
 fi
 fi
 _log "Install complete. Profile: ${PROFILE}"
