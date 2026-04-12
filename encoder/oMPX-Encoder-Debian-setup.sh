@@ -56,6 +56,9 @@ STEREO_TOOL_DOWNLOAD_DIR="${STEREO_TOOL_DOWNLOAD_DIR:-${OMPX_HOME}/stereo-tool-e
 STEREO_TOOL_WEB_BIND="${STEREO_TOOL_WEB_BIND:-0.0.0.0}"
 STEREO_TOOL_WEB_PORT="${STEREO_TOOL_WEB_PORT:-8081}"
 STEREO_TOOL_WEB_WHITELIST="${STEREO_TOOL_WEB_WHITELIST:-0.0.0.0/0}"
+STEREO_TOOL_START_LIMIT_PRESET="${STEREO_TOOL_START_LIMIT_PRESET:-balanced}"
+STEREO_TOOL_START_LIMIT_INTERVAL_SEC="${STEREO_TOOL_START_LIMIT_INTERVAL_SEC:-60}"
+STEREO_TOOL_START_LIMIT_BURST="${STEREO_TOOL_START_LIMIT_BURST:-10}"
 ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE="${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE:-false}"
 CONFIG_OVERWRITE="${CONFIG_OVERWRITE:-true}"
 CONFIG_BACKUP="${CONFIG_BACKUP:-true}"
@@ -146,6 +149,8 @@ install_stereo_tool_enterprise_service(){
   local bind_ip="$3"
   local web_port="$4"
   local whitelist="$5"
+  local start_limit_interval="$6"
+  local start_limit_burst="$7"
 
   if [ ! -x "${bin_path}" ]; then
     echo "[WARNING] Stereo Tool Enterprise binary not executable at ${bin_path}; skipping service install"
@@ -168,15 +173,20 @@ EOF
 Description=Stereo Tool Enterprise Web Service
 After=network-online.target
 Wants=network-online.target
+After=sound.target
+Wants=sound.target
+StartLimitIntervalSec=${start_limit_interval}
+StartLimitBurst=${start_limit_burst}
 
 [Service]
 Type=simple
 User=${OMPX_USER}
 Group=${OMPX_USER}
+SupplementaryGroups=audio
 WorkingDirectory=${OMPX_HOME}
 ExecStart=${launcher_path}
 Restart=on-failure
-RestartSec=5
+RestartSec=1
 StandardOutput=journal
 StandardError=journal
 
@@ -187,6 +197,30 @@ EOF
   chmod 644 "${STEREO_TOOL_ENTERPRISE_SERVICE}"
   chown root:root "${STEREO_TOOL_ENTERPRISE_SERVICE}"
   echo "[SUCCESS] Installed Stereo Tool Enterprise service unit: ${STEREO_TOOL_ENTERPRISE_SERVICE}"
+}
+
+apply_stereo_tool_start_limit_preset(){
+  local preset="${STEREO_TOOL_START_LIMIT_PRESET,,}"
+  case "${preset}" in
+    strict)
+      STEREO_TOOL_START_LIMIT_INTERVAL_SEC=60
+      STEREO_TOOL_START_LIMIT_BURST=5
+      ;;
+    balanced|"")
+      STEREO_TOOL_START_LIMIT_INTERVAL_SEC=60
+      STEREO_TOOL_START_LIMIT_BURST=10
+      ;;
+    lenient)
+      STEREO_TOOL_START_LIMIT_INTERVAL_SEC=120
+      STEREO_TOOL_START_LIMIT_BURST=20
+      ;;
+    custom)
+      ;;
+    *)
+      echo "[WARNING] Unknown STEREO_TOOL_START_LIMIT_PRESET='${STEREO_TOOL_START_LIMIT_PRESET}', keeping explicit interval/burst values"
+      ;;
+  esac
+  echo "[INFO] Stereo Tool start-limit policy: preset=${STEREO_TOOL_START_LIMIT_PRESET}, interval=${STEREO_TOOL_START_LIMIT_INTERVAL_SEC}s, burst=${STEREO_TOOL_START_LIMIT_BURST}"
 }
 
 safe_apt_update(){
@@ -728,7 +762,36 @@ if [ -t 0 ]; then
     if [ -n "${cfg_st_url}" ]; then
       STEREO_TOOL_ENTERPRISE_URL="${cfg_st_url}"
     fi
-      ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
+    echo "  Start-limit presets (when repeated crashes happen):"
+    echo "    S) Strict   - 5 failures in 60s, then stop retrying"
+    echo "    B) Balanced - 10 failures in 60s, then stop retrying"
+    echo "    L) Lenient  - 20 failures in 120s, then stop retrying"
+    echo "    C) Custom   - set your own window and failure count"
+    read -t 60 -p "Choose Stereo Tool crash-limit preset [S/B/L/C] (default B): " cfg_st_limit || cfg_st_limit="B"
+    cfg_st_limit=${cfg_st_limit^^}
+    case "${cfg_st_limit}" in
+      S)
+        STEREO_TOOL_START_LIMIT_PRESET="strict"
+        ;;
+      L)
+        STEREO_TOOL_START_LIMIT_PRESET="lenient"
+        ;;
+      C)
+        STEREO_TOOL_START_LIMIT_PRESET="custom"
+        read -t 60 -p "Custom start-limit interval (seconds, default ${STEREO_TOOL_START_LIMIT_INTERVAL_SEC}): " cfg_st_interval || cfg_st_interval=""
+        read -t 60 -p "Custom start-limit burst (failures, default ${STEREO_TOOL_START_LIMIT_BURST}): " cfg_st_burst || cfg_st_burst=""
+        if [[ "${cfg_st_interval}" =~ ^[0-9]+$ ]] && [ "${cfg_st_interval}" -gt 0 ]; then
+          STEREO_TOOL_START_LIMIT_INTERVAL_SEC="${cfg_st_interval}"
+        fi
+        if [[ "${cfg_st_burst}" =~ ^[0-9]+$ ]] && [ "${cfg_st_burst}" -gt 0 ]; then
+          STEREO_TOOL_START_LIMIT_BURST="${cfg_st_burst}"
+        fi
+        ;;
+      *)
+        STEREO_TOOL_START_LIMIT_PRESET="balanced"
+        ;;
+    esac
+    ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
   else
     FETCH_STEREO_TOOL_ENTERPRISE=false
     ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=false
@@ -906,12 +969,18 @@ echo "[INFO] Setting up oMPX system user..."
 if ! id -u "${OMPX_USER}" >/dev/null 2>&1; then
 echo "[INFO] Creating user ${OMPX_USER}..."
 useradd --home-dir "${OMPX_HOME}" --create-home --shell "${OMPX_SHELL}" --comment "oMPX service account" "${OMPX_USER}"
+if getent group audio >/dev/null 2>&1; then
+  usermod -aG audio "${OMPX_USER}" || true
+fi
 echo "[SUCCESS] User ${OMPX_USER} created"
 else
 echo "[INFO] User ${OMPX_USER} already exists; ensuring shell is ${OMPX_SHELL}."
 _log "User ${OMPX_USER} exists; ensuring shell is ${OMPX_SHELL}."
 usermod -s "${OMPX_SHELL}" "${OMPX_USER}" || true
 usermod -d "${OMPX_HOME}" -m "${OMPX_USER}" || true
+if getent group audio >/dev/null 2>&1; then
+  usermod -aG audio "${OMPX_USER}" || true
+fi
 echo "[SUCCESS] User shell updated"
 fi
 # --- Write profile (overwrite) ---
@@ -944,7 +1013,8 @@ if [ "${FETCH_STEREO_TOOL_ENTERPRISE}" = true ]; then
 fi
 
 if [ "${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE}" = true ]; then
-  install_stereo_tool_enterprise_service "${STEREO_TOOL_ENTERPRISE_BIN}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" "${STEREO_TOOL_WEB_BIND}" "${STEREO_TOOL_WEB_PORT}" "${STEREO_TOOL_WEB_WHITELIST}"
+  apply_stereo_tool_start_limit_preset
+  install_stereo_tool_enterprise_service "${STEREO_TOOL_ENTERPRISE_BIN}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" "${STEREO_TOOL_WEB_BIND}" "${STEREO_TOOL_WEB_PORT}" "${STEREO_TOOL_WEB_WHITELIST}" "${STEREO_TOOL_START_LIMIT_INTERVAL_SEC}" "${STEREO_TOOL_START_LIMIT_BURST}"
 fi
 
 if [ "${STREAM_SETUP_MODE:-header}" != "later" ]; then
@@ -1484,11 +1554,22 @@ EOF
 cat > "${SYS_SCRIPTS_DIR}/mpx-watchdog.sh" <<'WD'
 #!/usr/bin/env bash
 set -euo pipefail
-SLEEP=20
+SLEEP=5
 while true; do
 if ! systemctl is-active --quiet mpx-processing-alsa.service; then
 logger -t mpx "Watchdog: restarting processing service"
 systemctl restart mpx-processing-alsa.service || logger -t mpx "Watchdog: failed to restart"
+fi
+if systemctl list-unit-files | grep -q '^stereo-tool-enterprise.service'; then
+if ! systemctl is-active --quiet stereo-tool-enterprise.service; then
+st_result="$(systemctl show -p Result --value stereo-tool-enterprise.service 2>/dev/null || true)"
+if [ "${st_result}" = "start-limit-hit" ]; then
+logger -t mpx "Watchdog: stereo-tool-enterprise.service is rate-limited by systemd (start-limit-hit); waiting for interval"
+else
+logger -t mpx "Watchdog: restarting stereo-tool-enterprise.service"
+systemctl restart stereo-tool-enterprise.service || logger -t mpx "Watchdog: failed to restart stereo-tool-enterprise.service"
+fi
+fi
 fi
 sleep $SLEEP
 done
