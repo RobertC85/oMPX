@@ -895,6 +895,35 @@ strip_old_ompx_sinks(){
   ' "$in_file" > "$out_file"
 }
 
+strip_legacy_hw_references(){
+  local in_file="$1"
+  local out_file="$2"
+  awk '
+    BEGIN { skip = 0; depth = 0 }
+    {
+      if (skip == 1) {
+        l1 = $0; l2 = $0
+        opens = gsub(/\{/, "{", l1)
+        closes = gsub(/\}/, "}", l2)
+        depth += opens - closes
+        if (depth <= 0) { skip = 0; depth = 0 }
+        next
+      }
+      if ($0 ~ /^[[:space:]]*(pcm|ctl)\.[_a-zA-Z0-9]+[[:space:]]*\{/) {
+        name = $0
+        sub(/^[[:space:]]*(pcm|ctl)\./, "", name)
+        sub(/[[:space:]]*\{.*/, "", name)
+        if (match($0, /hw:[0-9]/)) {
+          skip = 1
+          depth = 1
+          next
+        }
+      }
+      print
+    }
+  ' "$in_file" > "$out_file"
+}
+
 load_ompx_aloop_profile(){
   modprobe snd_aloop enable=1 pcm_substreams=2
 }
@@ -1115,9 +1144,11 @@ if [ "${CONFIG_SKIP}" = false ]; then
     if [ -f "${ASOUND_CONF_PATH}" ]; then
       tmp_clean=$(mktemp)
       strip_old_ompx_sinks "${ASOUND_CONF_PATH}" "${tmp_clean}" || true
-      cp -f "${tmp_clean}" "${ASOUND_CONF_PATH}" || true
-      rm -f "${tmp_clean}" || true
-      echo "[INFO] Removed old oMPX sink blocks from existing ${ASOUND_CONF_PATH}"
+      tmp_clean2=$(mktemp)
+      strip_legacy_hw_references "${tmp_clean}" "${tmp_clean2}" || true
+      cp -f "${tmp_clean2}" "${ASOUND_CONF_PATH}" || true
+      rm -f "${tmp_clean}" "${tmp_clean2}" || true
+      echo "[INFO] Removed old oMPX sink blocks and legacy hw:* references from ${ASOUND_CONF_PATH}"
     fi
     if [ -f "${ASOUND_CONF_PATH}" ] && [ "${CONFIG_BACKUP}" = true ]; then
       cp -a "${ASOUND_CONF_PATH}" "${ASOUND_CONF_PATH}.bak.$(date +%s)" || true
@@ -1134,7 +1165,10 @@ if [ "${CONFIG_SKIP}" = false ]; then
       tmp_clean_stage=$(mktemp)
       strip_old_ompx_sinks "${tmp_stage}" "${tmp_clean_stage}" || true
       mv -f "${tmp_clean_stage}" "${tmp_stage}"
-      echo "[INFO] Removed old oMPX sink blocks from staged source"
+      tmp_clean_stage2=$(mktemp)
+      strip_legacy_hw_references "${tmp_stage}" "${tmp_clean_stage2}" || true
+      mv -f "${tmp_clean_stage2}" "${tmp_stage}"
+      echo "[INFO] Removed old oMPX sink blocks and legacy hw:* references from staged source"
       printf '\n%s\n' "${WANT_ASOUND_TEST}" >> "${tmp_stage}"
       cp -f "${tmp_stage}" /etc/asound.conf.ompx-staged
       rm -f "${tmp_stage}" || true
@@ -1363,9 +1397,14 @@ WANT_ASOUND_TEST="$(render_asound_config "${LOOPBACK_CARD_REF}")"
 echo "[INFO] Using loopback card reference: ${LOOPBACK_CARD_REF}"
 if [ "${CONFIG_SKIP}" = false ]; then
   if [ "${CONFIG_OVERWRITE}" = true ]; then
+    if [ -f "${ASOUND_CONF_PATH}" ]; then
+      tmp_clean=$(mktemp)
+      strip_legacy_hw_references "${ASOUND_CONF_PATH}" "${tmp_clean}" || true
+      rm -f "${tmp_clean}" || true
+    fi
     printf '%s\n' "${WANT_ASOUND_TEST}" > "${ASOUND_CONF_PATH}"
     chmod 644 "${ASOUND_CONF_PATH}" || true
-    echo "[INFO] Refreshed ${ASOUND_CONF_PATH} with detected loopback card reference"
+    echo "[INFO] Refreshed ${ASOUND_CONF_PATH} with detected loopback card reference (legacy hw refs removed)"
   else
     printf '%s\n' "${WANT_ASOUND_TEST}" > /etc/asound.conf.ompx-staged
     chmod 644 /etc/asound.conf.ompx-staged || true
