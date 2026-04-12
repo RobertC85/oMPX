@@ -31,6 +31,8 @@ STEREO_TOOL_ENTERPRISE_BIN="${OMPX_HOME}/stereo-tool-enterprise/stereo-tool-ente
 STEREO_TOOL_ENTERPRISE_LAUNCHER="/usr/local/bin/stereo-tool-enterprise-launch"
 STEREO_TOOL_ENTERPRISE_SERVICE="${SYSTEMD_DIR}/stereo-tool-enterprise.service"
 OMPX_STREAM_PULL_SERVICE="${SYSTEMD_DIR}/mpx-stream-pull.service"
+OMPX_SOURCE1_SERVICE="${SYSTEMD_DIR}/mpx-source1.service"
+OMPX_SOURCE2_SERVICE="${SYSTEMD_DIR}/mpx-source2.service"
 OMPX_ADD="/usr/local/bin/ompx_add_source"
 ASOUND_CONF_PATH="/etc/asound.conf"
 OMPX_AUDIO_UDEV_RULE="/etc/udev/rules.d/70-ompx-audio.rules"
@@ -1348,12 +1350,12 @@ case "$choice" in
 R)
 echo "[INFO] Performing full cleanup before reinstall..."
 echo "[INFO] Stopping systemd services..."
-systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service 2>/dev/null || true
+systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service 2>/dev/null || true
 systemctl stop stereo-tool-enterprise.service 2>/dev/null || true
 echo "[INFO] Disabling systemd services..."
-systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service 2>/dev/null || true
+systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service 2>/dev/null || true
 systemctl disable stereo-tool-enterprise.service 2>/dev/null || true
-rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}"
+rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}"
 systemctl daemon-reload || true
 echo "[INFO] Removing old cron jobs..."
 if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
@@ -1375,12 +1377,12 @@ echo "[SUCCESS] Cleanup complete, ready for fresh install"
 U)
 echo "[INFO] Performing full uninstall..."
 echo "[INFO] Stopping systemd services..."
-systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service 2>/dev/null || true
+systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service 2>/dev/null || true
 systemctl stop stereo-tool-enterprise.service 2>/dev/null || true
 echo "[INFO] Disabling systemd services..."
-systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service 2>/dev/null || true
+systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service 2>/dev/null || true
 systemctl disable stereo-tool-enterprise.service 2>/dev/null || true
-rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}"
+rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}"
 systemctl daemon-reload || true
 echo "[INFO] Removing cron jobs..."
 if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
@@ -2202,6 +2204,52 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
+cat > "${OMPX_SOURCE1_SERVICE}" <<EOF
+[Unit]
+Description=oMPX upstream ingest source1
+After=network-online.target sound.target
+Wants=network-online.target sound.target
+
+[Service]
+Type=simple
+User=${OMPX_USER}
+Group=${OMPX_USER}
+SupplementaryGroups=audio
+WorkingDirectory=${OMPX_HOME}
+Environment=HOME=${OMPX_HOME}
+ExecStart=${SYS_SCRIPTS_DIR}/source1.sh
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+cat > "${OMPX_SOURCE2_SERVICE}" <<EOF
+[Unit]
+Description=oMPX upstream ingest source2
+After=network-online.target sound.target
+Wants=network-online.target sound.target
+
+[Service]
+Type=simple
+User=${OMPX_USER}
+Group=${OMPX_USER}
+SupplementaryGroups=audio
+WorkingDirectory=${OMPX_HOME}
+Environment=HOME=${OMPX_HOME}
+ExecStart=${SYS_SCRIPTS_DIR}/source2.sh
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 cat > "${SYS_SCRIPTS_DIR}/mpx-watchdog.sh" <<'WD'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -2447,6 +2495,9 @@ else
 fi
 echo "[INFO] Enabling mpx-watchdog.service..."
 systemctl enable --now mpx-watchdog.service || true
+echo "[INFO] Enabling source ingest services..."
+systemctl enable --now mpx-source1.service || true
+systemctl enable --now mpx-source2.service || true
 echo "[INFO] Enabling mpx-stream-pull.service..."
 systemctl enable --now mpx-stream-pull.service || true
 if [ "${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE}" = true ]; then
