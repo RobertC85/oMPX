@@ -282,6 +282,7 @@ Type=simple
 User=${OMPX_USER}
 Group=${OMPX_USER}
 SupplementaryGroups=audio
+PermissionsStartOnly=true
 WorkingDirectory=${OMPX_HOME}
 Environment=HOME=${OMPX_HOME}
 Environment=ALSA_CONFIG_PATH=/etc/asound.conf
@@ -388,6 +389,7 @@ detect_loopback_card_ref(){
 render_asound_config(){
   local card_ref="$1"
   cat <<EOF
+# BEGIN OMPX ALSA BLOCK
 # oMPX ALSA virtual PCM map (auto-generated)
 
 pcm.ompx_prg1in {
@@ -625,6 +627,8 @@ pcm.ompx_dsca_source_capture {
   }
 }
 
+# END OMPX ALSA BLOCK
+
 EOF
 }
 
@@ -843,12 +847,25 @@ strip_old_ompx_sinks(){
   local out_file="$2"
   awk '
     BEGIN {
-      split("prg1in prg1in_cap prg2in prg2in_cap prg1prev prg1prev_cap prg2prev prg2prev_cap prg1mpx prg2mpx dsca_src dsca_src_cap dsca_injection mpx_to_icecast ompx_program1_input ompx_program1_input_capture ompx_program2_input ompx_program2_input_capture ompx_program1_preview ompx_program1_preview_capture ompx_program2_preview ompx_program2_preview_capture ompx_program1_mpx_output ompx_program2_mpx_output ompx_dsca_source ompx_dsca_source_capture ompx_dsca_injection ompx_mpx_to_icecast", a, " ")
+      split("ompx_prg1in ompx_prg1in_cap ompx_prg2in ompx_prg2in_cap ompx_prg1prev ompx_prg1prev_cap ompx_prg2prev ompx_prg2prev_cap ompx_prg1mpx ompx_prg2mpx ompx_dsca_src ompx_dsca_src_cap ompx_dsca_injection ompx_mpx_to_icecast ompx_program1_input ompx_program1_input_capture ompx_program2_input ompx_program2_input_capture ompx_program1_preview ompx_program1_preview_capture ompx_program2_preview ompx_program2_preview_capture ompx_program1_mpx_output ompx_program2_mpx_output ompx_dsca_source ompx_dsca_source_capture", a, " ")
       for (i in a) names[a[i]] = 1
       skip = 0
       depth = 0
+      skip_marker = 0
     }
     {
+      if ($0 ~ /^# BEGIN OMPX ALSA BLOCK/) {
+        skip_marker = 1
+        next
+      }
+
+      if (skip_marker == 1) {
+        if ($0 ~ /^# END OMPX ALSA BLOCK/) {
+          skip_marker = 0
+        }
+        next
+      }
+
       if (skip == 1) {
         l1 = $0
         l2 = $0
@@ -862,9 +879,9 @@ strip_old_ompx_sinks(){
         next
       }
 
-      if ($0 ~ /^[[:space:]]*pcm\.[[:alnum:]_]+[[:space:]]*\{/) {
+      if ($0 ~ /^[[:space:]]*(pcm|ctl)\.[[:alnum:]_]+[[:space:]]*\{/) {
         name = $0
-        sub(/^[[:space:]]*pcm\./, "", name)
+        sub(/^[[:space:]]*(pcm|ctl)\./, "", name)
         sub(/[[:space:]]*\{.*/, "", name)
         if (name in names) {
           skip = 1
@@ -1095,7 +1112,7 @@ WANT_ASOUND_TEST="$(render_asound_config "${LOOPBACK_CARD_REF}")"
 
 if [ "${CONFIG_SKIP}" = false ]; then
   if [ "${CONFIG_OVERWRITE}" = true ]; then
-    if [ "${REMOVE_OLD_SINKS}" = true ] && [ -f "${ASOUND_CONF_PATH}" ]; then
+    if [ -f "${ASOUND_CONF_PATH}" ]; then
       tmp_clean=$(mktemp)
       strip_old_ompx_sinks "${ASOUND_CONF_PATH}" "${tmp_clean}" || true
       cp -f "${tmp_clean}" "${ASOUND_CONF_PATH}" || true
@@ -1114,12 +1131,10 @@ if [ "${CONFIG_SKIP}" = false ]; then
     if [ -f "${ASOUND_CONF_PATH}" ]; then
       tmp_stage=$(mktemp)
       cp -f "${ASOUND_CONF_PATH}" "${tmp_stage}" || true
-      if [ "${REMOVE_OLD_SINKS}" = true ]; then
-        tmp_clean_stage=$(mktemp)
-        strip_old_ompx_sinks "${tmp_stage}" "${tmp_clean_stage}" || true
-        mv -f "${tmp_clean_stage}" "${tmp_stage}"
-        echo "[INFO] Removed old oMPX sink blocks from staged source"
-      fi
+      tmp_clean_stage=$(mktemp)
+      strip_old_ompx_sinks "${tmp_stage}" "${tmp_clean_stage}" || true
+      mv -f "${tmp_clean_stage}" "${tmp_stage}"
+      echo "[INFO] Removed old oMPX sink blocks from staged source"
       printf '\n%s\n' "${WANT_ASOUND_TEST}" >> "${tmp_stage}"
       cp -f "${tmp_stage}" /etc/asound.conf.ompx-staged
       rm -f "${tmp_stage}" || true
