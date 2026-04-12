@@ -285,7 +285,6 @@ SupplementaryGroups=audio
 PermissionsStartOnly=true
 WorkingDirectory=${OMPX_HOME}
 Environment=HOME=${OMPX_HOME}
-Environment=ALSA_CONFIG_PATH=/etc/asound.conf
 ExecStartPre=/bin/sh -c 'usermod -aG audio ${OMPX_USER} >/dev/null 2>&1 || true'
 ExecStartPre=/bin/sh -c 'if command -v udevadm >/dev/null 2>&1; then udevadm control --reload-rules >/dev/null 2>&1 || true; udevadm trigger --subsystem-match=sound >/dev/null 2>&1 || true; fi'
 ExecStartPre=/bin/sh -c 'if [ -d /dev/snd ]; then chgrp -R audio /dev/snd >/dev/null 2>&1 || true; chmod -R g+rw /dev/snd >/dev/null 2>&1 || true; fi'
@@ -387,14 +386,16 @@ detect_loopback_card_ref(){
 }
 
 render_asound_config(){
-  local card_ref="$1"
+  # card_ref kept for caller compatibility but is no longer used; each loopback
+  # card has its own ALSA name (loaded with id=<name>) so we reference by name,
+  # which is stable across reboots regardless of card number assignment.
   cat <<EOF
 # BEGIN OMPX ALSA BLOCK
 # oMPX ALSA virtual PCM map (auto-generated)
 
 pcm.ompx_prg1in {
   type plug
-  slave.pcm "hw:${card_ref},0,0"
+  slave.pcm "hw:program1in,0"
   hint {
     show on
     description "oMPX Program 1 Input (write/playback)"
@@ -403,7 +404,7 @@ pcm.ompx_prg1in {
 
 pcm.ompx_prg1in_cap {
   type plug
-  slave.pcm "hw:${card_ref},1,0"
+  slave.pcm "hw:program1in,1"
   hint {
     show on
     description "oMPX Program 1 Input Capture (read/capture)"
@@ -412,7 +413,7 @@ pcm.ompx_prg1in_cap {
 
 pcm.ompx_prg2in {
   type plug
-  slave.pcm "hw:${card_ref},0,1"
+  slave.pcm "hw:program2in,0"
   hint {
     show on
     description "oMPX Program 2 Input (write/playback)"
@@ -421,7 +422,7 @@ pcm.ompx_prg2in {
 
 pcm.ompx_prg2in_cap {
   type plug
-  slave.pcm "hw:${card_ref},1,1"
+  slave.pcm "hw:program2in,1"
   hint {
     show on
     description "oMPX Program 2 Input Capture (read/capture)"
@@ -430,7 +431,7 @@ pcm.ompx_prg2in_cap {
 
 pcm.ompx_prg1prev {
   type plug
-  slave.pcm "hw:${card_ref},0,2"
+  slave.pcm "hw:program1preview,0"
   hint {
     show on
     description "oMPX Program 1 Preview (write/playback)"
@@ -439,7 +440,7 @@ pcm.ompx_prg1prev {
 
 pcm.ompx_prg1prev_cap {
   type plug
-  slave.pcm "hw:${card_ref},1,2"
+  slave.pcm "hw:program1preview,1"
   hint {
     show on
     description "oMPX Program 1 Preview Capture (read/capture)"
@@ -448,7 +449,7 @@ pcm.ompx_prg1prev_cap {
 
 pcm.ompx_prg2prev {
   type plug
-  slave.pcm "hw:${card_ref},0,3"
+  slave.pcm "hw:program2preview,0"
   hint {
     show on
     description "oMPX Program 2 Preview (write/playback)"
@@ -457,7 +458,7 @@ pcm.ompx_prg2prev {
 
 pcm.ompx_prg2prev_cap {
   type plug
-  slave.pcm "hw:${card_ref},1,3"
+  slave.pcm "hw:program2preview,1"
   hint {
     show on
     description "oMPX Program 2 Preview Capture (read/capture)"
@@ -466,7 +467,7 @@ pcm.ompx_prg2prev_cap {
 
 pcm.ompx_prg1mpx {
   type plug
-  slave.pcm "hw:${card_ref},0,4"
+  slave.pcm "hw:program1mpxsrc,0"
   hint {
     show on
     description "oMPX Program 1 MPX Output"
@@ -475,7 +476,7 @@ pcm.ompx_prg1mpx {
 
 pcm.ompx_prg2mpx {
   type plug
-  slave.pcm "hw:${card_ref},0,5"
+  slave.pcm "hw:program2mpxsrc,0"
   hint {
     show on
     description "oMPX Program 2 MPX Output"
@@ -484,7 +485,7 @@ pcm.ompx_prg2mpx {
 
 pcm.ompx_dsca_src {
   type plug
-  slave.pcm "hw:${card_ref},0,6"
+  slave.pcm "hw:dscasource,0"
   hint {
     show on
     description "oMPX DSCA Source (write/playback)"
@@ -493,7 +494,7 @@ pcm.ompx_dsca_src {
 
 pcm.ompx_dsca_src_cap {
   type plug
-  slave.pcm "hw:${card_ref},1,6"
+  slave.pcm "hw:dscasource,1"
   hint {
     show on
     description "oMPX DSCA Source Capture (read/capture)"
@@ -502,7 +503,7 @@ pcm.ompx_dsca_src_cap {
 
 pcm.ompx_dsca_injection {
   type plug
-  slave.pcm "hw:${card_ref},0,7"
+  slave.pcm "hw:dscainjectionsr,0"
   hint {
     show on
     description "oMPX DSCA Injection"
@@ -511,7 +512,7 @@ pcm.ompx_dsca_injection {
 
 pcm.ompx_mpx_to_icecast {
   type plug
-  slave.pcm "hw:${card_ref},0,8"
+  slave.pcm "hw:mpxmix,0"
   hint {
     show on
     description "oMPX MPX To Icecast"
@@ -1890,7 +1891,6 @@ SupplementaryGroups=audio
 PermissionsStartOnly=true
 WorkingDirectory=${OMPX_HOME}
 Environment=HOME=${OMPX_HOME}
-Environment=ALSA_CONFIG_PATH=/etc/asound.conf
 ExecStartPre=/bin/sh -c 'usermod -aG audio ${OMPX_USER} >/dev/null 2>&1 || true'
 ExecStartPre=/bin/sh -c 'if command -v udevadm >/dev/null 2>&1; then udevadm control --reload-rules >/dev/null 2>&1 || true; udevadm trigger --subsystem-match=sound >/dev/null 2>&1 || true; fi'
 ExecStartPre=/bin/sh -c 'if [ -d /dev/snd ]; then chgrp -R audio /dev/snd >/dev/null 2>&1 || true; chmod -R g+rw /dev/snd >/dev/null 2>&1 || true; fi'
