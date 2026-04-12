@@ -62,6 +62,18 @@ STEREO_TOOL_START_LIMIT_BURST="${STEREO_TOOL_START_LIMIT_BURST:-10}"
 ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE="${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE:-false}"
 AUTO_ENABLE_STEREO_TOOL_IF_PRESENT="${AUTO_ENABLE_STEREO_TOOL_IF_PRESENT:-true}"
 START_STEREO_TOOL_AFTER_INSTALL="${START_STEREO_TOOL_AFTER_INSTALL:-true}"
+
+# Icecast output (MPX mix → Icecast)
+ICECAST_HOST="${ICECAST_HOST:-127.0.0.1}"
+ICECAST_PORT="${ICECAST_PORT:-8000}"
+ICECAST_PASSWORD="${ICECAST_PASSWORD:-hackme}"
+ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx}"
+ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
+# ICECAST_MODE: local | remote | disabled
+ICECAST_MODE="${ICECAST_MODE:-disabled}"
+# ALSA capture endpoints Stereo Tool Enterprise writes its processed output to
+ST_OUT_P1="${ST_OUT_P1:-ompx_prg1prev_cap}"
+ST_OUT_P2="${ST_OUT_P2:-ompx_prg2prev_cap}"
 CONFIG_OVERWRITE="${CONFIG_OVERWRITE:-true}"
 CONFIG_BACKUP="${CONFIG_BACKUP:-true}"
 CONFIG_SKIP="${CONFIG_SKIP:-false}"
@@ -327,6 +339,123 @@ apply_stereo_tool_start_limit_preset(){
       ;;
   esac
   echo "[INFO] Stereo Tool start-limit policy: preset=${STEREO_TOOL_START_LIMIT_PRESET}, interval=${STEREO_TOOL_START_LIMIT_INTERVAL_SEC}s, burst=${STEREO_TOOL_START_LIMIT_BURST}"
+}
+
+configure_icecast_dialog(){
+  echo ""
+  echo "=== Icecast output configuration ==="
+  echo "  L) Local  — install Icecast2 on THIS machine; downstream clients pull from here"
+  echo "  R) Remote — push encoded stream to a remote Icecast server (transmitter or third-party)"
+  echo "  S) Skip   — configure Icecast later; mpx-mix service will remain disabled"
+  read -t 60 -p "Choose Icecast mode [L/R/S] (default S): " _ice_mode || _ice_mode="S"
+  _ice_mode=${_ice_mode^^}
+
+  case "${_ice_mode}" in
+    L)
+      ICECAST_MODE="local"
+      ICECAST_HOST="127.0.0.1"
+      read -t 60 -p "Icecast HTTP port (default 8000): " _ice_port || _ice_port=""
+      [[ "${_ice_port}" =~ ^[0-9]+$ ]] && ICECAST_PORT="${_ice_port}" || ICECAST_PORT=8000
+      read -t 60 -p "Icecast source password (default hackme): " _ice_pass || _ice_pass=""
+      ICECAST_PASSWORD="${_ice_pass:-hackme}"
+      read -t 60 -p "Mount point (default /mpx): " _ice_mount || _ice_mount=""
+      _ice_mount="${_ice_mount:-mpx}"; ICECAST_MOUNT="/${_ice_mount#/}"
+      read -t 60 -p "Icecast admin password (default admin): " _ice_admin || _ice_admin=""
+      _ICE_ADMIN_PASS="${_ice_admin:-admin}"
+      read -t 60 -p "Max simultaneous listeners (default 25): " _ice_clients || _ice_clients=""
+      [[ "${_ice_clients}" =~ ^[0-9]+$ ]] && _ICE_MAX_LISTENERS="${_ice_clients}" || _ICE_MAX_LISTENERS=25
+      read -t 60 -p "Station name shown to listeners (default oMPX): " _ice_name || _ice_name=""
+      _ICE_STATION="${_ice_name:-oMPX}"
+      echo "[INFO] Local Icecast2 → localhost:${ICECAST_PORT}${ICECAST_MOUNT}"
+      ;;
+    R)
+      ICECAST_MODE="remote"
+      read -t 120 -p "Remote Icecast hostname or IP: " _ice_host || _ice_host=""
+      if [ -z "${_ice_host}" ]; then
+        echo "[WARNING] No host entered — Icecast mode set to disabled"; ICECAST_MODE="disabled"; return
+      fi
+      ICECAST_HOST="${_ice_host}"
+      read -t 60 -p "Remote Icecast port (default 8000): " _ice_port || _ice_port=""
+      [[ "${_ice_port}" =~ ^[0-9]+$ ]] && ICECAST_PORT="${_ice_port}" || ICECAST_PORT=8000
+      read -t 60 -p "Source password: " _ice_pass || _ice_pass=""
+      if [ -z "${_ice_pass}" ]; then
+        echo "[WARNING] No password entered — Icecast mode set to disabled"; ICECAST_MODE="disabled"; return
+      fi
+      ICECAST_PASSWORD="${_ice_pass}"
+      read -t 60 -p "Mount point (default /mpx): " _ice_mount || _ice_mount=""
+      _ice_mount="${_ice_mount:-mpx}"; ICECAST_MOUNT="/${_ice_mount#/}"
+      echo "[INFO] Remote Icecast push → ${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
+      ;;
+    *)
+      ICECAST_MODE="disabled"
+      echo "[INFO] Icecast skipped — edit /home/ompx/.profile and restart mpx-mix.service later"
+      return
+      ;;
+  esac
+
+  read -t 60 -p "Output sample rate Hz (default 192000, use 48000 for standard): " _ice_sr || _ice_sr=""
+  [[ "${_ice_sr}" =~ ^[0-9]+$ ]] && ICECAST_SAMPLE_RATE="${_ice_sr}" || ICECAST_SAMPLE_RATE=192000
+  echo "[INFO] Icecast encoder sample rate: ${ICECAST_SAMPLE_RATE} Hz"
+
+  echo ""
+  echo "Stereo Tool output ALSA devices (capture endpoints ST Enterprise writes processed audio to):"
+  read -t 60 -p "Program 1 output device (default ompx_prg1prev_cap): " _st_p1 || _st_p1=""
+  ST_OUT_P1="${_st_p1:-ompx_prg1prev_cap}"
+  read -t 60 -p "Program 2 output device (default ompx_prg2prev_cap, 'none' to disable): " _st_p2 || _st_p2=""
+  [ "${_st_p2,,}" = "none" ] && ST_OUT_P2="" || ST_OUT_P2="${_st_p2:-ompx_prg2prev_cap}"
+}
+
+install_icecast_local(){
+  echo "[INFO] Installing icecast2..."
+  DEBIAN_FRONTEND=noninteractive apt install -y icecast2 || { echo "[WARNING] icecast2 install failed"; return 1; }
+  local admin_pass="${_ICE_ADMIN_PASS:-admin}"
+  local source_pass="${ICECAST_PASSWORD:-hackme}"
+  local port="${ICECAST_PORT:-8000}"
+  local max_clients="${_ICE_MAX_LISTENERS:-25}"
+  local station="${_ICE_STATION:-oMPX}"
+  cat > /etc/icecast2/icecast.xml << ICEXML
+<icecast>
+  <limits>
+    <clients>${max_clients}</clients><sources>4</sources><threadpool>5</threadpool>
+    <queue-size>524288</queue-size><client-timeout>30</client-timeout>
+    <header-timeout>15</header-timeout><source-timeout>10</source-timeout>
+    <burst-on-connect>1</burst-on-connect><burst-size>65535</burst-size>
+  </limits>
+  <authentication>
+    <source-password>${source_pass}</source-password>
+    <relay-password>${source_pass}</relay-password>
+    <admin-user>admin</admin-user>
+    <admin-password>${admin_pass}</admin-password>
+  </authentication>
+  <hostname>localhost</hostname>
+  <listen-socket><port>${port}</port></listen-socket>
+  <http-headers>
+    <header name="Access-Control-Allow-Origin" value="*" />
+  </http-headers>
+  <mount type="normal">
+    <mount-name>${ICECAST_MOUNT}</mount-name>
+    <stream-name>${station}</stream-name>
+    <stream-description>192kHz FLAC stereo MPX - oMPX</stream-description>
+    <max-listeners>${max_clients}</max-listeners>
+    <public>0</public>
+  </mount>
+  <fileserve>1</fileserve>
+  <paths>
+    <basedir>/usr/share/icecast2</basedir><logdir>/var/log/icecast2</logdir>
+    <webroot>/usr/share/icecast2/web</webroot><adminroot>/usr/share/icecast2/admin</adminroot>
+    <pidfile>/run/icecast2/icecast2.pid</pidfile>
+  </paths>
+  <logging><accesslog>access.log</accesslog><errorlog>error.log</errorlog><loglevel>3</loglevel></logging>
+  <security><chroot>0</chroot></security>
+</icecast>
+ICEXML
+  chmod 640 /etc/icecast2/icecast.xml
+  chown root:icecast /etc/icecast2/icecast.xml 2>/dev/null || chown root:root /etc/icecast2/icecast.xml
+  sed -i 's/^ENABLE=.*/ENABLE=true/' /etc/default/icecast2 2>/dev/null || true
+  systemctl daemon-reload || true
+  systemctl enable icecast2 || true
+  systemctl restart icecast2 || true
+  echo "[SUCCESS] icecast2 running on port ${port}, mount ${ICECAST_MOUNT}"
 }
 
 prompt_stereo_tool_limit_preset(){
@@ -667,6 +796,14 @@ RADIO1_URL="${RADIO1_URL}"
 RADIO2_URL="${RADIO2_URL}"
 STREAM_ENGINE="${STREAM_ENGINE}"
 STREAM_SILENCE_MAX_DBFS="${STREAM_SILENCE_MAX_DBFS}"
+ICECAST_MODE="${ICECAST_MODE}"
+ICECAST_HOST="${ICECAST_HOST}"
+ICECAST_PORT="${ICECAST_PORT}"
+ICECAST_PASSWORD="${ICECAST_PASSWORD}"
+ICECAST_MOUNT="${ICECAST_MOUNT}"
+ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE}"
+ST_OUT_P1="${ST_OUT_P1}"
+ST_OUT_P2="${ST_OUT_P2}"
 PROFILE_WRITTEN
   chown "${OMPX_USER}:${OMPX_USER}" "$PROFILE"
   chmod 644 "$PROFILE"
@@ -1047,6 +1184,8 @@ if [ -t 0 ]; then
   fi
   echo "[INFO] Selected streaming engine: ${STREAM_ENGINE}"
 
+  configure_icecast_dialog
+
   echo ""
   FETCH_STEREO_TOOL_ENTERPRISE=false
   ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=false
@@ -1308,6 +1447,9 @@ echo "[INFO] Updating package lists..."
 safe_apt_update
 echo "[INFO] Installing base dependencies (curl, alsa-utils, ffmpeg, sox, ladspa-sdk, swh-plugins, liquidsoap, cron)..."
 DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils ffmpeg sox ladspa-sdk swh-plugins liquidsoap cron
+if [ "${ICECAST_MODE}" = "local" ]; then
+  install_icecast_local
+fi
 if [ -n "${KERNEL_HELPER_PACKAGE}" ]; then
   echo "[INFO] Installing kernel helper package for this OS: ${KERNEL_HELPER_PACKAGE}"
   DEBIAN_FRONTEND=noninteractive apt install -y "${KERNEL_HELPER_PACKAGE}" || echo "[WARNING] Optional package ${KERNEL_HELPER_PACKAGE} could not be installed"
@@ -1873,6 +2015,96 @@ RUNP
 chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh"
 chmod 750 "${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh"
 echo "[SUCCESS] Processing script created"
+
+# --- MPX mix + Icecast encoder script ---
+echo "[INFO] Creating mpx-mix.sh (mono sum, hard pan, Icecast FLAC encoder)..."
+cat > "${SYS_SCRIPTS_DIR}/mpx-mix.sh" <<'MPXMIX'
+#!/usr/bin/env bash
+# mpx-mix.sh — read two Stereo Tool output loopbacks, mono-sum each,
+# hard pan P1→L / P2→R, combine to stereo, encode FLAC → Icecast.
+set -euo pipefail
+
+PROFILE="/home/ompx/.profile"
+[ -f "${PROFILE}" ] && . "${PROFILE}"
+
+ICECAST_HOST="${ICECAST_HOST:-127.0.0.1}"
+ICECAST_PORT="${ICECAST_PORT:-8000}"
+ICECAST_PASSWORD="${ICECAST_PASSWORD:-hackme}"
+ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx}"
+ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
+ICECAST_MODE="${ICECAST_MODE:-disabled}"
+ST_OUT_P1="${ST_OUT_P1:-ompx_prg1prev_cap}"
+ST_OUT_P2="${ST_OUT_P2:-ompx_prg2prev_cap}"
+OMPX_LOG_DIR="/home/ompx/logs"
+
+mkdir -p "${OMPX_LOG_DIR}"
+_log(){ logger -t mpx-mix "$*"; echo "$(date +'%F %T') [mpx-mix] $*"; }
+
+if [ "${ICECAST_MODE}" = "disabled" ]; then
+  _log "ICECAST_MODE=disabled — mpx-mix is not configured. Set ICECAST_MODE in /home/ompx/.profile and restart."
+  exit 0
+fi
+
+wait_alsa_cap(){
+  local dev="$1" timeout=30 waited=0
+  while [ "${waited}" -lt "${timeout}" ]; do
+    arecord -L 2>/dev/null | grep -q "^${dev}$" && return 0
+    sleep 1; waited=$((waited+1))
+  done
+  return 1
+}
+
+_log "Waiting for ST output endpoints..."
+wait_alsa_cap "${ST_OUT_P1}" || { _log "ERROR: ${ST_OUT_P1} not available"; exit 1; }
+
+# Check if P2 is available; fall back to silence if not
+P2_AVAILABLE=0
+if arecord -L 2>/dev/null | grep -q "^${ST_OUT_P2}$"; then
+  P2_AVAILABLE=1
+fi
+
+_log "P1 source: ${ST_OUT_P1}"
+_log "P2 source: ${ST_OUT_P2} (available: ${P2_AVAILABLE})"
+_log "Icecast: flac ${ICECAST_SAMPLE_RATE}Hz → icecast://${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
+
+if [ "${P2_AVAILABLE}" -eq 1 ]; then
+  # Both programs available: P1 mono → L, P2 mono → R
+  exec ffmpeg -nostdin \
+    -f alsa -thread_queue_size 16384 -i "${ST_OUT_P1}" \
+    -f alsa -thread_queue_size 16384 -i "${ST_OUT_P2}" \
+    -filter_complex \
+      "[0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[p1];\
+       [1:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[p2];\
+       [p1][p2]join=inputs=2:channel_layout=stereo[out]" \
+    -map "[out]" \
+    -c:a flac -compression_level 0 \
+    -content_type audio/flac \
+    -ice_name "oMPX Stereo 192k" \
+    -ice_description "P1 (L) + P2 (R) mono-summed, hard-panned" \
+    -f flac \
+    "icecast://source:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
+else
+  # Only P1: mono sum, duplicate to both L and R
+  _log "P2 not available — broadcasting P1 mono on both channels"
+  exec ffmpeg -nostdin \
+    -f alsa -thread_queue_size 16384 -i "${ST_OUT_P1}" \
+    -filter_complex \
+      "[0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[mono];\
+       [mono]asplit=2[l][r];\
+       [l][r]join=inputs=2:channel_layout=stereo[out]" \
+    -map "[out]" \
+    -c:a flac -compression_level 0 \
+    -content_type audio/flac \
+    -ice_name "oMPX Stereo 192k" \
+    -ice_description "P1 mono (both channels) — P2 not configured" \
+    -f flac \
+    "icecast://source:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
+fi
+MPXMIX
+chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/mpx-mix.sh"
+chmod 750 "${SYS_SCRIPTS_DIR}/mpx-mix.sh"
+echo "[SUCCESS] Created ${SYS_SCRIPTS_DIR}/mpx-mix.sh"
+
 # --- systemd units ---
 echo "[INFO] Creating systemd service files..."
 
@@ -1905,6 +2137,34 @@ StandardError=journal
 [Install]
 WantedBy=multi-user.target
 EOF
+
+cat > "${SYSTEMD_DIR}/mpx-mix.service" <<EOF
+[Unit]
+Description=oMPX MPX mix — mono sum / hard pan / Icecast FLAC encoder
+After=network-online.target stereo-tool-enterprise.service sound.target
+Wants=stereo-tool-enterprise.service
+
+[Service]
+Type=simple
+User=${OMPX_USER}
+Group=${OMPX_USER}
+SupplementaryGroups=audio
+PermissionsStartOnly=true
+WorkingDirectory=${OMPX_HOME}
+Environment=HOME=${OMPX_HOME}
+ExecStartPre=/bin/sh -c 'if [ -d /dev/snd ]; then chgrp -R audio /dev/snd >/dev/null 2>&1 || true; chmod -R g+rw /dev/snd >/dev/null 2>&1 || true; fi'
+ExecStart=${SYS_SCRIPTS_DIR}/mpx-mix.sh
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 644 "${SYSTEMD_DIR}/mpx-mix.service"
+chown root:root "${SYSTEMD_DIR}/mpx-mix.service"
+echo "[SUCCESS] Installed mpx-mix.service"
 
 cat > "${SYSTEMD_DIR}/mpx-watchdog.service" <<EOF
 [Unit]
@@ -2177,6 +2437,14 @@ echo "[INFO] Enabling and starting systemd services..."
 systemctl daemon-reload || true
 echo "[INFO] Enabling mpx-processing-alsa.service..."
 systemctl enable --now mpx-processing-alsa.service || true
+if [ "${ICECAST_MODE}" != "disabled" ]; then
+  echo "[INFO] Enabling mpx-mix.service (Icecast mode: ${ICECAST_MODE})..."
+  systemctl enable --now mpx-mix.service || true
+else
+  echo "[INFO] Icecast mode is 'disabled'; mpx-mix.service installed but NOT started"
+  echo "[INFO] To enable later: edit /home/ompx/.profile, set ICECAST_MODE, then: systemctl enable --now mpx-mix.service"
+  systemctl enable mpx-mix.service || true
+fi
 echo "[INFO] Enabling mpx-watchdog.service..."
 systemctl enable --now mpx-watchdog.service || true
 echo "[INFO] Enabling mpx-stream-pull.service..."
