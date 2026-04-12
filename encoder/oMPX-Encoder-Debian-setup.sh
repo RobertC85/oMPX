@@ -160,10 +160,55 @@ install_stereo_tool_enterprise_service(){
   cat > "${launcher_path}" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-exec "${bin_path}" \\
-  --listen-ip "${bind_ip}" \\
-  --port "${web_port}" \\
-  --allow-from "${whitelist}"
+BIN="${bin_path}"
+BIND_IP="${bind_ip}"
+WEB_PORT="${web_port}"
+WHITELIST="${whitelist}"
+
+if [ ! -x "${bin_path}" ]; then
+  echo "stereo-tool-enterprise-launch: binary not executable: ${bin_path}" >&2
+  exit 126
+fi
+
+help_text="\$(${bin_path} --help 2>&1 || true)"
+args=()
+
+# Bind/listen address flag variants
+if printf '%s\n' "\${help_text}" | grep -q -- '--listen-ip'; then
+  args+=(--listen-ip "\${BIND_IP}")
+elif printf '%s\n' "\${help_text}" | grep -q -- '--bind-address'; then
+  args+=(--bind-address "\${BIND_IP}")
+elif printf '%s\n' "\${help_text}" | grep -q -- '--web-address'; then
+  args+=(--web-address "\${BIND_IP}")
+fi
+
+# Port flag variants
+if printf '%s\n' "\${help_text}" | grep -q -- '--port'; then
+  args+=(--port "\${WEB_PORT}")
+elif printf '%s\n' "\${help_text}" | grep -q -- '--http-port'; then
+  args+=(--http-port "\${WEB_PORT}")
+elif printf '%s\n' "\${help_text}" | grep -q -- '--web-port'; then
+  args+=(--web-port "\${WEB_PORT}")
+fi
+
+# Allowed client IP flag variants
+if printf '%s\n' "\${help_text}" | grep -q -- '--allow-from'; then
+  args+=(--allow-from "\${WHITELIST}")
+elif printf '%s\n' "\${help_text}" | grep -q -- '--allowed-ip'; then
+  args+=(--allowed-ip "\${WHITELIST}")
+elif printf '%s\n' "\${help_text}" | grep -q -- '--web-allow'; then
+  args+=(--web-allow "\${WHITELIST}")
+fi
+
+# Optional operator-provided args (space-separated), e.g. ST_ENTERPRISE_EXTRA_ARGS='--foo bar'
+set -- "\${BIN}" "\${args[@]}"
+if [ -n "\${ST_ENTERPRISE_EXTRA_ARGS:-}" ]; then
+  # shellcheck disable=SC2086
+  set -- "\$@" \${ST_ENTERPRISE_EXTRA_ARGS}
+fi
+
+echo "stereo-tool-enterprise-launch: exec \$*" >&2
+exec "\$@"
 EOF
   chmod 755 "${launcher_path}"
   chown root:root "${launcher_path}"
@@ -184,6 +229,8 @@ User=${OMPX_USER}
 Group=${OMPX_USER}
 SupplementaryGroups=audio
 WorkingDirectory=${OMPX_HOME}
+Environment=HOME=${OMPX_HOME}
+Environment=ALSA_CONFIG_PATH=/etc/asound.conf
 ExecStart=${launcher_path}
 Restart=on-failure
 RestartSec=1
@@ -221,6 +268,41 @@ apply_stereo_tool_start_limit_preset(){
       ;;
   esac
   echo "[INFO] Stereo Tool start-limit policy: preset=${STEREO_TOOL_START_LIMIT_PRESET}, interval=${STEREO_TOOL_START_LIMIT_INTERVAL_SEC}s, burst=${STEREO_TOOL_START_LIMIT_BURST}"
+}
+
+prompt_stereo_tool_limit_preset(){
+  local cfg_st_limit=""
+  local cfg_st_interval=""
+  local cfg_st_burst=""
+  echo "  Start-limit presets (when repeated crashes happen):"
+  echo "    S) Strict   - 5 failures in 60s, then stop retrying"
+  echo "    B) Balanced - 10 failures in 60s, then stop retrying"
+  echo "    L) Lenient  - 20 failures in 120s, then stop retrying"
+  echo "    C) Custom   - set your own window and failure count"
+  read -t 60 -p "Choose Stereo Tool crash-limit preset [S/B/L/C] (default B): " cfg_st_limit || cfg_st_limit="B"
+  cfg_st_limit=${cfg_st_limit^^}
+  case "${cfg_st_limit}" in
+    S)
+      STEREO_TOOL_START_LIMIT_PRESET="strict"
+      ;;
+    L)
+      STEREO_TOOL_START_LIMIT_PRESET="lenient"
+      ;;
+    C)
+      STEREO_TOOL_START_LIMIT_PRESET="custom"
+      read -t 60 -p "Custom start-limit interval (seconds, default ${STEREO_TOOL_START_LIMIT_INTERVAL_SEC}): " cfg_st_interval || cfg_st_interval=""
+      read -t 60 -p "Custom start-limit burst (failures, default ${STEREO_TOOL_START_LIMIT_BURST}): " cfg_st_burst || cfg_st_burst=""
+      if [[ "${cfg_st_interval}" =~ ^[0-9]+$ ]] && [ "${cfg_st_interval}" -gt 0 ]; then
+        STEREO_TOOL_START_LIMIT_INTERVAL_SEC="${cfg_st_interval}"
+      fi
+      if [[ "${cfg_st_burst}" =~ ^[0-9]+$ ]] && [ "${cfg_st_burst}" -gt 0 ]; then
+        STEREO_TOOL_START_LIMIT_BURST="${cfg_st_burst}"
+      fi
+      ;;
+    *)
+      STEREO_TOOL_START_LIMIT_PRESET="balanced"
+      ;;
+  esac
 }
 
 safe_apt_update(){
@@ -751,50 +833,46 @@ if [ -t 0 ]; then
   echo "[INFO] Selected streaming engine: ${STREAM_ENGINE}"
 
   echo ""
-  read -t 45 -p "Download latest Stereo Tool Enterprise for Linux during install? [y/N] (default N): " cfg_st_fetch || cfg_st_fetch="N"
-  cfg_st_fetch=${cfg_st_fetch^^}
-  if [ "${cfg_st_fetch}" = "Y" ]; then
-    FETCH_STEREO_TOOL_ENTERPRISE=true
-    if [ -n "${STEREO_TOOL_ENTERPRISE_URL}" ]; then
-      echo "[INFO] Current Stereo Tool Enterprise URL from environment: ${STEREO_TOOL_ENTERPRISE_URL}"
-    fi
-    read -t 180 -p "Enter Stereo Tool Enterprise Linux URL (leave empty to keep current): " cfg_st_url || cfg_st_url=""
-    if [ -n "${cfg_st_url}" ]; then
-      STEREO_TOOL_ENTERPRISE_URL="${cfg_st_url}"
-    fi
-    echo "  Start-limit presets (when repeated crashes happen):"
-    echo "    S) Strict   - 5 failures in 60s, then stop retrying"
-    echo "    B) Balanced - 10 failures in 60s, then stop retrying"
-    echo "    L) Lenient  - 20 failures in 120s, then stop retrying"
-    echo "    C) Custom   - set your own window and failure count"
-    read -t 60 -p "Choose Stereo Tool crash-limit preset [S/B/L/C] (default B): " cfg_st_limit || cfg_st_limit="B"
-    cfg_st_limit=${cfg_st_limit^^}
-    case "${cfg_st_limit}" in
-      S)
-        STEREO_TOOL_START_LIMIT_PRESET="strict"
-        ;;
-      L)
-        STEREO_TOOL_START_LIMIT_PRESET="lenient"
-        ;;
-      C)
-        STEREO_TOOL_START_LIMIT_PRESET="custom"
-        read -t 60 -p "Custom start-limit interval (seconds, default ${STEREO_TOOL_START_LIMIT_INTERVAL_SEC}): " cfg_st_interval || cfg_st_interval=""
-        read -t 60 -p "Custom start-limit burst (failures, default ${STEREO_TOOL_START_LIMIT_BURST}): " cfg_st_burst || cfg_st_burst=""
-        if [[ "${cfg_st_interval}" =~ ^[0-9]+$ ]] && [ "${cfg_st_interval}" -gt 0 ]; then
-          STEREO_TOOL_START_LIMIT_INTERVAL_SEC="${cfg_st_interval}"
+  FETCH_STEREO_TOOL_ENTERPRISE=false
+  ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=false
+  if [ -x "${STEREO_TOOL_ENTERPRISE_BIN}" ]; then
+    echo "[INFO] Existing Stereo Tool Enterprise binary detected at ${STEREO_TOOL_ENTERPRISE_BIN}."
+    read -t 45 -p "Enable Stereo Tool Enterprise service at boot with existing binary? [Y/n] (default Y): " cfg_st_enable_existing || cfg_st_enable_existing="Y"
+    cfg_st_enable_existing=${cfg_st_enable_existing^^}
+    if [ "${cfg_st_enable_existing}" != "N" ]; then
+      ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
+      prompt_stereo_tool_limit_preset
+    else
+      read -t 45 -p "Download latest Stereo Tool Enterprise for Linux instead? [y/N] (default N): " cfg_st_fetch || cfg_st_fetch="N"
+      cfg_st_fetch=${cfg_st_fetch^^}
+      if [ "${cfg_st_fetch}" = "Y" ]; then
+        FETCH_STEREO_TOOL_ENTERPRISE=true
+        if [ -n "${STEREO_TOOL_ENTERPRISE_URL}" ]; then
+          echo "[INFO] Current Stereo Tool Enterprise URL from environment: ${STEREO_TOOL_ENTERPRISE_URL}"
         fi
-        if [[ "${cfg_st_burst}" =~ ^[0-9]+$ ]] && [ "${cfg_st_burst}" -gt 0 ]; then
-          STEREO_TOOL_START_LIMIT_BURST="${cfg_st_burst}"
+        read -t 180 -p "Enter Stereo Tool Enterprise Linux URL (leave empty to keep current): " cfg_st_url || cfg_st_url=""
+        if [ -n "${cfg_st_url}" ]; then
+          STEREO_TOOL_ENTERPRISE_URL="${cfg_st_url}"
         fi
-        ;;
-      *)
-        STEREO_TOOL_START_LIMIT_PRESET="balanced"
-        ;;
-    esac
-    ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
+        ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
+        prompt_stereo_tool_limit_preset
+      fi
+    fi
   else
-    FETCH_STEREO_TOOL_ENTERPRISE=false
-    ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=false
+    read -t 45 -p "Stereo Tool Enterprise not found locally. Download latest for Linux during install? [y/N] (default N): " cfg_st_fetch || cfg_st_fetch="N"
+    cfg_st_fetch=${cfg_st_fetch^^}
+    if [ "${cfg_st_fetch}" = "Y" ]; then
+      FETCH_STEREO_TOOL_ENTERPRISE=true
+      if [ -n "${STEREO_TOOL_ENTERPRISE_URL}" ]; then
+        echo "[INFO] Current Stereo Tool Enterprise URL from environment: ${STEREO_TOOL_ENTERPRISE_URL}"
+      fi
+      read -t 180 -p "Enter Stereo Tool Enterprise Linux URL (leave empty to keep current): " cfg_st_url || cfg_st_url=""
+      if [ -n "${cfg_st_url}" ]; then
+        STEREO_TOOL_ENTERPRISE_URL="${cfg_st_url}"
+      fi
+      ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
+      prompt_stereo_tool_limit_preset
+    fi
   fi
 
   read -t 30 -p "Run quick loopback test (write to ompx_prg1in, read from ompx_prg1in_cap) during install? [Y/n] (default Y): " cfg_quick_test || cfg_quick_test="Y"
@@ -1461,11 +1539,27 @@ SAMPLE_RATE=192000
 PROG1_ALSA_IN="${PROG1_ALSA_IN:-ompx_prg1in_cap}"
 PROG2_ALSA_IN="${PROG2_ALSA_IN:-ompx_prg2in_cap}"
 SYS_SCRIPTS_DIR="/opt/mpx-radio"
-OMPX_LOG_DIR="/var/lib/ompx/logs"
+OMPX_LOG_DIR="/home/ompx/logs"
 MPX_LEFT_MONO="/tmp/mpx_left.pcm"; MPX_RIGHT_MONO="/tmp/mpx_right.pcm"
 MPX_LEFT_OUT="${MPX_LEFT_MONO}.out"; MPX_RIGHT_OUT="${MPX_RIGHT_MONO}.out"
 MPX_STEREO_FIFO="/tmp/mpx_stereo.pcm"
 _log(){ logger -t mpx "$*"; echo "$(date +'%F %T') $*"; }
+wait_for_alsa_endpoint(){
+  local mode="$1"
+  local endpoint="$2"
+  local timeout_sec="${3:-30}"
+  local waited=0
+  while [ "${waited}" -lt "${timeout_sec}" ]; do
+    if [ "${mode}" = "capture" ]; then
+      if arecord -L 2>/dev/null | grep -q "^${endpoint}$"; then return 0; fi
+    else
+      if aplay -L 2>/dev/null | grep -q "^${endpoint}$"; then return 0; fi
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  return 1
+}
 mkdir -p "${OMPX_LOG_DIR}" || true
 
 for n in 1 2; do
@@ -1477,10 +1571,12 @@ for n in 1 2; do
   fi
 done
 
+wait_for_alsa_endpoint capture "${PROG1_ALSA_IN}" 60 || true
 if ! arecord -L 2>/dev/null | grep -q "^${PROG1_ALSA_IN}$"; then
   PROG1_ALSA_IN="hw:${LOOPBACK_CARD_REF},1,0"
   _log "Fallback capture endpoint for Program 1: ${PROG1_ALSA_IN}"
 fi
+wait_for_alsa_endpoint capture "${PROG2_ALSA_IN}" 60 || true
 if ! arecord -L 2>/dev/null | grep -q "^${PROG2_ALSA_IN}$"; then
   PROG2_ALSA_IN="hw:${LOOPBACK_CARD_REF},1,1"
   _log "Fallback capture endpoint for Program 2: ${PROG2_ALSA_IN}"
@@ -1503,7 +1599,13 @@ STEREO_PID=$!; _log "Started stereo-tool wrapper pid ${STEREO_PID}"
 ffmpeg -hide_banner -loglevel warning -f s16le -ar ${SAMPLE_RATE} -ac 1 -i "${MPX_LEFT_OUT}" -f s16le -ar ${SAMPLE_RATE} -ac 1 -i "${MPX_RIGHT_OUT}" -filter_complex "[0:a][1:a]join=inputs=2:channel_layout=stereo[aout]" -map "[aout]" -f s16le -ar ${SAMPLE_RATE} -ac 2 - > "${MPX_STEREO_FIFO}" &
 FF_MERGE_PID=$!; _log "ffmpeg merge pid $FF_MERGE_PID"
 ALSA_OUTPUT="${ALSA_OUTPUT:-}"
-if [ -z "$ALSA_OUTPUT" ]; then if aplay -l 2>/dev/null | grep -qi loopback; then ALSA_OUTPUT="hw:${LOOPBACK_CARD_REF},0,0"; fi; fi
+if [ -z "$ALSA_OUTPUT" ]; then
+if wait_for_alsa_endpoint playback "ompx_prg1in" 20; then
+ALSA_OUTPUT="ompx_prg1in"
+elif aplay -l 2>/dev/null | grep -qi loopback; then
+ALSA_OUTPUT="hw:${LOOPBACK_CARD_REF},0,0"
+fi
+fi
 if [ -z "$ALSA_OUTPUT" ]; then _log "No ALSA output selected."; exit 1; fi
 ffmpeg -hide_banner -loglevel warning -f s16le -ar ${SAMPLE_RATE} -ac 2 -i "${MPX_STEREO_FIFO}" -f wav - | aplay -f S16_LE -c 2 -r ${SAMPLE_RATE} -D "${ALSA_OUTPUT}" &
 PLAY_PID=$!; _log "MPX playback started (pid ${PLAY_PID:-0})"
@@ -1521,10 +1623,15 @@ cat > "${SYSTEMD_DIR}/mpx-processing-alsa.service" <<EOF
 [Unit]
 Description=MPX processing (ALSA/ffmpeg) (oMPX)
 After=network-online.target
+After=sound.target
+Wants=sound.target
 [Service]
 User=${OMPX_USER}
 Group=${OMPX_USER}
+SupplementaryGroups=audio
 Type=simple
+Environment=HOME=${OMPX_HOME}
+Environment=ALSA_CONFIG_PATH=/etc/asound.conf
 ExecStart=${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh
 Restart=on-failure
 RestartSec=2
