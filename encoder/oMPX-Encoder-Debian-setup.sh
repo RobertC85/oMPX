@@ -1744,10 +1744,19 @@ PROG1_ALSA_IN="${PROG1_ALSA_IN:-ompx_prg1in_cap}"
 PROG2_ALSA_IN="${PROG2_ALSA_IN:-ompx_prg2in_cap}"
 SYS_SCRIPTS_DIR="/opt/mpx-radio"
 OMPX_LOG_DIR="/home/ompx/logs"
+LOOPBACK_CARD_REF="${LOOPBACK_CARD_REF:-}"
 MPX_LEFT_MONO="/tmp/mpx_left.pcm"; MPX_RIGHT_MONO="/tmp/mpx_right.pcm"
 MPX_LEFT_OUT="${MPX_LEFT_MONO}.out"; MPX_RIGHT_OUT="${MPX_RIGHT_MONO}.out"
 MPX_STEREO_FIFO="/tmp/mpx_stereo.pcm"
 _log(){ logger -t mpx "$*"; echo "$(date +'%F %T') $*"; }
+detect_loopback_card(){
+  local card_ref=""
+  card_ref=$(aplay -l 2>/dev/null | awk '/\[Loopback\]/{gsub(":", "", $2); print $2; exit}')
+  if [ -n "${card_ref}" ]; then echo "${card_ref}"; return 0; fi
+  card_ref=$(awk -F'[][]' '/Loopback/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); split($1, a, /[[:space:]]+/); print a[1]; exit}' /proc/asound/cards 2>/dev/null)
+  if [ -n "${card_ref}" ]; then echo "${card_ref}"; return 0; fi
+  echo "Loopback"
+}
 wait_for_alsa_endpoint(){
   local mode="$1"
   local endpoint="$2"
@@ -1765,6 +1774,10 @@ wait_for_alsa_endpoint(){
   return 1
 }
 mkdir -p "${OMPX_LOG_DIR}" || true
+if [ -z "${LOOPBACK_CARD_REF}" ]; then
+  LOOPBACK_CARD_REF="$(detect_loopback_card)"
+  _log "Auto-detected loopback card: ${LOOPBACK_CARD_REF}"
+fi
 
 for n in 1 2; do
   wrapper="${SYS_SCRIPTS_DIR}/source${n}.sh"
