@@ -33,6 +33,7 @@ STEREO_TOOL_ENTERPRISE_SERVICE="${SYSTEMD_DIR}/stereo-tool-enterprise.service"
 OMPX_STREAM_PULL_SERVICE="${SYSTEMD_DIR}/mpx-stream-pull.service"
 OMPX_ADD="/usr/local/bin/ompx_add_source"
 ASOUND_CONF_PATH="/etc/asound.conf"
+OMPX_AUDIO_UDEV_RULE="/etc/udev/rules.d/70-ompx-audio.rules"
 ASOUND_MAP_HELPER="/usr/local/bin/asound-map"
 ASOUND_SWITCH_HELPER="/usr/local/bin/asound-switch"
 SAMPLE_RATE=192000
@@ -101,6 +102,34 @@ have_crontab(){
 
 has_systemd(){
   command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]
+}
+
+ensure_ompx_alsa_access(){
+  if getent group audio >/dev/null 2>&1; then
+    usermod -aG audio "${OMPX_USER}" >/dev/null 2>&1 || true
+    gpasswd -a "${OMPX_USER}" audio >/dev/null 2>&1 || true
+  fi
+
+  mkdir -p "${OMPX_HOME}" || true
+  if [ -e "${ASOUND_CONF_PATH}" ]; then
+    ln -sfn "${ASOUND_CONF_PATH}" "${OMPX_HOME}/.asoundrc" || true
+    chown -h "${OMPX_USER}:${OMPX_USER}" "${OMPX_HOME}/.asoundrc" || true
+  fi
+
+  cat > "${OMPX_AUDIO_UDEV_RULE}" <<'UDEVRULE'
+SUBSYSTEM=="sound", GROUP="audio", MODE="0660"
+UDEVRULE
+  chmod 644 "${OMPX_AUDIO_UDEV_RULE}" || true
+
+  if command -v udevadm >/dev/null 2>&1; then
+    udevadm control --reload-rules >/dev/null 2>&1 || true
+    udevadm trigger --subsystem-match=sound >/dev/null 2>&1 || true
+  fi
+
+  if [ -d /dev/snd ]; then
+    chgrp -R audio /dev/snd >/dev/null 2>&1 || true
+    chmod -R g+rw /dev/snd >/dev/null 2>&1 || true
+  fi
 }
 
 download_stereo_tool_enterprise(){
@@ -1123,6 +1152,7 @@ fi
 echo "[INFO] Removing old files and directories..."
 rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
 rm -rf "${SYS_SCRIPTS_DIR}" "${LIQUIDSOAP_CONF_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log
+rm -f "${OMPX_AUDIO_UDEV_RULE}" || true
 rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
 echo "[INFO] Removing oMPX user..."
 if id -u "${OMPX_USER}" >/dev/null 2>&1; then userdel -r "${OMPX_USER}" || true; fi
@@ -1149,6 +1179,7 @@ fi
 echo "[INFO] Removing files and directories..."
 rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
 rm -rf "${SYS_SCRIPTS_DIR}" "${LIQUIDSOAP_CONF_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log
+rm -f "${OMPX_AUDIO_UDEV_RULE}" || true
 rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
 echo "[INFO] Removing oMPX user..."
 if id -u "${OMPX_USER}" >/dev/null 2>&1; then userdel -r "${OMPX_USER}" || true; fi
@@ -1184,6 +1215,10 @@ if getent group audio >/dev/null 2>&1; then
 fi
 echo "[SUCCESS] User shell updated"
 fi
+
+ensure_ompx_alsa_access
+echo "[INFO] ${OMPX_USER} groups after ALSA access fix: $(id -nG "${OMPX_USER}" 2>/dev/null || echo unknown)"
+
 # --- Write profile (overwrite) ---
 write_profile_file
 # --- Create directories, install packages ---
