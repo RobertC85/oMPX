@@ -842,21 +842,6 @@ if [ -t 0 ]; then
     if [ "${cfg_st_enable_existing}" != "N" ]; then
       ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
       prompt_stereo_tool_limit_preset
-    else
-      read -t 45 -p "Download latest Stereo Tool Enterprise for Linux instead? [y/N] (default N): " cfg_st_fetch || cfg_st_fetch="N"
-      cfg_st_fetch=${cfg_st_fetch^^}
-      if [ "${cfg_st_fetch}" = "Y" ]; then
-        FETCH_STEREO_TOOL_ENTERPRISE=true
-        if [ -n "${STEREO_TOOL_ENTERPRISE_URL}" ]; then
-          echo "[INFO] Current Stereo Tool Enterprise URL from environment: ${STEREO_TOOL_ENTERPRISE_URL}"
-        fi
-        read -t 180 -p "Enter Stereo Tool Enterprise Linux URL (leave empty to keep current): " cfg_st_url || cfg_st_url=""
-        if [ -n "${cfg_st_url}" ]; then
-          STEREO_TOOL_ENTERPRISE_URL="${cfg_st_url}"
-        fi
-        ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
-        prompt_stereo_tool_limit_preset
-      fi
     fi
   else
     read -t 45 -p "Stereo Tool Enterprise not found locally. Download latest for Linux during install? [y/N] (default N): " cfg_st_fetch || cfg_st_fetch="N"
