@@ -1,2 +1,3 @@
 # oMPX
-open source FM Multiplex generator with Stereo, RDS and SCA support
+open source FM Multiplex network transport with Stereo, RDS and SCA support using 192khz FreeLosslessAudioCodec
+

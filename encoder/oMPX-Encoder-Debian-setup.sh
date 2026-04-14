@@ -83,11 +83,15 @@ ST_OUT_P2="${ST_OUT_P2:-ompx_prg2mpx_cap}"
 RDS_PROG1_ENABLE="${RDS_PROG1_ENABLE:-false}"
 RDS_PROG1_SOURCE="${RDS_PROG1_SOURCE:-url}"
 RDS_PROG1_RT_URL="${RDS_PROG1_RT_URL:-}"
+RDS_PROG1_ICECAST_STATS_URL="${RDS_PROG1_ICECAST_STATS_URL:-}"
+RDS_PROG1_ICECAST_MOUNT="${RDS_PROG1_ICECAST_MOUNT:-}"
 RDS_PROG1_INTERVAL_SEC="${RDS_PROG1_INTERVAL_SEC:-5}"
 RDS_PROG1_RT_PATH="${RDS_PROG1_RT_PATH:-${OMPX_HOME}/rds/prog1/rt.txt}"
 RDS_PROG2_ENABLE="${RDS_PROG2_ENABLE:-false}"
 RDS_PROG2_SOURCE="${RDS_PROG2_SOURCE:-url}"
 RDS_PROG2_RT_URL="${RDS_PROG2_RT_URL:-}"
+RDS_PROG2_ICECAST_STATS_URL="${RDS_PROG2_ICECAST_STATS_URL:-}"
+RDS_PROG2_ICECAST_MOUNT="${RDS_PROG2_ICECAST_MOUNT:-}"
 RDS_PROG2_INTERVAL_SEC="${RDS_PROG2_INTERVAL_SEC:-5}"
 RDS_PROG2_RT_PATH="${RDS_PROG2_RT_PATH:-${OMPX_HOME}/rds/prog2/rt.txt}"
 CONFIG_OVERWRITE="${CONFIG_OVERWRITE:-true}"
@@ -452,17 +456,49 @@ configure_rds_dialog(){
   else
     RDS_PROG1_ENABLE="true"
     [ "${RDS_PROG1_SOURCE}" = "metadata" ] && _rds_mode_default="M"
-    read -t 60 -p "Program 1 RDS source [U=url/M=metadata] (default ${_rds_mode_default}): " _rds_mode || _rds_mode="${_rds_mode_default}"
+    [ "${RDS_PROG1_SOURCE}" = "icecast" ]  && _rds_mode_default="I"
+    read -t 60 -p "Program 1 RDS source [U=url/M=metadata/I=icecast] (default ${_rds_mode_default}): " _rds_mode || _rds_mode="${_rds_mode_default}"
     _rds_mode=${_rds_mode^^}
     if [ "${_rds_mode}" = "M" ]; then
       RDS_PROG1_SOURCE="metadata"
       RDS_PROG1_RT_URL=""
+      RDS_PROG1_ICECAST_STATS_URL=""
+      RDS_PROG1_ICECAST_MOUNT=""
       if is_placeholder_stream_url "${RADIO1_URL}"; then
         echo "[WARNING] Program 1 stream URL is placeholder/empty; metadata sync may fail until RADIO1_URL is set"
       fi
       echo "[INFO] Program 1 metadata mode enabled (reads StreamTitle from RADIO1_URL)"
+    elif [ "${_rds_mode}" = "I" ]; then
+      RDS_PROG1_SOURCE="icecast"
+      RDS_PROG1_RT_URL=""
+      # Auto-derive stats URL and mount from RADIO1_URL as defaults
+      _p1_auto_stats="" ; _p1_auto_mount=""
+      if [ -n "${RADIO1_URL}" ]; then
+        _p1_no_scheme="${RADIO1_URL#*://}"
+        _p1_host_port="${_p1_no_scheme%%/*}"
+        _p1_auto_mount="/${_p1_no_scheme#*/}"
+        _p1_auto_stats="http://${_p1_host_port}/status-json.xsl"
+      fi
+      _p1_stats_default="${RDS_PROG1_ICECAST_STATS_URL:-${_p1_auto_stats}}"
+      _p1_mount_default="${RDS_PROG1_ICECAST_MOUNT:-${_p1_auto_mount}}"
+      read -t 180 -p "Icecast stats JSON URL for Program 1 (default ${_p1_stats_default}): " _p1_stats_in || _p1_stats_in=""
+      [ -z "${_p1_stats_in}" ] && _p1_stats_in="${_p1_stats_default}"
+      read -t 60 -p "Icecast mount point for Program 1 (default ${_p1_mount_default}): " _p1_mount_in || _p1_mount_in=""
+      [ -z "${_p1_mount_in}" ] && _p1_mount_in="${_p1_mount_default}"
+      if [ -z "${_p1_stats_in}" ] || [ -z "${_p1_mount_in}" ]; then
+        echo "[WARNING] Icecast stats URL or mount empty; disabling Program 1 RDS sync"
+        RDS_PROG1_ENABLE="false"
+        RDS_PROG1_ICECAST_STATS_URL=""
+        RDS_PROG1_ICECAST_MOUNT=""
+      else
+        RDS_PROG1_ICECAST_STATS_URL="${_p1_stats_in}"
+        RDS_PROG1_ICECAST_MOUNT="${_p1_mount_in}"
+        echo "[INFO] Program 1 Icecast stats mode: ${RDS_PROG1_ICECAST_STATS_URL} mount ${RDS_PROG1_ICECAST_MOUNT}"
+      fi
     else
       RDS_PROG1_SOURCE="url"
+      RDS_PROG1_ICECAST_STATS_URL=""
+      RDS_PROG1_ICECAST_MOUNT=""
       read -t 180 -p "RDS text URL for Program 1: " _rds_url || _rds_url=""
       if [ -z "${_rds_url}" ]; then
         echo "[WARNING] Empty RDS URL; disabling Program 1 RDS sync"
@@ -482,6 +518,8 @@ configure_rds_dialog(){
       RDS_PROG1_RT_PATH="${OMPX_HOME}/rds/prog1/rt.txt"
       if [ "${RDS_PROG1_SOURCE}" = "metadata" ]; then
         echo "[INFO] Program 1 RDS sync enabled (metadata): RADIO1_URL -> ${RDS_PROG1_RT_PATH} every ${RDS_PROG1_INTERVAL_SEC}s"
+      elif [ "${RDS_PROG1_SOURCE}" = "icecast" ]; then
+        echo "[INFO] Program 1 RDS sync enabled (icecast): ${RDS_PROG1_ICECAST_STATS_URL} -> ${RDS_PROG1_RT_PATH} every ${RDS_PROG1_INTERVAL_SEC}s"
       else
         echo "[INFO] Program 1 RDS sync enabled (url): ${RDS_PROG1_RT_URL} -> ${RDS_PROG1_RT_PATH} every ${RDS_PROG1_INTERVAL_SEC}s"
       fi
@@ -500,17 +538,49 @@ configure_rds_dialog(){
   else
     RDS_PROG2_ENABLE="true"
     [ "${RDS_PROG2_SOURCE}" = "metadata" ] && _rds2_mode_default="M"
-    read -t 60 -p "Program 2 RDS source [U=url/M=metadata] (default ${_rds2_mode_default}): " _rds2_mode || _rds2_mode="${_rds2_mode_default}"
+    [ "${RDS_PROG2_SOURCE}" = "icecast" ]  && _rds2_mode_default="I"
+    read -t 60 -p "Program 2 RDS source [U=url/M=metadata/I=icecast] (default ${_rds2_mode_default}): " _rds2_mode || _rds2_mode="${_rds2_mode_default}"
     _rds2_mode=${_rds2_mode^^}
     if [ "${_rds2_mode}" = "M" ]; then
       RDS_PROG2_SOURCE="metadata"
       RDS_PROG2_RT_URL=""
+      RDS_PROG2_ICECAST_STATS_URL=""
+      RDS_PROG2_ICECAST_MOUNT=""
       if is_placeholder_stream_url "${RADIO2_URL}"; then
         echo "[WARNING] Program 2 stream URL is placeholder/empty; metadata sync may fail until RADIO2_URL is set"
       fi
       echo "[INFO] Program 2 metadata mode enabled (reads StreamTitle from RADIO2_URL)"
+    elif [ "${_rds2_mode}" = "I" ]; then
+      RDS_PROG2_SOURCE="icecast"
+      RDS_PROG2_RT_URL=""
+      # Auto-derive stats URL and mount from RADIO2_URL as defaults
+      _p2_auto_stats="" ; _p2_auto_mount=""
+      if [ -n "${RADIO2_URL}" ]; then
+        _p2_no_scheme="${RADIO2_URL#*://}"
+        _p2_host_port="${_p2_no_scheme%%/*}"
+        _p2_auto_mount="/${_p2_no_scheme#*/}"
+        _p2_auto_stats="http://${_p2_host_port}/status-json.xsl"
+      fi
+      _p2_stats_default="${RDS_PROG2_ICECAST_STATS_URL:-${_p2_auto_stats}}"
+      _p2_mount_default="${RDS_PROG2_ICECAST_MOUNT:-${_p2_auto_mount}}"
+      read -t 180 -p "Icecast stats JSON URL for Program 2 (default ${_p2_stats_default}): " _p2_stats_in || _p2_stats_in=""
+      [ -z "${_p2_stats_in}" ] && _p2_stats_in="${_p2_stats_default}"
+      read -t 60 -p "Icecast mount point for Program 2 (default ${_p2_mount_default}): " _p2_mount_in || _p2_mount_in=""
+      [ -z "${_p2_mount_in}" ] && _p2_mount_in="${_p2_mount_default}"
+      if [ -z "${_p2_stats_in}" ] || [ -z "${_p2_mount_in}" ]; then
+        echo "[WARNING] Icecast stats URL or mount empty; disabling Program 2 RDS sync"
+        RDS_PROG2_ENABLE="false"
+        RDS_PROG2_ICECAST_STATS_URL=""
+        RDS_PROG2_ICECAST_MOUNT=""
+      else
+        RDS_PROG2_ICECAST_STATS_URL="${_p2_stats_in}"
+        RDS_PROG2_ICECAST_MOUNT="${_p2_mount_in}"
+        echo "[INFO] Program 2 Icecast stats mode: ${RDS_PROG2_ICECAST_STATS_URL} mount ${RDS_PROG2_ICECAST_MOUNT}"
+      fi
     else
       RDS_PROG2_SOURCE="url"
+      RDS_PROG2_ICECAST_STATS_URL=""
+      RDS_PROG2_ICECAST_MOUNT=""
       read -t 180 -p "RDS text URL for Program 2: " _rds2_url || _rds2_url=""
       if [ -z "${_rds2_url}" ]; then
         echo "[WARNING] Empty RDS URL; disabling Program 2 RDS sync"
@@ -530,6 +600,8 @@ configure_rds_dialog(){
       RDS_PROG2_RT_PATH="${OMPX_HOME}/rds/prog2/rt.txt"
       if [ "${RDS_PROG2_SOURCE}" = "metadata" ]; then
         echo "[INFO] Program 2 RDS sync enabled (metadata): RADIO2_URL -> ${RDS_PROG2_RT_PATH} every ${RDS_PROG2_INTERVAL_SEC}s"
+      elif [ "${RDS_PROG2_SOURCE}" = "icecast" ]; then
+        echo "[INFO] Program 2 RDS sync enabled (icecast): ${RDS_PROG2_ICECAST_STATS_URL} -> ${RDS_PROG2_RT_PATH} every ${RDS_PROG2_INTERVAL_SEC}s"
       else
         echo "[INFO] Program 2 RDS sync enabled (url): ${RDS_PROG2_RT_URL} -> ${RDS_PROG2_RT_PATH} every ${RDS_PROG2_INTERVAL_SEC}s"
       fi
@@ -982,11 +1054,15 @@ ST_OUT_P2="${ST_OUT_P2}"
 RDS_PROG1_ENABLE="${RDS_PROG1_ENABLE}"
 RDS_PROG1_SOURCE="${RDS_PROG1_SOURCE}"
 RDS_PROG1_RT_URL="${RDS_PROG1_RT_URL}"
+RDS_PROG1_ICECAST_STATS_URL="${RDS_PROG1_ICECAST_STATS_URL}"
+RDS_PROG1_ICECAST_MOUNT="${RDS_PROG1_ICECAST_MOUNT}"
 RDS_PROG1_INTERVAL_SEC="${RDS_PROG1_INTERVAL_SEC}"
 RDS_PROG1_RT_PATH="${RDS_PROG1_RT_PATH}"
 RDS_PROG2_ENABLE="${RDS_PROG2_ENABLE}"
 RDS_PROG2_SOURCE="${RDS_PROG2_SOURCE}"
 RDS_PROG2_RT_URL="${RDS_PROG2_RT_URL}"
+RDS_PROG2_ICECAST_STATS_URL="${RDS_PROG2_ICECAST_STATS_URL}"
+RDS_PROG2_ICECAST_MOUNT="${RDS_PROG2_ICECAST_MOUNT}"
 RDS_PROG2_INTERVAL_SEC="${RDS_PROG2_INTERVAL_SEC}"
 RDS_PROG2_RT_PATH="${RDS_PROG2_RT_PATH}"
 PROFILE_WRITTEN
@@ -2551,6 +2627,8 @@ PROFILE="/home/ompx/.profile"
 RDS_PROG1_ENABLE="${RDS_PROG1_ENABLE:-false}"
 RDS_PROG1_SOURCE="${RDS_PROG1_SOURCE:-url}"
 RDS_PROG1_RT_URL="${RDS_PROG1_RT_URL:-}"
+RDS_PROG1_ICECAST_STATS_URL="${RDS_PROG1_ICECAST_STATS_URL:-}"
+RDS_PROG1_ICECAST_MOUNT="${RDS_PROG1_ICECAST_MOUNT:-}"
 RDS_PROG1_INTERVAL_SEC="${RDS_PROG1_INTERVAL_SEC:-5}"
 RDS_PROG1_RT_PATH="${RDS_PROG1_RT_PATH:-/home/ompx/rds/prog1/rt.txt}"
 RADIO1_URL="${RADIO1_URL:-}"
@@ -2570,6 +2648,28 @@ _fetch_stream_title(){
   printf '%s' "${title}"
 }
 
+_fetch_icecast_title(){
+  local stats_url="$1"
+  local mount="$2"
+  local title=""
+  if command -v jq >/dev/null 2>&1; then
+    title="$(curl -sf --max-time 15 "${stats_url}" 2>/dev/null | jq -r --arg m "${mount}" '.icestats.source | if type=="array" then .[] else . end | select(.listenurl | contains($m)) | .title // ""' 2>/dev/null | head -n1 | tr -d '\r' || true)"
+  elif command -v python3 >/dev/null 2>&1; then
+    title="$(curl -sf --max-time 15 "${stats_url}" 2>/dev/null | python3 -c "
+import sys, json
+try:
+    data=json.load(sys.stdin)
+    src=data['icestats']['source']
+    if not isinstance(src,list): src=[src]
+    mount=sys.argv[1]
+    for s in src:
+        if mount in s.get('listenurl',''):
+            print(s.get('title',s.get('artist',''))); break
+except: pass" "${mount}" 2>/dev/null | tr -d '\r' || true)"
+  fi
+  printf '%s' "${title}"
+}
+
 if [ "${RDS_PROG1_ENABLE}" != "true" ]; then
   _log "RDS_PROG1_ENABLE is not true; exiting"
   exit 0
@@ -2580,7 +2680,12 @@ if [ "${RDS_PROG1_SOURCE}" = "metadata" ] && [ -z "${RADIO1_URL}" ]; then
   exit 0
 fi
 
-if [ "${RDS_PROG1_SOURCE}" != "metadata" ] && [ -z "${RDS_PROG1_RT_URL}" ]; then
+if [ "${RDS_PROG1_SOURCE}" = "icecast" ] && { [ -z "${RDS_PROG1_ICECAST_STATS_URL}" ] || [ -z "${RDS_PROG1_ICECAST_MOUNT}" ]; }; then
+  _log "RDS_PROG1_SOURCE=icecast but ICECAST_STATS_URL or ICECAST_MOUNT is empty; exiting"
+  exit 0
+fi
+
+if [ "${RDS_PROG1_SOURCE}" = "url" ] && [ -z "${RDS_PROG1_RT_URL}" ]; then
   _log "RDS_PROG1_RT_URL is empty; exiting"
   exit 0
 fi
@@ -2601,6 +2706,14 @@ while true; do
       mv -f "${tmp_path}" "${RDS_PROG1_RT_PATH}"
     else
       _log "No StreamTitle metadata found from RADIO1_URL"
+    fi
+  elif [ "${RDS_PROG1_SOURCE}" = "icecast" ]; then
+    rt_text="$(_fetch_icecast_title "${RDS_PROG1_ICECAST_STATS_URL}" "${RDS_PROG1_ICECAST_MOUNT}")"
+    if [ -n "${rt_text}" ]; then
+      printf '%s\n' "${rt_text}" > "${tmp_path}"
+      mv -f "${tmp_path}" "${RDS_PROG1_RT_PATH}"
+    else
+      _log "No title from Icecast stats at ${RDS_PROG1_ICECAST_STATS_URL} mount ${RDS_PROG1_ICECAST_MOUNT}"
     fi
   else
     if wget -q -T 20 -O "${tmp_path}" "${RDS_PROG1_RT_URL}"; then
@@ -2658,6 +2771,8 @@ PROFILE="/home/ompx/.profile"
 RDS_PROG2_ENABLE="${RDS_PROG2_ENABLE:-false}"
 RDS_PROG2_SOURCE="${RDS_PROG2_SOURCE:-url}"
 RDS_PROG2_RT_URL="${RDS_PROG2_RT_URL:-}"
+RDS_PROG2_ICECAST_STATS_URL="${RDS_PROG2_ICECAST_STATS_URL:-}"
+RDS_PROG2_ICECAST_MOUNT="${RDS_PROG2_ICECAST_MOUNT:-}"
 RDS_PROG2_INTERVAL_SEC="${RDS_PROG2_INTERVAL_SEC:-5}"
 RDS_PROG2_RT_PATH="${RDS_PROG2_RT_PATH:-/home/ompx/rds/prog2/rt.txt}"
 RADIO2_URL="${RADIO2_URL:-}"
@@ -2677,6 +2792,28 @@ _fetch_stream_title(){
   printf '%s' "${title}"
 }
 
+_fetch_icecast_title(){
+  local stats_url="$1"
+  local mount="$2"
+  local title=""
+  if command -v jq >/dev/null 2>&1; then
+    title="$(curl -sf --max-time 15 "${stats_url}" 2>/dev/null | jq -r --arg m "${mount}" '.icestats.source | if type=="array" then .[] else . end | select(.listenurl | contains($m)) | .title // ""' 2>/dev/null | head -n1 | tr -d '\r' || true)"
+  elif command -v python3 >/dev/null 2>&1; then
+    title="$(curl -sf --max-time 15 "${stats_url}" 2>/dev/null | python3 -c "
+import sys, json
+try:
+    data=json.load(sys.stdin)
+    src=data['icestats']['source']
+    if not isinstance(src,list): src=[src]
+    mount=sys.argv[1]
+    for s in src:
+        if mount in s.get('listenurl',''):
+            print(s.get('title',s.get('artist',''))); break
+except: pass" "${mount}" 2>/dev/null | tr -d '\r' || true)"
+  fi
+  printf '%s' "${title}"
+}
+
 if [ "${RDS_PROG2_ENABLE}" != "true" ]; then
   _log "RDS_PROG2_ENABLE is not true; exiting"
   exit 0
@@ -2687,7 +2824,12 @@ if [ "${RDS_PROG2_SOURCE}" = "metadata" ] && [ -z "${RADIO2_URL}" ]; then
   exit 0
 fi
 
-if [ "${RDS_PROG2_SOURCE}" != "metadata" ] && [ -z "${RDS_PROG2_RT_URL}" ]; then
+if [ "${RDS_PROG2_SOURCE}" = "icecast" ] && { [ -z "${RDS_PROG2_ICECAST_STATS_URL}" ] || [ -z "${RDS_PROG2_ICECAST_MOUNT}" ]; }; then
+  _log "RDS_PROG2_SOURCE=icecast but ICECAST_STATS_URL or ICECAST_MOUNT is empty; exiting"
+  exit 0
+fi
+
+if [ "${RDS_PROG2_SOURCE}" = "url" ] && [ -z "${RDS_PROG2_RT_URL}" ]; then
   _log "RDS_PROG2_RT_URL is empty; exiting"
   exit 0
 fi
@@ -2708,6 +2850,14 @@ while true; do
       mv -f "${tmp_path}" "${RDS_PROG2_RT_PATH}"
     else
       _log "No StreamTitle metadata found from RADIO2_URL"
+    fi
+  elif [ "${RDS_PROG2_SOURCE}" = "icecast" ]; then
+    rt_text="$(_fetch_icecast_title "${RDS_PROG2_ICECAST_STATS_URL}" "${RDS_PROG2_ICECAST_MOUNT}")"
+    if [ -n "${rt_text}" ]; then
+      printf '%s\n' "${rt_text}" > "${tmp_path}"
+      mv -f "${tmp_path}" "${RDS_PROG2_RT_PATH}"
+    else
+      _log "No title from Icecast stats at ${RDS_PROG2_ICECAST_STATS_URL} mount ${RDS_PROG2_ICECAST_MOUNT}"
     fi
   else
     if wget -q -T 20 -O "${tmp_path}" "${RDS_PROG2_RT_URL}"; then
@@ -2873,9 +3023,13 @@ echo ""
 echo "  9. RDS/RadioText file paths for your processor:"
 echo "     Program 1 RT file: /home/ompx/rds/prog1/rt.txt"
 echo "     Program 2 RT file: /home/ompx/rds/prog2/rt.txt"
-echo "     RDS source mode is per-program: URL text file or stream metadata (StreamTitle)."
-echo "     Metadata mode reads Program 1 from RADIO1_URL and Program 2 from RADIO2_URL."
-echo "     If your processor can read RadioText from a file, point it at those paths."
+echo "     RDS source modes per program:"
+echo "       U (url)      - wget a plain-text URL each interval"
+echo "       M (metadata) - extract StreamTitle from stream audio (ICY; works with MP3/AAC)"
+echo "       I (icecast)  - query Icecast stats JSON API (works with any codec including Opus)"
+echo "     Icecast stats mode example (for http://host:8010/transmitter):"
+echo "       Stats URL:  http://host:8010/status-json.xsl"
+echo "       Mount:      /transmitter"
 echo "     Stereo Tool example strings:"
 echo "       Program 1: \\r\"/home/ompx/rds/prog1/rt.txt\""
 echo "       Program 2: \\r\"/home/ompx/rds/prog2/rt.txt\""
