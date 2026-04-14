@@ -2419,7 +2419,7 @@ INGEST_DELAY_SEC="\${INGEST_DELAY_SEC:-10}"
 if ! [[ "\${INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
   INGEST_DELAY_SEC=10
 fi
-INGEST_DELAY_MS=$((INGEST_DELAY_SEC * 1000))
+INGEST_DELAY_MS=\$((INGEST_DELAY_SEC * 1000))
 if [ "${RADIO}" = "1" ]; then
   SINK_NAME="ompx_prg1in"
 else
@@ -2587,6 +2587,7 @@ if ! [[ "${RDS_PROG1_INTERVAL_SEC}" =~ ^[0-9]+$ ]] || [ "${RDS_PROG1_INTERVAL_SE
 fi
 
 mkdir -p "$(dirname "${RDS_PROG1_RT_PATH}")"
+touch "${RDS_PROG1_RT_PATH}" 2>/dev/null || true
 tmp_path="${RDS_PROG1_RT_PATH}.tmp"
 
 while true; do
@@ -2685,6 +2686,7 @@ if ! [[ "${RDS_PROG2_INTERVAL_SEC}" =~ ^[0-9]+$ ]] || [ "${RDS_PROG2_INTERVAL_SE
 fi
 
 mkdir -p "$(dirname "${RDS_PROG2_RT_PATH}")"
+touch "${RDS_PROG2_RT_PATH}" 2>/dev/null || true
 tmp_path="${RDS_PROG2_RT_PATH}.tmp"
 
 while true; do
