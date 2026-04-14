@@ -48,7 +48,7 @@ STREAM_ENGINE="${STREAM_ENGINE:-ffmpeg}"
 STREAM_SILENCE_MAX_DBFS="${STREAM_SILENCE_MAX_DBFS:--85}"
 ALLOW_PLACEHOLDER_STREAM_OVERWRITE="${ALLOW_PLACEHOLDER_STREAM_OVERWRITE:-false}"
 REMOVE_OLD_SINKS="${REMOVE_OLD_SINKS:-false}"
-RUN_QUICK_AUDIO_TEST="${RUN_QUICK_AUDIO_TEST:-true}"
+RUN_QUICK_AUDIO_TEST="${RUN_QUICK_AUDIO_TEST:-false}"
 FETCH_STEREO_TOOL_ENTERPRISE="${FETCH_STEREO_TOOL_ENTERPRISE:-false}"
 STEREO_TOOL_ENTERPRISE_URL="${STEREO_TOOL_ENTERPRISE_URL:-https://download.thimeo.com/ST-Enterprise}"
 STEREO_TOOL_DOWNLOAD_DIR="${STEREO_TOOL_DOWNLOAD_DIR:-${OMPX_HOME}/stereo-tool-enterprise}"
@@ -1276,13 +1276,7 @@ if [ -t 0 ]; then
     fi
   fi
 
-  read -t 30 -p "Run quick loopback test (write to ompx_prg1in, read from ompx_prg1in_cap) during install? [Y/n] (default Y): " cfg_quick_test || cfg_quick_test="Y"
-  cfg_quick_test=${cfg_quick_test^^}
-  if [ "${cfg_quick_test}" = "N" ]; then
-    RUN_QUICK_AUDIO_TEST=false
-  else
-    RUN_QUICK_AUDIO_TEST=true
-  fi
+  echo "[INFO] Quick loopback self-test is disabled by default (historically unreliable on some hosts)."
 fi
 
 cat > "${ASOUND_MAP_HELPER}" <<'ASMAP'
@@ -1678,7 +1672,7 @@ else
   done
 fi
 
-if [ "${RUN_QUICK_AUDIO_TEST}" = true ] && [ "${CONFIG_SKIP}" = false ] && [ "${CONFIG_OVERWRITE}" = true ]; then
+if false && [ "${RUN_QUICK_AUDIO_TEST}" = true ] && [ "${CONFIG_SKIP}" = false ] && [ "${CONFIG_OVERWRITE}" = true ]; then
   test_attempt=1
   while true; do
     echo "[INFO] Running quick loopback self-test attempt ${test_attempt}: write to ompx_prg1in, read from ompx_prg1in_cap"
