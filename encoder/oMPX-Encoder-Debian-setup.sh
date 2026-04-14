@@ -30,6 +30,8 @@ STEREO_TOOL_ENTERPRISE_SERVICE="${SYSTEMD_DIR}/stereo-tool-enterprise.service"
 OMPX_STREAM_PULL_SERVICE="${SYSTEMD_DIR}/mpx-stream-pull.service"
 OMPX_SOURCE1_SERVICE="${SYSTEMD_DIR}/mpx-source1.service"
 OMPX_SOURCE2_SERVICE="${SYSTEMD_DIR}/mpx-source2.service"
+RDS_SYNC_PROG1_SERVICE="${SYSTEMD_DIR}/rds-sync-prog1.service"
+RDS_SYNC_PROG2_SERVICE="${SYSTEMD_DIR}/rds-sync-prog2.service"
 OMPX_ADD="/usr/local/bin/ompx_add_source"
 ASOUND_CONF_PATH="/etc/asound.conf"
 OMPX_AUDIO_UDEV_RULE="/etc/udev/rules.d/70-ompx-audio.rules"
@@ -46,9 +48,11 @@ AUTO_START_STREAMS_FROM_HEADER="${AUTO_START_STREAMS_FROM_HEADER:-false}"
 STREAM_SETUP_MODE="${STREAM_SETUP_MODE:-header}"
 STREAM_ENGINE="${STREAM_ENGINE:-ffmpeg}"
 STREAM_SILENCE_MAX_DBFS="${STREAM_SILENCE_MAX_DBFS:--85}"
+INGEST_DELAY_SEC="${INGEST_DELAY_SEC:-10}"
 ALLOW_PLACEHOLDER_STREAM_OVERWRITE="${ALLOW_PLACEHOLDER_STREAM_OVERWRITE:-false}"
 REMOVE_OLD_SINKS="${REMOVE_OLD_SINKS:-false}"
 RUN_QUICK_AUDIO_TEST="${RUN_QUICK_AUDIO_TEST:-false}"
+STREAM_VALIDATION_ENABLED="${STREAM_VALIDATION_ENABLED:-false}"
 FETCH_STEREO_TOOL_ENTERPRISE="${FETCH_STEREO_TOOL_ENTERPRISE:-false}"
 STEREO_TOOL_ENTERPRISE_URL="${STEREO_TOOL_ENTERPRISE_URL:-https://download.thimeo.com/ST-Enterprise}"
 STEREO_TOOL_DOWNLOAD_DIR="${STEREO_TOOL_DOWNLOAD_DIR:-${OMPX_HOME}/stereo-tool-enterprise}"
@@ -76,6 +80,14 @@ ICECAST_MODE="${ICECAST_MODE:-disabled}"
 # ALSA capture endpoints Stereo Tool Enterprise writes its processed output to
 ST_OUT_P1="${ST_OUT_P1:-ompx_prg1mpx_cap}"
 ST_OUT_P2="${ST_OUT_P2:-ompx_prg2mpx_cap}"
+RDS_PROG1_ENABLE="${RDS_PROG1_ENABLE:-false}"
+RDS_PROG1_RT_URL="${RDS_PROG1_RT_URL:-}"
+RDS_PROG1_INTERVAL_SEC="${RDS_PROG1_INTERVAL_SEC:-5}"
+RDS_PROG1_RT_PATH="${RDS_PROG1_RT_PATH:-${OMPX_HOME}/rds/prog1/rt.txt}"
+RDS_PROG2_ENABLE="${RDS_PROG2_ENABLE:-false}"
+RDS_PROG2_RT_URL="${RDS_PROG2_RT_URL:-}"
+RDS_PROG2_INTERVAL_SEC="${RDS_PROG2_INTERVAL_SEC:-5}"
+RDS_PROG2_RT_PATH="${RDS_PROG2_RT_PATH:-${OMPX_HOME}/rds/prog2/rt.txt}"
 CONFIG_OVERWRITE="${CONFIG_OVERWRITE:-true}"
 CONFIG_BACKUP="${CONFIG_BACKUP:-true}"
 CONFIG_SKIP="${CONFIG_SKIP:-false}"
@@ -419,6 +431,65 @@ configure_icecast_dialog(){
   ST_OUT_P1="${_st_p1:-ompx_prg1mpx_cap}"
   read -t 60 -p "Program 2 MPX capture device (default ompx_prg2mpx_cap, 'none' to disable): " _st_p2 || _st_p2=""
   [ "${_st_p2,,}" = "none" ] && ST_OUT_P2="" || ST_OUT_P2="${_st_p2:-ompx_prg2mpx_cap}"
+}
+
+configure_rds_dialog(){
+  echo ""
+  echo "=== RDS sync configuration ==="
+  echo "  Syncs RadioText from a URL to ${OMPX_HOME}/rds/prog1/rt.txt"
+  read -t 60 -p "Enable Program 1 RDS text sync? [y/N] (default N): " _rds_enable || _rds_enable="N"
+  _rds_enable=${_rds_enable^^}
+  if [ "${_rds_enable}" != "Y" ]; then
+    RDS_PROG1_ENABLE="false"
+    RDS_PROG1_RT_URL=""
+    echo "[INFO] Program 1 RDS sync disabled"
+  else
+    RDS_PROG1_ENABLE="true"
+    read -t 180 -p "RDS text URL for Program 1: " _rds_url || _rds_url=""
+    if [ -z "${_rds_url}" ]; then
+      echo "[WARNING] Empty RDS URL; disabling Program 1 RDS sync"
+      RDS_PROG1_ENABLE="false"
+      RDS_PROG1_RT_URL=""
+    else
+      RDS_PROG1_RT_URL="${_rds_url}"
+
+      read -t 60 -p "Refresh interval seconds (default ${RDS_PROG1_INTERVAL_SEC}): " _rds_int || _rds_int=""
+      if [[ "${_rds_int}" =~ ^[0-9]+$ ]] && [ "${_rds_int}" -ge 1 ]; then
+        RDS_PROG1_INTERVAL_SEC="${_rds_int}"
+      fi
+
+      RDS_PROG1_RT_PATH="${OMPX_HOME}/rds/prog1/rt.txt"
+      echo "[INFO] Program 1 RDS sync enabled: ${RDS_PROG1_RT_URL} -> ${RDS_PROG1_RT_PATH} every ${RDS_PROG1_INTERVAL_SEC}s"
+    fi
+  fi
+
+  echo ""
+  echo "  Syncs RadioText from a URL to ${OMPX_HOME}/rds/prog2/rt.txt"
+  read -t 60 -p "Enable Program 2 RDS text sync? [y/N] (default N): " _rds2_enable || _rds2_enable="N"
+  _rds2_enable=${_rds2_enable^^}
+  if [ "${_rds2_enable}" != "Y" ]; then
+    RDS_PROG2_ENABLE="false"
+    RDS_PROG2_RT_URL=""
+    echo "[INFO] Program 2 RDS sync disabled"
+  else
+    RDS_PROG2_ENABLE="true"
+    read -t 180 -p "RDS text URL for Program 2: " _rds2_url || _rds2_url=""
+    if [ -z "${_rds2_url}" ]; then
+      echo "[WARNING] Empty RDS URL; disabling Program 2 RDS sync"
+      RDS_PROG2_ENABLE="false"
+      RDS_PROG2_RT_URL=""
+    else
+      RDS_PROG2_RT_URL="${_rds2_url}"
+
+      read -t 60 -p "Refresh interval seconds (default ${RDS_PROG2_INTERVAL_SEC}): " _rds2_int || _rds2_int=""
+      if [[ "${_rds2_int}" =~ ^[0-9]+$ ]] && [ "${_rds2_int}" -ge 1 ]; then
+        RDS_PROG2_INTERVAL_SEC="${_rds2_int}"
+      fi
+
+      RDS_PROG2_RT_PATH="${OMPX_HOME}/rds/prog2/rt.txt"
+      echo "[INFO] Program 2 RDS sync enabled: ${RDS_PROG2_RT_URL} -> ${RDS_PROG2_RT_PATH} every ${RDS_PROG2_INTERVAL_SEC}s"
+    fi
+  fi
 }
 
 install_icecast_local(){
@@ -851,6 +922,7 @@ RADIO1_URL="${RADIO1_URL}"
 RADIO2_URL="${RADIO2_URL}"
 STREAM_ENGINE="${STREAM_ENGINE}"
 STREAM_SILENCE_MAX_DBFS="${STREAM_SILENCE_MAX_DBFS}"
+INGEST_DELAY_SEC="${INGEST_DELAY_SEC}"
 ICECAST_MODE="${ICECAST_MODE}"
 ICECAST_HOST="${ICECAST_HOST}"
 ICECAST_PORT="${ICECAST_PORT}"
@@ -862,6 +934,14 @@ ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE}"
 ICECAST_CODEC="${ICECAST_CODEC}"
 ST_OUT_P1="${ST_OUT_P1}"
 ST_OUT_P2="${ST_OUT_P2}"
+RDS_PROG1_ENABLE="${RDS_PROG1_ENABLE}"
+RDS_PROG1_RT_URL="${RDS_PROG1_RT_URL}"
+RDS_PROG1_INTERVAL_SEC="${RDS_PROG1_INTERVAL_SEC}"
+RDS_PROG1_RT_PATH="${RDS_PROG1_RT_PATH}"
+RDS_PROG2_ENABLE="${RDS_PROG2_ENABLE}"
+RDS_PROG2_RT_URL="${RDS_PROG2_RT_URL}"
+RDS_PROG2_INTERVAL_SEC="${RDS_PROG2_INTERVAL_SEC}"
+RDS_PROG2_RT_PATH="${RDS_PROG2_RT_PATH}"
 PROFILE_WRITTEN
   chown "${OMPX_USER}:${OMPX_USER}" "$PROFILE"
   chmod 644 "$PROFILE"
@@ -1233,6 +1313,7 @@ if [ -t 0 ]; then
   echo "[INFO] Selected streaming engine: ${STREAM_ENGINE}"
 
   configure_icecast_dialog
+  configure_rds_dialog
 
   echo ""
   FETCH_STEREO_TOOL_ENTERPRISE=false
@@ -1390,12 +1471,12 @@ case "$choice" in
 R)
 echo "[INFO] Performing full cleanup before reinstall..."
 echo "[INFO] Stopping systemd services..."
-systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service 2>/dev/null || true
+systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
 systemctl stop stereo-tool-enterprise.service 2>/dev/null || true
 echo "[INFO] Disabling systemd services..."
-systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service 2>/dev/null || true
+systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
 systemctl disable stereo-tool-enterprise.service 2>/dev/null || true
-rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}"
+rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${RDS_SYNC_PROG1_SERVICE}" "${RDS_SYNC_PROG2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}"
 systemctl daemon-reload || true
 echo "[INFO] Removing old cron jobs..."
 if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
@@ -1417,12 +1498,12 @@ echo "[SUCCESS] Cleanup complete, ready for fresh install"
 U)
 echo "[INFO] Performing full uninstall..."
 echo "[INFO] Stopping systemd services..."
-systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service 2>/dev/null || true
+systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
 systemctl stop stereo-tool-enterprise.service 2>/dev/null || true
 echo "[INFO] Disabling systemd services..."
-systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service 2>/dev/null || true
+systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
 systemctl disable stereo-tool-enterprise.service 2>/dev/null || true
-rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}"
+rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${RDS_SYNC_PROG1_SERVICE}" "${RDS_SYNC_PROG2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}"
 systemctl daemon-reload || true
 echo "[INFO] Removing cron jobs..."
 if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
@@ -1487,8 +1568,8 @@ echo "[SUCCESS] Directories created at ${SYS_SCRIPTS_DIR}"
 
 echo "[INFO] Updating package lists..."
 safe_apt_update
-echo "[INFO] Installing base dependencies (curl, alsa-utils, ffmpeg, sox, ladspa-sdk, swh-plugins, cron)..."
-DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils ffmpeg sox ladspa-sdk swh-plugins cron
+echo "[INFO] Installing base dependencies (curl, wget, alsa-utils, ffmpeg, sox, ladspa-sdk, swh-plugins, cron)..."
+DEBIAN_FRONTEND=noninteractive apt install -y curl wget alsa-utils ffmpeg sox ladspa-sdk swh-plugins cron
 if [ "${ICECAST_MODE}" = "local" ]; then
   install_icecast_local
 fi
@@ -1519,8 +1600,12 @@ if [ "${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE}" = true ]; then
 fi
 
 if [ "${STREAM_SETUP_MODE:-header}" != "later" ]; then
-  validate_stream_source_interactive 1 RADIO1_URL
-  validate_stream_source_interactive 2 RADIO2_URL
+  if [ "${STREAM_VALIDATION_ENABLED}" = "true" ]; then
+    validate_stream_source_interactive 1 RADIO1_URL
+    validate_stream_source_interactive 2 RADIO2_URL
+  else
+    echo "[INFO] Stream URL validation is disabled (STREAM_VALIDATION_ENABLED=false). Continuing with configured URLs."
+  fi
 
   active_streams=0
   if ! is_placeholder_stream_url "${RADIO1_URL}"; then
@@ -1649,9 +1734,13 @@ else
       echo "  R) Retry discovery"
       echo "  C) Continue anyway"
       echo "  A) Abort installation"
-      read -t 60 -p "Select [R/C/A] (default R): " pcm_choice || pcm_choice="R"
+      read -t 60 -p "Select [R/C/A] (default C): " pcm_choice || pcm_choice="C"
       pcm_choice=${pcm_choice^^}
       case "${pcm_choice}" in
+        R)
+          echo "[INFO] Retrying named PCM discovery..."
+          sleep 1
+          ;;
         C)
           echo "[WARNING] Continuing with incomplete named PCM discovery"
           break
@@ -1661,13 +1750,13 @@ else
           exit 1
           ;;
         *)
-          echo "[INFO] Retrying named PCM discovery..."
-          sleep 1
+          echo "[WARNING] Unrecognized selection; continuing with incomplete named PCM discovery"
+          break
           ;;
       esac
     else
-      echo "[ERROR] Non-interactive mode and named PCM check failed; aborting"
-      exit 1
+      echo "[WARNING] Non-interactive mode and named PCM check failed; continuing anyway"
+      break
     fi
   done
 fi
@@ -1794,6 +1883,11 @@ PROFILE="${OMPX_HOME}/.profile"
 [ -f "\$PROFILE" ] && . "\$PROFILE"
 RADIO_VAR_NAME="RADIO${n}_URL"
 RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
+INGEST_DELAY_SEC="\${INGEST_DELAY_SEC:-10}"
+if ! [[ "\${INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
+  INGEST_DELAY_SEC=10
+fi
+INGEST_DELAY_MS=$((INGEST_DELAY_SEC * 1000))
 if [ "${n}" = "1" ]; then
   SINK_NAME="ompx_prg1in"
 else
@@ -1808,7 +1902,7 @@ if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   echo "[\$(date +'%F %T')] source${n}: named sink unavailable; using fallback \${SINK_NAME}"
 fi
 echo "[\$(date +'%F %T')] source${n}: using ALSA output endpoint \${SINK_NAME}"
-echo "[\$(date +'%F %T')] source${n}: ingest via ffmpeg (input format auto-detected)"
+echo "[\$(date +'%F %T')] source${n}: ingest via ffmpeg (input format auto-detected, delay \${INGEST_DELAY_SEC}s)"
 
 if [ -z "\${RADIO_URL_VALUE}" ] || [[ "\${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "\${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
   echo "[\$(date +'%F %T')] source${n}: RADIO${n}_URL is empty/placeholder; exiting"
@@ -1821,6 +1915,7 @@ do
   ffmpeg -nostdin -reconnect 1 -reconnect_streamed 1 -reconnect_at_eof 1 -reconnect_delay_max 5 -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
     -vn -sn -dn \
     -max_delay 5000000 \
+    -af "aformat=channel_layouts=stereo,adelay=\${INGEST_DELAY_MS}|\${INGEST_DELAY_MS}" \
     -ar ${SAMPLE_RATE} -ac 2 -f alsa "\${SINK_NAME}" || true
 done
 WRAP
@@ -2273,6 +2368,11 @@ PROFILE="${OMPX_HOME}/.profile"
 [ -f "$PROFILE" ] && . "$PROFILE"
 RADIO_VAR_NAME="RADIO${RADIO}_URL"
 RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
+INGEST_DELAY_SEC="\${INGEST_DELAY_SEC:-10}"
+if ! [[ "\${INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
+  INGEST_DELAY_SEC=10
+fi
+INGEST_DELAY_MS=$((INGEST_DELAY_SEC * 1000))
 if [ "${RADIO}" = "1" ]; then
   SINK_NAME="ompx_prg1in"
 else
@@ -2287,7 +2387,7 @@ if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   echo "[\$(date +'%F %T')] source${RADIO}: named sink unavailable; using fallback \${SINK_NAME}"
 fi
 echo "[\$(date +'%F %T')] source${RADIO}: using ALSA output endpoint \${SINK_NAME}"
-echo "[\$(date +'%F %T')] source${RADIO}: ingest via ffmpeg (input format auto-detected)"
+echo "[\$(date +'%F %T')] source${RADIO}: ingest via ffmpeg (input format auto-detected, delay \${INGEST_DELAY_SEC}s)"
 if [ -z "\${RADIO_URL_VALUE}" ] || [[ "\${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "\${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
   echo "[\$(date +'%F %T')] source${RADIO}: RADIO${RADIO}_URL is empty/placeholder; exiting"
   exit 0
@@ -2299,6 +2399,7 @@ do
     -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
     -vn -sn -dn \
     -max_delay 5000000 \
+    -af "aformat=channel_layouts=stereo,adelay=\${INGEST_DELAY_MS}|\${INGEST_DELAY_MS}" \
     -ar 192000 -ac 2 -f alsa "\${SINK_NAME}" || true
 done
 WRAP
@@ -2390,6 +2491,149 @@ STARTSH
 chmod 750 "${SYS_SCRIPTS_DIR}/start_or_shell.sh"
 chown root:root "${SYS_SCRIPTS_DIR}/start_or_shell.sh"
 echo "[SUCCESS] start_or_shell wrapper created"
+
+# --- RDS sync (Program 1) ---
+echo "[INFO] Creating Program 1 RDS sync script..."
+cat > "${SYS_SCRIPTS_DIR}/rds-sync-prog1.sh" <<'RDS1'
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROFILE="/home/ompx/.profile"
+[ -f "${PROFILE}" ] && . "${PROFILE}"
+
+RDS_PROG1_ENABLE="${RDS_PROG1_ENABLE:-false}"
+RDS_PROG1_RT_URL="${RDS_PROG1_RT_URL:-}"
+RDS_PROG1_INTERVAL_SEC="${RDS_PROG1_INTERVAL_SEC:-5}"
+RDS_PROG1_RT_PATH="${RDS_PROG1_RT_PATH:-/home/ompx/rds/prog1/rt.txt}"
+
+_log(){ logger -t rds-sync-prog1 "$*"; echo "$(date +'%F %T') [rds-sync-prog1] $*"; }
+
+if [ "${RDS_PROG1_ENABLE}" != "true" ]; then
+  _log "RDS_PROG1_ENABLE is not true; exiting"
+  exit 0
+fi
+
+if [ -z "${RDS_PROG1_RT_URL}" ]; then
+  _log "RDS_PROG1_RT_URL is empty; exiting"
+  exit 0
+fi
+
+if ! [[ "${RDS_PROG1_INTERVAL_SEC}" =~ ^[0-9]+$ ]] || [ "${RDS_PROG1_INTERVAL_SEC}" -lt 1 ]; then
+  RDS_PROG1_INTERVAL_SEC=5
+fi
+
+mkdir -p "$(dirname "${RDS_PROG1_RT_PATH}")"
+tmp_path="${RDS_PROG1_RT_PATH}.tmp"
+
+while true; do
+  if wget -q -T 20 -O "${tmp_path}" "${RDS_PROG1_RT_URL}"; then
+    mv -f "${tmp_path}" "${RDS_PROG1_RT_PATH}"
+  else
+    _log "Failed to fetch ${RDS_PROG1_RT_URL}"
+  fi
+  sleep "${RDS_PROG1_INTERVAL_SEC}"
+done
+RDS1
+chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/rds-sync-prog1.sh"
+chmod 750 "${SYS_SCRIPTS_DIR}/rds-sync-prog1.sh"
+echo "[SUCCESS] Created ${SYS_SCRIPTS_DIR}/rds-sync-prog1.sh"
+
+cat > "${RDS_SYNC_PROG1_SERVICE}" <<EOF
+[Unit]
+Description=oMPX Program 1 RDS text sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${OMPX_USER}
+Group=${OMPX_USER}
+WorkingDirectory=${OMPX_HOME}
+Environment=HOME=${OMPX_HOME}
+ExecStart=${SYS_SCRIPTS_DIR}/rds-sync-prog1.sh
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 644 "${RDS_SYNC_PROG1_SERVICE}"
+chown root:root "${RDS_SYNC_PROG1_SERVICE}"
+echo "[SUCCESS] Installed rds-sync-prog1.service"
+
+# --- RDS sync (Program 2) ---
+echo "[INFO] Creating Program 2 RDS sync script..."
+cat > "${SYS_SCRIPTS_DIR}/rds-sync-prog2.sh" <<'RDS2'
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROFILE="/home/ompx/.profile"
+[ -f "${PROFILE}" ] && . "${PROFILE}"
+
+RDS_PROG2_ENABLE="${RDS_PROG2_ENABLE:-false}"
+RDS_PROG2_RT_URL="${RDS_PROG2_RT_URL:-}"
+RDS_PROG2_INTERVAL_SEC="${RDS_PROG2_INTERVAL_SEC:-5}"
+RDS_PROG2_RT_PATH="${RDS_PROG2_RT_PATH:-/home/ompx/rds/prog2/rt.txt}"
+
+_log(){ logger -t rds-sync-prog2 "$*"; echo "$(date +'%F %T') [rds-sync-prog2] $*"; }
+
+if [ "${RDS_PROG2_ENABLE}" != "true" ]; then
+  _log "RDS_PROG2_ENABLE is not true; exiting"
+  exit 0
+fi
+
+if [ -z "${RDS_PROG2_RT_URL}" ]; then
+  _log "RDS_PROG2_RT_URL is empty; exiting"
+  exit 0
+fi
+
+if ! [[ "${RDS_PROG2_INTERVAL_SEC}" =~ ^[0-9]+$ ]] || [ "${RDS_PROG2_INTERVAL_SEC}" -lt 1 ]; then
+  RDS_PROG2_INTERVAL_SEC=5
+fi
+
+mkdir -p "$(dirname "${RDS_PROG2_RT_PATH}")"
+tmp_path="${RDS_PROG2_RT_PATH}.tmp"
+
+while true; do
+  if wget -q -T 20 -O "${tmp_path}" "${RDS_PROG2_RT_URL}"; then
+    mv -f "${tmp_path}" "${RDS_PROG2_RT_PATH}"
+  else
+    _log "Failed to fetch ${RDS_PROG2_RT_URL}"
+  fi
+  sleep "${RDS_PROG2_INTERVAL_SEC}"
+done
+RDS2
+chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/rds-sync-prog2.sh"
+chmod 750 "${SYS_SCRIPTS_DIR}/rds-sync-prog2.sh"
+echo "[SUCCESS] Created ${SYS_SCRIPTS_DIR}/rds-sync-prog2.sh"
+
+cat > "${RDS_SYNC_PROG2_SERVICE}" <<EOF
+[Unit]
+Description=oMPX Program 2 RDS text sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${OMPX_USER}
+Group=${OMPX_USER}
+WorkingDirectory=${OMPX_HOME}
+Environment=HOME=${OMPX_HOME}
+ExecStart=${SYS_SCRIPTS_DIR}/rds-sync-prog2.sh
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 644 "${RDS_SYNC_PROG2_SERVICE}"
+chown root:root "${RDS_SYNC_PROG2_SERVICE}"
+echo "[SUCCESS] Installed rds-sync-prog2.service"
+
 # --- Startup integration ---
 if has_systemd; then
 echo "[INFO] Enabling and starting systemd services..."
@@ -2411,6 +2655,20 @@ systemctl enable --now mpx-source1.service || true
 systemctl enable --now mpx-source2.service || true
 echo "[INFO] Enabling mpx-stream-pull.service..."
 systemctl enable --now mpx-stream-pull.service || true
+if [ "${RDS_PROG1_ENABLE}" = "true" ]; then
+  echo "[INFO] Enabling rds-sync-prog1.service..."
+  systemctl enable --now rds-sync-prog1.service || true
+else
+  echo "[INFO] Program 1 RDS sync disabled; installing service but not starting it"
+  systemctl disable rds-sync-prog1.service >/dev/null 2>&1 || true
+fi
+if [ "${RDS_PROG2_ENABLE}" = "true" ]; then
+  echo "[INFO] Enabling rds-sync-prog2.service..."
+  systemctl enable --now rds-sync-prog2.service || true
+else
+  echo "[INFO] Program 2 RDS sync disabled; installing service but not starting it"
+  systemctl disable rds-sync-prog2.service >/dev/null 2>&1 || true
+fi
 if [ "${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE}" = true ]; then
   if [ "${START_STEREO_TOOL_AFTER_INSTALL}" = true ]; then
     echo "[INFO] Enabling and starting stereo-tool-enterprise.service..."
@@ -2453,12 +2711,16 @@ echo "Next steps:"
 echo "  1. Configure radio streams:"
 echo "     ${OMPX_ADD} --radio 1 --url 'https://your.stream/url' --cron-user oMPX --start-now"
 echo "     ${OMPX_ADD} --radio 2 --url 'https://your.stream/url' --cron-user oMPX --start-now"
+echo "     Ingest delay is controlled by INGEST_DELAY_SEC in ${OMPX_HOME}/.profile (current/default: ${INGEST_DELAY_SEC}s)"
+echo "     After changing it, restart ingest: systemctl restart mpx-source1.service mpx-source2.service"
 echo ""
 echo "  2. Check service status:"
 if has_systemd; then
   echo "     systemctl status mpx-processing-alsa.service"
   echo "     systemctl status mpx-watchdog.service"
   echo "     systemctl status mpx-stream-pull.service"
+  echo "     systemctl status rds-sync-prog1.service"
+  echo "     systemctl status rds-sync-prog2.service"
   echo "     systemctl status stereo-tool-enterprise.service"
 else
   echo "     crontab -u ${OMPX_USER} -l"
@@ -2466,6 +2728,8 @@ fi
 echo ""
 echo "  3. View logs:"
 echo "     journalctl -u mpx-processing-alsa.service -f"
+echo "     journalctl -u rds-sync-prog1.service -f"
+echo "     journalctl -u rds-sync-prog2.service -f"
 echo "     tail -f ${OMPX_LOG_DIR}/radio-source1.log"
 echo "     tail -f ${OMPX_LOG_DIR}/radio-source2.log"
 echo ""
@@ -2486,6 +2750,15 @@ echo ""
 echo "  8. Stereo Tool Enterprise web UI (if enabled):"
 echo "     http://<this-host>:${STEREO_TOOL_WEB_PORT}/"
 echo "     Bind: ${STEREO_TOOL_WEB_BIND}  Whitelist: ${STEREO_TOOL_WEB_WHITELIST}"
+echo ""
+echo "  9. RDS/RadioText file paths for your processor:"
+echo "     Program 1 RT file: /home/ompx/rds/prog1/rt.txt"
+echo "     Program 2 RT file: /home/ompx/rds/prog2/rt.txt"
+echo "     If your processor can read RadioText from a file, point it at those paths."
+echo "     Stereo Tool example strings:"
+echo "       Program 1: \\r\"/home/ompx/rds/prog1/rt.txt\""
+echo "       Program 2: \\r\"/home/ompx/rds/prog2/rt.txt\""
+echo "     Note: this installer uses 'prog1' and 'prog2' in the directory names."
 echo ""
 
 if [ "$CONFIG_SKIP" = false ]; then
