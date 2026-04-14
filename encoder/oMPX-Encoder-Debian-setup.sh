@@ -42,8 +42,8 @@ SAMPLE_RATE=192000
 CRON_SLEEP=10
 
 # These can be overridden by exporting env vars before running the installer.
-RADIO1_URL="${RADIO1_URL:-https://example-icecast.local:8443/radio1.opus}"
-RADIO2_URL="${RADIO2_URL:-https://example-icecast.local:8443/radio2.opus}"
+RADIO1_URL="${RADIO1_URL:-https://example-icecast.local:8443/radio1.stream}"
+RADIO2_URL="${RADIO2_URL:-https://example-icecast.local:8443/radio2.stream}"
 AUTO_UPDATE_STREAM_URLS_FROM_HEADER="${AUTO_UPDATE_STREAM_URLS_FROM_HEADER:-true}"
 AUTO_START_STREAMS_FROM_HEADER="${AUTO_START_STREAMS_FROM_HEADER:-false}"
 STREAM_SETUP_MODE="${STREAM_SETUP_MODE:-header}"
@@ -73,6 +73,7 @@ ICECAST_PASSWORD="${ICECAST_PASSWORD:-hackme}"
 ICECAST_ADMIN_USER="${ICECAST_ADMIN_USER:-admin}"
 ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx.flac}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
+ICECAST_CODEC="flac"
 # ICECAST_MODE: local | remote | disabled
 ICECAST_MODE="${ICECAST_MODE:-disabled}"
 # ALSA capture endpoints Stereo Tool Enterprise writes its processed output to
@@ -90,6 +91,8 @@ if [ -f "${PROFILE_PATH}" ]; then
   . "${PROFILE_PATH}" || true
   set -u
 fi
+# Output codec is intentionally fixed for FM transport quality.
+ICECAST_CODEC="flac"
 
 # Explicit environment values win over imported profile values.
 if [ "${ENV_RADIO1_SET}" = "x" ]; then RADIO1_URL="${ENV_RADIO1_VAL}"; fi
@@ -406,6 +409,11 @@ configure_icecast_dialog(){
   read -t 60 -p "Output sample rate Hz (default 192000, use 48000 for standard): " _ice_sr || _ice_sr=""
   [[ "${_ice_sr}" =~ ^[0-9]+$ ]] && ICECAST_SAMPLE_RATE="${_ice_sr}" || ICECAST_SAMPLE_RATE=192000
   echo "[INFO] Icecast encoder sample rate: ${ICECAST_SAMPLE_RATE} Hz"
+  ICECAST_CODEC="flac"
+  if [ -z "${ICECAST_MOUNT:-}" ] || [ "${ICECAST_MOUNT}" = "/mpx.ogg" ]; then
+    ICECAST_MOUNT="/mpx.flac"
+  fi
+  echo "[INFO] Icecast codec fixed to FLAC (${ICECAST_MOUNT})"
 
   echo ""
   echo "MPX capture endpoints consumed by mpx-mix (read/capture side of ST's MPX output loopbacks):"
@@ -813,6 +821,7 @@ EOF
 write_profile_file(){
   local old_radio1=""
   local old_radio2=""
+  ICECAST_CODEC="flac"
   echo "[INFO] Creating user profile configuration..."
   mkdir -p "${OMPX_HOME}"
   PROFILE="${OMPX_HOME}/.profile"
@@ -852,6 +861,7 @@ ICECAST_PASSWORD="${ICECAST_PASSWORD}"
 ICECAST_ADMIN_USER="${ICECAST_ADMIN_USER}"
 ICECAST_MOUNT="${ICECAST_MOUNT}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE}"
+ICECAST_CODEC="${ICECAST_CODEC}"
 ST_OUT_P1="${ST_OUT_P1}"
 ST_OUT_P2="${ST_OUT_P2}"
 PROFILE_WRITTEN
@@ -1225,6 +1235,7 @@ if [ -t 0 ]; then
   echo "  F) FFmpeg"
   echo "     Pros: simpler single-process ingest loop, familiar behavior, easier to debug with direct ffmpeg logs"
   echo "     Cons: less flexible for stream-source logic, less structured than Liquidsoap for future expansion"
+  echo "[INFO] Ingest can be any decodable format; Icecast output is fixed to FLAC at ${ICECAST_SAMPLE_RATE} Hz."
   read -t 45 -p "Choose streaming engine [L/F] (default F): " cfg_stream_engine || cfg_stream_engine="F"
   cfg_stream_engine=${cfg_stream_engine^^}
   if [ "${cfg_stream_engine}" = "L" ]; then
@@ -1413,7 +1424,7 @@ echo "[WARNING] crontab command not found; skipping cron cleanup"
 fi
 echo "[INFO] Removing old files and directories..."
 rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
-rm -rf "${SYS_SCRIPTS_DIR}" "${LIQUIDSOAP_CONF_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log
+rm -rf "${SYS_SCRIPTS_DIR}" "${LIQUIDSOAP_CONF_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log /var/log/radio-source1.log /var/log/radio-source2.log
 rm -f "${OMPX_AUDIO_UDEV_RULE}" || true
 rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
 echo "[INFO] Removing oMPX user..."
@@ -1440,7 +1451,7 @@ echo "[WARNING] crontab command not found; skipping cron cleanup"
 fi
 echo "[INFO] Removing files and directories..."
 rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
-rm -rf "${SYS_SCRIPTS_DIR}" "${LIQUIDSOAP_CONF_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log
+rm -rf "${SYS_SCRIPTS_DIR}" "${LIQUIDSOAP_CONF_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log /var/log/radio-source1.log /var/log/radio-source2.log
 rm -f "${OMPX_AUDIO_UDEV_RULE}" || true
 rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
 echo "[INFO] Removing oMPX user..."
@@ -2013,7 +2024,7 @@ fi
 
 for n in 1 2; do
   wrapper="${SYS_SCRIPTS_DIR}/source${n}.sh"
-  log_file="${OMPX_LOG_DIR}/radio-opus${n}.log"
+  log_file="${OMPX_LOG_DIR}/radio-source${n}.log"
   if [ -x "${wrapper}" ] && ! pgrep -f "${wrapper}" >/dev/null 2>&1; then
     nohup "${wrapper}" >>"${log_file}" 2>&1 &
     _log "Started ${wrapper} for upstream ingest"
@@ -2067,11 +2078,11 @@ chmod 750 "${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh"
 echo "[SUCCESS] Processing script created"
 
 # --- MPX mix + Icecast encoder script ---
-echo "[INFO] Creating mpx-mix.sh (mono sum, hard pan, Icecast FLAC encoder)..."
+echo "[INFO] Creating mpx-mix.sh (mono sum, hard pan, Icecast ffmpeg encoder)..."
 cat > "${SYS_SCRIPTS_DIR}/mpx-mix.sh" <<'MPXMIX'
 #!/usr/bin/env bash
 # mpx-mix.sh — read two Stereo Tool output loopbacks, mono-sum each,
-# hard pan P1→L / P2→R, combine to stereo, encode FLAC → Icecast.
+# hard pan P1→L / P2→R, combine to stereo, encode (Opus/FLAC) → Icecast.
 set -euo pipefail
 
 PROFILE="/home/ompx/.profile"
@@ -2083,6 +2094,7 @@ ICECAST_SOURCE_USER="${ICECAST_SOURCE_USER:-source}"
 ICECAST_PASSWORD="${ICECAST_PASSWORD:-hackme}"
 ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx.flac}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
+ICECAST_CODEC="flac"
 ICECAST_MODE="${ICECAST_MODE:-disabled}"
 ST_OUT_P1="${ST_OUT_P1:-ompx_prg1mpx_cap}"
 ST_OUT_P2="${ST_OUT_P2:-ompx_prg2mpx_cap}"
@@ -2116,7 +2128,12 @@ fi
 
 _log "P1 source: ${ST_OUT_P1}"
 _log "P2 source: ${ST_OUT_P2} (available: ${P2_AVAILABLE})"
+if [ "${ICECAST_MOUNT}" = "/mpx.ogg" ]; then
+  ICECAST_MOUNT="/mpx.flac"
+fi
 _log "Icecast: flac ${ICECAST_SAMPLE_RATE}Hz → icecast://${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
+
+CODEC_ARGS=(-c:a flac -compression_level 0 -content_type audio/flac -f flac)
 
 if [ "${P2_AVAILABLE}" -eq 1 ]; then
   # Both programs available: P1 mono → L, P2 mono → R
@@ -2134,11 +2151,9 @@ if [ "${P2_AVAILABLE}" -eq 1 ]; then
        [p2raw][kpr]amix=inputs=2:normalize=0[p2];\
        [p1][p2]join=inputs=2:channel_layout=stereo[out]" \
     -map "[out]" \
-    -c:a flac -compression_level 0 \
-    -content_type audio/flac \
     -ice_name "oMPX Stereo 192k" \
     -ice_description "P1 (L) + P2 (R) mono-summed, hard-panned" \
-    -f flac \
+    "${CODEC_ARGS[@]}" \
     "icecast://${ICECAST_SOURCE_USER}:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
 else
   # Only P1: keep true stereo shape (L=program, R=comfort noise only)
@@ -2150,11 +2165,9 @@ else
        [0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[l];\
        [l][kp]join=inputs=2:channel_layout=stereo[out]" \
     -map "[out]" \
-    -c:a flac -compression_level 0 \
-    -content_type audio/flac \
     -ice_name "oMPX Stereo 192k" \
     -ice_description "P1 on LEFT, low-level keepalive on RIGHT — P2 not configured" \
-    -f flac \
+    "${CODEC_ARGS[@]}" \
     "icecast://${ICECAST_SOURCE_USER}:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
 fi
 MPXMIX
@@ -2394,7 +2407,7 @@ if [ -n "$ENGINE" ]; then
 fi
 chown ${OMPX_USER}:${OMPX_USER} "$PROFILE"; chmod 644 "$PROFILE"
 WRAPPER="${SYS_SCRIPTS_DIR}/source${RADIO}.sh"
-LOG_FILE="${OMPX_LOG_DIR}/radio-opus${RADIO}.log"
+LOG_FILE="${OMPX_LOG_DIR}/radio-source${RADIO}.log"
 mkdir -p "${OMPX_LOG_DIR}"
 touch "${LOG_FILE}"
 chown "${OMPX_USER}:${OMPX_USER}" "${OMPX_LOG_DIR}" "${LOG_FILE}"
@@ -2514,7 +2527,7 @@ mkdir -p "${OMPX_LOG_DIR}"
 chown "${OMPX_USER}:${OMPX_USER}" "${OMPX_LOG_DIR}" 2>/dev/null || true
 for n in 1 2; do
 wrapper="${SYS_SCRIPTS_DIR}/source${n}.sh"
-log="${OMPX_LOG_DIR}/radio-opus${n}.log"
+log="${OMPX_LOG_DIR}/radio-source${n}.log"
 touch "${log}" 2>/dev/null || true
 chown "${OMPX_USER}:${OMPX_USER}" "${log}" 2>/dev/null || true
 if ! pgrep -f "${wrapper}" >/dev/null 2>&1; then
@@ -2571,7 +2584,7 @@ if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
 fi
 else
 echo "[INFO] systemd not detected; configuring cron @reboot stream startup fallback"
-CRON_LINE1="@reboot sleep ${CRON_SLEEP} && ${SYS_SCRIPTS_DIR}/start_or_shell.sh --start >>${OMPX_LOG_DIR}/radio-opus-start.log 2>&1 &"
+CRON_LINE1="@reboot sleep ${CRON_SLEEP} && ${SYS_SCRIPTS_DIR}/start_or_shell.sh --start >>${OMPX_LOG_DIR}/radio-source-start.log 2>&1 &"
 if have_crontab; then
 existing=$(crontab -u "${OMPX_USER}" -l 2>/dev/null || true)
 new_cron="${existing}"
@@ -2610,8 +2623,8 @@ fi
 echo ""
 echo "  3. View logs:"
 echo "     journalctl -u mpx-processing-alsa.service -f"
-echo "     tail -f ${OMPX_LOG_DIR}/radio-opus1.log"
-echo "     tail -f ${OMPX_LOG_DIR}/radio-opus2.log"
+echo "     tail -f ${OMPX_LOG_DIR}/radio-source1.log"
+echo "     tail -f ${OMPX_LOG_DIR}/radio-source2.log"
 echo ""
 echo "  4. Verify ALSA named sinks:"
 echo "     aplay -L | grep -E 'ompx_prg1in|ompx_prg2in|ompx_prg1prev|ompx_prg2prev|ompx_prg1mpx|ompx_prg2mpx|ompx_dsca_src|ompx_dsca_injection|ompx_mpx_to_icecast'"
