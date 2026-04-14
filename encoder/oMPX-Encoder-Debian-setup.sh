@@ -22,10 +22,7 @@ OMPX_LOG_DIR="${OMPX_HOME}/logs"
 OMPX_SHELL="/bin/bash"
 SYS_SCRIPTS_DIR="/opt/mpx-radio"
 FIFOS_DIR="${SYS_SCRIPTS_DIR}/fifos"
-LIQUIDSOAP_CONF_DIR="${SYS_SCRIPTS_DIR}/liquidsoap"
 SYSTEMD_DIR="/etc/systemd/system"
-OMPX_ENCODER_LIQ="/usr/local/bin/ompx_encoder.liq"
-OMPX_ENCODER_RUN="/usr/local/bin/ompx_encoder"
 STEREO_TOOL_WRAPPER="/usr/local/bin/stereo-tool"
 STEREO_TOOL_ENTERPRISE_BIN="${OMPX_HOME}/stereo-tool-enterprise/stereo-tool-enterprise"
 STEREO_TOOL_ENTERPRISE_LAUNCHER="/usr/local/bin/stereo-tool-enterprise-launch"
@@ -99,6 +96,7 @@ if [ "${ENV_RADIO1_SET}" = "x" ]; then RADIO1_URL="${ENV_RADIO1_VAL}"; fi
 if [ "${ENV_RADIO2_SET}" = "x" ]; then RADIO2_URL="${ENV_RADIO2_VAL}"; fi
 if [ "${ENV_STREAM_ENGINE_SET}" = "x" ]; then STREAM_ENGINE="${ENV_STREAM_ENGINE_VAL}"; fi
 if [ "${ENV_STREAM_SILENCE_SET}" = "x" ]; then STREAM_SILENCE_MAX_DBFS="${ENV_STREAM_SILENCE_VAL}"; fi
+STREAM_ENGINE="ffmpeg"
 
 OS_ID="unknown"
 if [ -r /etc/os-release ]; then
@@ -1228,21 +1226,10 @@ if [ -t 0 ]; then
   esac
 
   echo ""
-  echo "Streaming engine options:"
-  echo "  L) Liquidsoap"
-  echo "     Pros: cleaner stream orchestration, easier future routing/DSP changes, better fit with the existing audio pipeline"
-  echo "     Cons: more moving parts, Liquidsoap syntax/runtime errors can be less familiar"
-  echo "  F) FFmpeg"
-  echo "     Pros: simpler single-process ingest loop, familiar behavior, easier to debug with direct ffmpeg logs"
-  echo "     Cons: less flexible for stream-source logic, less structured than Liquidsoap for future expansion"
+  echo "Streaming ingest engine is fixed to FFmpeg."
+  echo "  Reason: simpler runtime, fewer moving parts, no Liquidsoap dependency."
   echo "[INFO] Ingest can be any decodable format; Icecast output is fixed to FLAC at ${ICECAST_SAMPLE_RATE} Hz."
-  read -t 45 -p "Choose streaming engine [L/F] (default F): " cfg_stream_engine || cfg_stream_engine="F"
-  cfg_stream_engine=${cfg_stream_engine^^}
-  if [ "${cfg_stream_engine}" = "L" ]; then
-    STREAM_ENGINE="liquidsoap"
-  else
-    STREAM_ENGINE="ffmpeg"
-  fi
+  STREAM_ENGINE="ffmpeg"
   echo "[INFO] Selected streaming engine: ${STREAM_ENGINE}"
 
   configure_icecast_dialog
@@ -1424,7 +1411,7 @@ echo "[WARNING] crontab command not found; skipping cron cleanup"
 fi
 echo "[INFO] Removing old files and directories..."
 rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
-rm -rf "${SYS_SCRIPTS_DIR}" "${LIQUIDSOAP_CONF_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log /var/log/radio-source1.log /var/log/radio-source2.log
+rm -rf "${SYS_SCRIPTS_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log /var/log/radio-source1.log /var/log/radio-source2.log
 rm -f "${OMPX_AUDIO_UDEV_RULE}" || true
 rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
 echo "[INFO] Removing oMPX user..."
@@ -1451,7 +1438,7 @@ echo "[WARNING] crontab command not found; skipping cron cleanup"
 fi
 echo "[INFO] Removing files and directories..."
 rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
-rm -rf "${SYS_SCRIPTS_DIR}" "${LIQUIDSOAP_CONF_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log /var/log/radio-source1.log /var/log/radio-source2.log
+rm -rf "${SYS_SCRIPTS_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log /var/log/radio-source1.log /var/log/radio-source2.log
 rm -f "${OMPX_AUDIO_UDEV_RULE}" || true
 rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
 echo "[INFO] Removing oMPX user..."
@@ -1497,17 +1484,17 @@ write_profile_file
 # --- Create directories, install packages ---
 echo "[INFO] Creating system directories..."
 
-mkdir -p "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${LIQUIDSOAP_CONF_DIR}" "${OMPX_LOG_DIR}"
+mkdir -p "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${OMPX_LOG_DIR}"
 chown -R "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}"
 chown -R "${OMPX_USER}:${OMPX_USER}" "${OMPX_LOG_DIR}"
-chmod 755 "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}" "${LIQUIDSOAP_CONF_DIR}"
+chmod 755 "${SYS_SCRIPTS_DIR}" "${FIFOS_DIR}"
 chmod 755 "${OMPX_LOG_DIR}"
 echo "[SUCCESS] Directories created at ${SYS_SCRIPTS_DIR}"
 
 echo "[INFO] Updating package lists..."
 safe_apt_update
-echo "[INFO] Installing base dependencies (curl, alsa-utils, ffmpeg, sox, ladspa-sdk, swh-plugins, liquidsoap, cron)..."
-DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils ffmpeg sox ladspa-sdk swh-plugins liquidsoap cron
+echo "[INFO] Installing base dependencies (curl, alsa-utils, ffmpeg, sox, ladspa-sdk, swh-plugins, cron)..."
+DEBIAN_FRONTEND=noninteractive apt install -y curl alsa-utils ffmpeg sox ladspa-sdk swh-plugins cron
 if [ "${ICECAST_MODE}" = "local" ]; then
   install_icecast_local
 fi
@@ -1792,7 +1779,7 @@ if [ "${RUN_QUICK_AUDIO_TEST}" = true ] && [ "${CONFIG_SKIP}" = false ] && [ "${
 elif [ "${RUN_QUICK_AUDIO_TEST}" = true ]; then
   echo "[INFO] Skipping quick loopback self-test because the live ALSA config is not active yet"
 fi
-# --- Create FIFOs for liquidsoap outputs ---
+# --- Create FIFOs for ingest/processing pipeline ---
 echo "[INFO] Creating FIFOs for radio streams..."
 
 for r in 1 2; do
@@ -1802,124 +1789,6 @@ mkfifo -m 660 "$fifo"
 chown "${OMPX_USER}:${OMPX_USER}" "$fifo"
 echo "[SUCCESS] Created FIFO: $fifo"
 done
-# --- Liquidsoap configuration files (safe templates) ---
-echo "[INFO] Generating Liquidsoap configuration files..."
-
-cat > "${LIQUIDSOAP_CONF_DIR}/radio1.liq" <<'L1'
-set("log.stdout", true)
-sample_rate = 192000
-alsa_output = if getenv("ALSA_OUTPUT", "") <> "" then getenv("ALSA_OUTPUT") else "ompx_prg1in"
-def write_alsa(dev, src)
-cmd = "ffmpeg -hide_banner -loglevel warning -i - -ac 2 -ar " ^ string_of_int(sample_rate) ^ " -f alsa '" ^ dev ^ "'"
-output.exec(src, ["sh","-c", cmd])
-end
-default_url = "${RADIO1_URL}"
-urL = if getenv("RADIO_URL", "") <> "" then getenv("RADIO_URL") else default_url
-s1 = request.create(urL)
-s1 = fallback(track_sensitive = true, [s1, blank(duration = 3600.)])
-s1 = convert(s1, samplerate = sample_rate, channels = 2)
-write_alsa(alsa_output, s1)
-output.null(s1)
-L1
-
-cat > "${LIQUIDSOAP_CONF_DIR}/radio2.liq" <<'L2'
-set("log.stdout", true)
-sample_rate = 192000
-alsa_output = if getenv("ALSA_OUTPUT", "") <> "" then getenv("ALSA_OUTPUT") else "ompx_prg2in"
-def write_alsa(dev, src)
-cmd = "ffmpeg -hide_banner -loglevel warning -i - -ac 2 -ar " ^ string_of_int(sample_rate) ^ " -f alsa '" ^ dev ^ "'"
-output.exec(src, ["sh","-c", cmd])
-end
-default_url = "${RADIO2_URL}"
-urL = if getenv("RADIO_URL", "") <> "" then getenv("RADIO_URL") else default_url
-s1 = request.create(urL)
-s1 = fallback(track_sensitive = true, [s1, blank(duration = 3600.)])
-s1 = convert(s1, samplerate = sample_rate, channels = 2)
-write_alsa(alsa_output, s1)
-output.null(s1)
-L2
-echo "[SUCCESS] Liquidsoap configs created (radio1.liq, radio2.liq)"
-
-echo "[INFO] Creating oMPX encoder Liquidsoap script..."
-cat > "${OMPX_ENCODER_LIQ}" <<'OMPX_LIQ'
-# /usr/local/bin/ompx_encoder.liq
-# oMPX named ALSA loopback endpoints for this installer profile:
-#   Write/playback: ompx_prg1in, ompx_prg2in, ompx_prg1prev, ompx_prg2prev, ompx_prg1mpx, ompx_prg2mpx, ompx_dsca_src, ompx_dsca_injection, ompx_mpx_to_icecast
-#   Read/capture: ompx_prg1in_cap, ompx_prg2in_cap, ompx_prg1prev_cap, ompx_prg2prev_cap, ompx_prg1mpx_cap, ompx_prg2mpx_cap, ompx_dsca_src_cap
-# Main stereo source: read/capture side of Program 1 input loopback pair.
-main = input.alsa(device="ompx_prg1in_cap")
-
-# Injector source: read/capture side of the DSCA source loopback pair.
-injector_mono = input.alsa(device="ompx_dsca_src_cap")
-
-# Ensure both sources are resampled to 192kHz first for correct filtering and mixing
-main = convert_samplerate(main, 192000)
-injector_mono = convert_samplerate(injector_mono, 192000)
-
-# If main is mono, keep it mono and append a silent channel so output stays stereo (dead channel preserved)
-main = if channels(main) == 2 then main else add_blank_channel(main) end
-
-# Band-pass the injector around ~80kHz (center 80000 Hz, narrow band e.g. ±5kHz)
-# Use highpass + lowpass to create a band-pass.
-inj = highpass(injector_mono, 75000.)
-inj = lowpass(inj, 85000.)
-
-# Convert injector to 2 channels by duplicating mono into both channels (so it adds to both L and R)
-inj_stereo = stereoize(inj)
-
-# Mix injector into main at a controlled gain (e.g., -6 dB to avoid clipping)
-inj_stereo = amplify(0.5, inj_stereo)
-
-# Add injector to main without altering original channels otherwise
-out_src = add([main, inj_stereo])
-
-# Final safety: ensure out_src is 2-channel and 192kHz
-out_src = if channels(out_src) == 2 then out_src else add_blank_channel(out_src) end
-out_src = convert_samplerate(out_src, 192000)
-
-# Composite clipper: split 0-16kHz (composite+stereo subcarrier) from 16kHz+ (RDS+pilot)
-# Only clip the composite band; leave RDS and pilot unclipped.
-
-# Composite band: 0-16 kHz (composite audio + 38 kHz stereo pilot region)
-composite_band = lowpass(out_src, 16000.)
-composite_band = clip(composite_band, min=-0.99, max=0.99)
-
-# Protected band: 16 kHz+ (RDS at ~57kHz, pilot at ~19kHz, and beyond)
-protected_band = highpass(out_src, 16000.)
-
-# Recombine clipped composite + unclipped highs
-out_src = add([composite_band, protected_band])
-
-# Stream as FLAC to Icecast
-output.icecast(
-  %flac(compression=8),
-  mount="/mpx.flac",
-  host="127.0.0.1",
-  port=8000,
-  password="bbkrb494b3fy8qqcrym6fvbfgdxk7jcher-mpx",
-  name="MPX FLAC 192kHz (stereo with 80kHz injector)",
-  description="Native 192kHz FLAC stereo (L=PROG1, R=PROG2) with shared ~80kHz injection and composite clipping",
-  genre="Radio",
-  url="http://127.0.0.1:8000/mpx.flac",
-  out_src
-)
-OMPX_LIQ
-chown "${OMPX_USER}:${OMPX_USER}" "${OMPX_ENCODER_LIQ}"
-chmod 640 "${OMPX_ENCODER_LIQ}"
-
-cat > "${OMPX_ENCODER_RUN}" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-
-if [ "\$(id -un)" != "${OMPX_USER}" ]; then
-  exec runuser -u "${OMPX_USER}" -- /usr/bin/liquidsoap "${OMPX_ENCODER_LIQ}"
-fi
-
-exec /usr/bin/liquidsoap "${OMPX_ENCODER_LIQ}"
-EOF
-chown root:root "${OMPX_ENCODER_RUN}"
-chmod 755 "${OMPX_ENCODER_RUN}"
-echo "[SUCCESS] Created ${OMPX_ENCODER_LIQ} and ${OMPX_ENCODER_RUN} (runs as ${OMPX_USER})"
 # --- Create source wrapper scripts (persistent ffmpeg ingest to ALSA sinks) ---
 echo "[INFO] Creating wrapper scripts..."
 
@@ -1931,8 +1800,6 @@ PROFILE="${OMPX_HOME}/.profile"
 [ -f "\$PROFILE" ] && . "\$PROFILE"
 RADIO_VAR_NAME="RADIO${n}_URL"
 RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
-LIQ_SCRIPT="${LIQUIDSOAP_CONF_DIR}/radio${n}.liq"
-STREAM_ENGINE_VALUE="\${STREAM_ENGINE:-ffmpeg}"
 if [ "${n}" = "1" ]; then
   SINK_NAME="ompx_prg1in"
 else
@@ -1947,8 +1814,7 @@ if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   echo "[\$(date +'%F %T')] source${n}: named sink unavailable; using fallback \${SINK_NAME}"
 fi
 echo "[\$(date +'%F %T')] source${n}: using ALSA output endpoint \${SINK_NAME}"
-echo "[\$(date +'%F %T')] source${n}: using stream engine \${STREAM_ENGINE_VALUE}"
-echo "[\$(date +'%F %T')] source${n}: using Liquidsoap script \${LIQ_SCRIPT}"
+echo "[\$(date +'%F %T')] source${n}: ingest via ffmpeg (input format auto-detected)"
 
 if [ -z "\${RADIO_URL_VALUE}" ] || [[ "\${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "\${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
   echo "[\$(date +'%F %T')] source${n}: RADIO${n}_URL is empty/placeholder; exiting"
@@ -1958,17 +1824,10 @@ fi
 while true :
 do
   sleep 5
-  case "\${STREAM_ENGINE_VALUE}" in
-    ffmpeg)
-      ffmpeg -nostdin -reconnect 1 -reconnect_streamed 1 -reconnect_at_eof 1 -reconnect_delay_max 5 -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
-        -vn -sn -dn \
-        -max_delay 5000000 \
-        -ar ${SAMPLE_RATE} -ac 2 -f alsa "\${SINK_NAME}" || true
-      ;;
-    *)
-      RADIO_URL="\${RADIO_URL_VALUE}" ALSA_OUTPUT="\${SINK_NAME}" /usr/bin/liquidsoap "\${LIQ_SCRIPT}" || true
-      ;;
-  esac
+  ffmpeg -nostdin -reconnect 1 -reconnect_streamed 1 -reconnect_at_eof 1 -reconnect_delay_max 5 -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
+    -vn -sn -dn \
+    -max_delay 5000000 \
+    -ar ${SAMPLE_RATE} -ac 2 -f alsa "\${SINK_NAME}" || true
 done
 WRAP
 chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/source${n}.sh"
@@ -2156,17 +2015,19 @@ if [ "${P2_AVAILABLE}" -eq 1 ]; then
     "${CODEC_ARGS[@]}" \
     "icecast://${ICECAST_SOURCE_USER}:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
 else
-  # Only P1: keep true stereo shape (L=program, R=comfort noise only)
-  _log "P2 not available — broadcasting P1 on LEFT only with low-level keepalive on RIGHT"
+  # Only P1: duplicate to both channels so clients always receive full L/R program audio.
+  _log "P2 not available — duplicating P1 to both channels"
   exec ffmpeg -nostdin \
     -f alsa -thread_queue_size 16384 -i "${ST_OUT_P1}" \
     -filter_complex \
       "anoisesrc=r=${ICECAST_SAMPLE_RATE}:amplitude=0.0001[kp];\
-       [0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[l];\
-       [l][kp]join=inputs=2:channel_layout=stereo[out]" \
+       [0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[p1raw];\
+       [p1raw][kp]amix=inputs=2:normalize=0[mono];\
+       [mono]asplit=2[l][r];\
+       [l][r]join=inputs=2:channel_layout=stereo[out]" \
     -map "[out]" \
     -ice_name "oMPX Stereo 192k" \
-    -ice_description "P1 on LEFT, low-level keepalive on RIGHT — P2 not configured" \
+    -ice_description "P1 duplicated to L+R (P2 not configured)" \
     "${CODEC_ARGS[@]}" \
     "icecast://${ICECAST_SOURCE_USER}:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
 fi
@@ -2375,7 +2236,7 @@ echo "[INFO] Creating ompx_add_source helper..."
 cat > "${OMPX_ADD}" <<'ADD'
 #!/usr/bin/env bash
 set -euo pipefail
-SYS_SCRIPTS_DIR="/opt/mpx-radio"; OMPX_USER="ompx"; OMPX_HOME="/home/ompx"; OMPX_LOG_DIR="${OMPX_HOME}/logs"; CRON_SLEEP=10; LIQUIDSOAP_CONF_DIR="/opt/mpx-radio/liquidsoap"
+SYS_SCRIPTS_DIR="/opt/mpx-radio"; OMPX_USER="ompx"; OMPX_HOME="/home/ompx"; OMPX_LOG_DIR="${OMPX_HOME}/logs"; CRON_SLEEP=10
 detect_loopback_card_ref(){
   local card_ref=""
   card_ref=$(aplay -l 2>/dev/null | awk '/\[Loopback\]/{gsub(":", "", $2); print $2; exit}')
@@ -2392,19 +2253,17 @@ detect_loopback_card_ref(){
 }
 LOOPBACK_CARD_REF="${LOOPBACK_CARD_REF:-$(detect_loopback_card_ref)}"
 usage(){ cat <<USAGE
-Usage: $0 --radio 1|2 --url URL [--engine liquidsoap|ffmpeg] [--cron-user root|ompx] [--start-now]
+Usage: $0 --radio 1|2 --url URL [--cron-user root|ompx] [--start-now]
 Adds or updates an existing radio source URL and wrapper.
 USAGE
 }
-RADIO=""; URL=""; ENGINE=""; CRON_USER="${OMPX_USER}"; START_NOW=0
-while [ $# -gt 0 ]; do case "$1" in --radio) RADIO="$2"; shift 2;; --url) URL="$2"; shift 2;; --engine) ENGINE="$2"; shift 2;; --cron-user) CRON_USER="$2"; shift 2;; --start-now) START_NOW=1; shift;; -h|--help) usage; exit 0;; *) echo "Unknown arg: $1"; usage; exit 1;; esac; done
+RADIO=""; URL=""; CRON_USER="${OMPX_USER}"; START_NOW=0
+while [ $# -gt 0 ]; do case "$1" in --radio) RADIO="$2"; shift 2;; --url) URL="$2"; shift 2;; --cron-user) CRON_USER="$2"; shift 2;; --start-now) START_NOW=1; shift;; -h|--help) usage; exit 0;; *) echo "Unknown arg: $1"; usage; exit 1;; esac; done
 if [ -z "$RADIO" ] || [ -z "$URL" ]; then usage; exit 1; fi
 PROFILE="${OMPX_HOME}/.profile"; cp -a "$PROFILE" "${PROFILE}.bak.$(date +%s)"
 VAR="RADIO${RADIO}_URL"
 if grep -q "^${VAR}=" "$PROFILE"; then sed -i "s|^${VAR}=.*|${VAR}=\"${URL}\"|" "$PROFILE"; else echo "${VAR}=\"${URL}\"" >> "$PROFILE"; fi
-if [ -n "$ENGINE" ]; then
-  if grep -q '^STREAM_ENGINE=' "$PROFILE"; then sed -i "s|^STREAM_ENGINE=.*|STREAM_ENGINE=\"${ENGINE}\"|" "$PROFILE"; else echo "STREAM_ENGINE=\"${ENGINE}\"" >> "$PROFILE"; fi
-fi
+if grep -q '^STREAM_ENGINE=' "$PROFILE"; then sed -i 's|^STREAM_ENGINE=.*|STREAM_ENGINE="ffmpeg"|' "$PROFILE"; else echo 'STREAM_ENGINE="ffmpeg"' >> "$PROFILE"; fi
 chown ${OMPX_USER}:${OMPX_USER} "$PROFILE"; chmod 644 "$PROFILE"
 WRAPPER="${SYS_SCRIPTS_DIR}/source${RADIO}.sh"
 LOG_FILE="${OMPX_LOG_DIR}/radio-source${RADIO}.log"
@@ -2420,8 +2279,6 @@ PROFILE="${OMPX_HOME}/.profile"
 [ -f "$PROFILE" ] && . "$PROFILE"
 RADIO_VAR_NAME="RADIO${RADIO}_URL"
 RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
-LIQ_SCRIPT="${LIQUIDSOAP_CONF_DIR}/radio${RADIO}.liq"
-STREAM_ENGINE_VALUE="\${STREAM_ENGINE:-ffmpeg}"
 if [ "${RADIO}" = "1" ]; then
   SINK_NAME="ompx_prg1in"
 else
@@ -2436,8 +2293,7 @@ if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   echo "[\$(date +'%F %T')] source${RADIO}: named sink unavailable; using fallback \${SINK_NAME}"
 fi
 echo "[\$(date +'%F %T')] source${RADIO}: using ALSA output endpoint \${SINK_NAME}"
-echo "[\$(date +'%F %T')] source${RADIO}: using Liquidsoap script \${LIQ_SCRIPT}"
-echo "[\$(date +'%F %T')] source${RADIO}: using stream engine \${STREAM_ENGINE_VALUE}"
+echo "[\$(date +'%F %T')] source${RADIO}: ingest via ffmpeg (input format auto-detected)"
 if [ -z "\${RADIO_URL_VALUE}" ] || [[ "\${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "\${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
   echo "[\$(date +'%F %T')] source${RADIO}: RADIO${RADIO}_URL is empty/placeholder; exiting"
   exit 0
@@ -2445,18 +2301,11 @@ fi
 while true :
 do
   sleep 5
-  case "\${STREAM_ENGINE_VALUE}" in
-    ffmpeg)
-      ffmpeg -nostdin -reconnect 1 -reconnect_streamed 1 -reconnect_at_eof 1 -reconnect_delay_max 5 \
-        -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
-        -vn -sn -dn \
-        -max_delay 5000000 \
-        -ar 192000 -ac 2 -f alsa "\${SINK_NAME}" || true
-      ;;
-    *)
-      RADIO_URL="\${RADIO_URL_VALUE}" ALSA_OUTPUT="\${SINK_NAME}" /usr/bin/liquidsoap "\${LIQ_SCRIPT}" || true
-      ;;
-  esac
+  ffmpeg -nostdin -reconnect 1 -reconnect_streamed 1 -reconnect_at_eof 1 -reconnect_delay_max 5 \
+    -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
+    -vn -sn -dn \
+    -max_delay 5000000 \
+    -ar 192000 -ac 2 -f alsa "\${SINK_NAME}" || true
 done
 WRAP
 chown ${OMPX_USER}:${OMPX_USER} "$WRAPPER"; chmod 750 "$WRAPPER"
