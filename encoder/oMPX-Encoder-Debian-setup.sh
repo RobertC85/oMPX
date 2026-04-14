@@ -81,10 +81,12 @@ ICECAST_MODE="${ICECAST_MODE:-disabled}"
 ST_OUT_P1="${ST_OUT_P1:-ompx_prg1mpx_cap}"
 ST_OUT_P2="${ST_OUT_P2:-ompx_prg2mpx_cap}"
 RDS_PROG1_ENABLE="${RDS_PROG1_ENABLE:-false}"
+RDS_PROG1_SOURCE="${RDS_PROG1_SOURCE:-url}"
 RDS_PROG1_RT_URL="${RDS_PROG1_RT_URL:-}"
 RDS_PROG1_INTERVAL_SEC="${RDS_PROG1_INTERVAL_SEC:-5}"
 RDS_PROG1_RT_PATH="${RDS_PROG1_RT_PATH:-${OMPX_HOME}/rds/prog1/rt.txt}"
 RDS_PROG2_ENABLE="${RDS_PROG2_ENABLE:-false}"
+RDS_PROG2_SOURCE="${RDS_PROG2_SOURCE:-url}"
 RDS_PROG2_RT_URL="${RDS_PROG2_RT_URL:-}"
 RDS_PROG2_INTERVAL_SEC="${RDS_PROG2_INTERVAL_SEC:-5}"
 RDS_PROG2_RT_PATH="${RDS_PROG2_RT_PATH:-${OMPX_HOME}/rds/prog2/rt.txt}"
@@ -434,60 +436,103 @@ configure_icecast_dialog(){
 }
 
 configure_rds_dialog(){
+  local _rds_mode_default="U"
+  local _rds2_mode_default="U"
   echo ""
   echo "=== RDS sync configuration ==="
-  echo "  Syncs RadioText from a URL to ${OMPX_HOME}/rds/prog1/rt.txt"
+  echo "  Syncs RadioText from a text URL OR from stream metadata"
+  echo "  Program 1 output file: ${OMPX_HOME}/rds/prog1/rt.txt"
   read -t 60 -p "Enable Program 1 RDS text sync? [y/N] (default N): " _rds_enable || _rds_enable="N"
   _rds_enable=${_rds_enable^^}
   if [ "${_rds_enable}" != "Y" ]; then
     RDS_PROG1_ENABLE="false"
+    RDS_PROG1_SOURCE="url"
     RDS_PROG1_RT_URL=""
     echo "[INFO] Program 1 RDS sync disabled"
   else
     RDS_PROG1_ENABLE="true"
-    read -t 180 -p "RDS text URL for Program 1: " _rds_url || _rds_url=""
-    if [ -z "${_rds_url}" ]; then
-      echo "[WARNING] Empty RDS URL; disabling Program 1 RDS sync"
-      RDS_PROG1_ENABLE="false"
+    [ "${RDS_PROG1_SOURCE}" = "metadata" ] && _rds_mode_default="M"
+    read -t 60 -p "Program 1 RDS source [U=url/M=metadata] (default ${_rds_mode_default}): " _rds_mode || _rds_mode="${_rds_mode_default}"
+    _rds_mode=${_rds_mode^^}
+    if [ "${_rds_mode}" = "M" ]; then
+      RDS_PROG1_SOURCE="metadata"
       RDS_PROG1_RT_URL=""
+      if is_placeholder_stream_url "${RADIO1_URL}"; then
+        echo "[WARNING] Program 1 stream URL is placeholder/empty; metadata sync may fail until RADIO1_URL is set"
+      fi
+      echo "[INFO] Program 1 metadata mode enabled (reads StreamTitle from RADIO1_URL)"
     else
-      RDS_PROG1_RT_URL="${_rds_url}"
+      RDS_PROG1_SOURCE="url"
+      read -t 180 -p "RDS text URL for Program 1: " _rds_url || _rds_url=""
+      if [ -z "${_rds_url}" ]; then
+        echo "[WARNING] Empty RDS URL; disabling Program 1 RDS sync"
+        RDS_PROG1_ENABLE="false"
+        RDS_PROG1_RT_URL=""
+      else
+        RDS_PROG1_RT_URL="${_rds_url}"
+      fi
+    fi
 
+    if [ "${RDS_PROG1_ENABLE}" = "true" ]; then
       read -t 60 -p "Refresh interval seconds (default ${RDS_PROG1_INTERVAL_SEC}): " _rds_int || _rds_int=""
       if [[ "${_rds_int}" =~ ^[0-9]+$ ]] && [ "${_rds_int}" -ge 1 ]; then
         RDS_PROG1_INTERVAL_SEC="${_rds_int}"
       fi
 
       RDS_PROG1_RT_PATH="${OMPX_HOME}/rds/prog1/rt.txt"
-      echo "[INFO] Program 1 RDS sync enabled: ${RDS_PROG1_RT_URL} -> ${RDS_PROG1_RT_PATH} every ${RDS_PROG1_INTERVAL_SEC}s"
+      if [ "${RDS_PROG1_SOURCE}" = "metadata" ]; then
+        echo "[INFO] Program 1 RDS sync enabled (metadata): RADIO1_URL -> ${RDS_PROG1_RT_PATH} every ${RDS_PROG1_INTERVAL_SEC}s"
+      else
+        echo "[INFO] Program 1 RDS sync enabled (url): ${RDS_PROG1_RT_URL} -> ${RDS_PROG1_RT_PATH} every ${RDS_PROG1_INTERVAL_SEC}s"
+      fi
     fi
   fi
 
   echo ""
-  echo "  Syncs RadioText from a URL to ${OMPX_HOME}/rds/prog2/rt.txt"
+  echo "  Program 2 output file: ${OMPX_HOME}/rds/prog2/rt.txt"
   read -t 60 -p "Enable Program 2 RDS text sync? [y/N] (default N): " _rds2_enable || _rds2_enable="N"
   _rds2_enable=${_rds2_enable^^}
   if [ "${_rds2_enable}" != "Y" ]; then
     RDS_PROG2_ENABLE="false"
+    RDS_PROG2_SOURCE="url"
     RDS_PROG2_RT_URL=""
     echo "[INFO] Program 2 RDS sync disabled"
   else
     RDS_PROG2_ENABLE="true"
-    read -t 180 -p "RDS text URL for Program 2: " _rds2_url || _rds2_url=""
-    if [ -z "${_rds2_url}" ]; then
-      echo "[WARNING] Empty RDS URL; disabling Program 2 RDS sync"
-      RDS_PROG2_ENABLE="false"
+    [ "${RDS_PROG2_SOURCE}" = "metadata" ] && _rds2_mode_default="M"
+    read -t 60 -p "Program 2 RDS source [U=url/M=metadata] (default ${_rds2_mode_default}): " _rds2_mode || _rds2_mode="${_rds2_mode_default}"
+    _rds2_mode=${_rds2_mode^^}
+    if [ "${_rds2_mode}" = "M" ]; then
+      RDS_PROG2_SOURCE="metadata"
       RDS_PROG2_RT_URL=""
+      if is_placeholder_stream_url "${RADIO2_URL}"; then
+        echo "[WARNING] Program 2 stream URL is placeholder/empty; metadata sync may fail until RADIO2_URL is set"
+      fi
+      echo "[INFO] Program 2 metadata mode enabled (reads StreamTitle from RADIO2_URL)"
     else
-      RDS_PROG2_RT_URL="${_rds2_url}"
+      RDS_PROG2_SOURCE="url"
+      read -t 180 -p "RDS text URL for Program 2: " _rds2_url || _rds2_url=""
+      if [ -z "${_rds2_url}" ]; then
+        echo "[WARNING] Empty RDS URL; disabling Program 2 RDS sync"
+        RDS_PROG2_ENABLE="false"
+        RDS_PROG2_RT_URL=""
+      else
+        RDS_PROG2_RT_URL="${_rds2_url}"
+      fi
+    fi
 
+    if [ "${RDS_PROG2_ENABLE}" = "true" ]; then
       read -t 60 -p "Refresh interval seconds (default ${RDS_PROG2_INTERVAL_SEC}): " _rds2_int || _rds2_int=""
       if [[ "${_rds2_int}" =~ ^[0-9]+$ ]] && [ "${_rds2_int}" -ge 1 ]; then
         RDS_PROG2_INTERVAL_SEC="${_rds2_int}"
       fi
 
       RDS_PROG2_RT_PATH="${OMPX_HOME}/rds/prog2/rt.txt"
-      echo "[INFO] Program 2 RDS sync enabled: ${RDS_PROG2_RT_URL} -> ${RDS_PROG2_RT_PATH} every ${RDS_PROG2_INTERVAL_SEC}s"
+      if [ "${RDS_PROG2_SOURCE}" = "metadata" ]; then
+        echo "[INFO] Program 2 RDS sync enabled (metadata): RADIO2_URL -> ${RDS_PROG2_RT_PATH} every ${RDS_PROG2_INTERVAL_SEC}s"
+      else
+        echo "[INFO] Program 2 RDS sync enabled (url): ${RDS_PROG2_RT_URL} -> ${RDS_PROG2_RT_PATH} every ${RDS_PROG2_INTERVAL_SEC}s"
+      fi
     fi
   fi
 }
@@ -935,10 +980,12 @@ ICECAST_CODEC="${ICECAST_CODEC}"
 ST_OUT_P1="${ST_OUT_P1}"
 ST_OUT_P2="${ST_OUT_P2}"
 RDS_PROG1_ENABLE="${RDS_PROG1_ENABLE}"
+RDS_PROG1_SOURCE="${RDS_PROG1_SOURCE}"
 RDS_PROG1_RT_URL="${RDS_PROG1_RT_URL}"
 RDS_PROG1_INTERVAL_SEC="${RDS_PROG1_INTERVAL_SEC}"
 RDS_PROG1_RT_PATH="${RDS_PROG1_RT_PATH}"
 RDS_PROG2_ENABLE="${RDS_PROG2_ENABLE}"
+RDS_PROG2_SOURCE="${RDS_PROG2_SOURCE}"
 RDS_PROG2_RT_URL="${RDS_PROG2_RT_URL}"
 RDS_PROG2_INTERVAL_SEC="${RDS_PROG2_INTERVAL_SEC}"
 RDS_PROG2_RT_PATH="${RDS_PROG2_RT_PATH}"
@@ -2502,18 +2549,35 @@ PROFILE="/home/ompx/.profile"
 [ -f "${PROFILE}" ] && . "${PROFILE}"
 
 RDS_PROG1_ENABLE="${RDS_PROG1_ENABLE:-false}"
+RDS_PROG1_SOURCE="${RDS_PROG1_SOURCE:-url}"
 RDS_PROG1_RT_URL="${RDS_PROG1_RT_URL:-}"
 RDS_PROG1_INTERVAL_SEC="${RDS_PROG1_INTERVAL_SEC:-5}"
 RDS_PROG1_RT_PATH="${RDS_PROG1_RT_PATH:-/home/ompx/rds/prog1/rt.txt}"
+RADIO1_URL="${RADIO1_URL:-}"
 
 _log(){ logger -t rds-sync-prog1 "$*"; echo "$(date +'%F %T') [rds-sync-prog1] $*"; }
+
+_fetch_stream_title(){
+  local stream_url="$1"
+  local title=""
+  title="$(timeout 20 ffprobe -v error -show_entries format_tags=StreamTitle -of default=noprint_wrappers=1:nokey=1 "${stream_url}" 2>/dev/null | head -n1 | tr -d '\r' || true)"
+  if [ -z "${title}" ]; then
+    title="$(timeout 20 ffmpeg -nostdin -hide_banner -loglevel info -i "${stream_url}" -t 8 -vn -sn -dn -f null - 2>&1 | sed -n "s/.*StreamTitle='\([^']*\)'.*/\1/p" | head -n1 | tr -d '\r' || true)"
+  fi
+  printf '%s' "${title}"
+}
 
 if [ "${RDS_PROG1_ENABLE}" != "true" ]; then
   _log "RDS_PROG1_ENABLE is not true; exiting"
   exit 0
 fi
 
-if [ -z "${RDS_PROG1_RT_URL}" ]; then
+if [ "${RDS_PROG1_SOURCE}" = "metadata" ] && [ -z "${RADIO1_URL}" ]; then
+  _log "RDS_PROG1_SOURCE=metadata but RADIO1_URL is empty; exiting"
+  exit 0
+fi
+
+if [ "${RDS_PROG1_SOURCE}" != "metadata" ] && [ -z "${RDS_PROG1_RT_URL}" ]; then
   _log "RDS_PROG1_RT_URL is empty; exiting"
   exit 0
 fi
@@ -2526,10 +2590,20 @@ mkdir -p "$(dirname "${RDS_PROG1_RT_PATH}")"
 tmp_path="${RDS_PROG1_RT_PATH}.tmp"
 
 while true; do
-  if wget -q -T 20 -O "${tmp_path}" "${RDS_PROG1_RT_URL}"; then
-    mv -f "${tmp_path}" "${RDS_PROG1_RT_PATH}"
+  if [ "${RDS_PROG1_SOURCE}" = "metadata" ]; then
+    rt_text="$(_fetch_stream_title "${RADIO1_URL}")"
+    if [ -n "${rt_text}" ]; then
+      printf '%s\n' "${rt_text}" > "${tmp_path}"
+      mv -f "${tmp_path}" "${RDS_PROG1_RT_PATH}"
+    else
+      _log "No StreamTitle metadata found from RADIO1_URL"
+    fi
   else
-    _log "Failed to fetch ${RDS_PROG1_RT_URL}"
+    if wget -q -T 20 -O "${tmp_path}" "${RDS_PROG1_RT_URL}"; then
+      mv -f "${tmp_path}" "${RDS_PROG1_RT_PATH}"
+    else
+      _log "Failed to fetch ${RDS_PROG1_RT_URL}"
+    fi
   fi
   sleep "${RDS_PROG1_INTERVAL_SEC}"
 done
@@ -2573,18 +2647,35 @@ PROFILE="/home/ompx/.profile"
 [ -f "${PROFILE}" ] && . "${PROFILE}"
 
 RDS_PROG2_ENABLE="${RDS_PROG2_ENABLE:-false}"
+RDS_PROG2_SOURCE="${RDS_PROG2_SOURCE:-url}"
 RDS_PROG2_RT_URL="${RDS_PROG2_RT_URL:-}"
 RDS_PROG2_INTERVAL_SEC="${RDS_PROG2_INTERVAL_SEC:-5}"
 RDS_PROG2_RT_PATH="${RDS_PROG2_RT_PATH:-/home/ompx/rds/prog2/rt.txt}"
+RADIO2_URL="${RADIO2_URL:-}"
 
 _log(){ logger -t rds-sync-prog2 "$*"; echo "$(date +'%F %T') [rds-sync-prog2] $*"; }
+
+_fetch_stream_title(){
+  local stream_url="$1"
+  local title=""
+  title="$(timeout 20 ffprobe -v error -show_entries format_tags=StreamTitle -of default=noprint_wrappers=1:nokey=1 "${stream_url}" 2>/dev/null | head -n1 | tr -d '\r' || true)"
+  if [ -z "${title}" ]; then
+    title="$(timeout 20 ffmpeg -nostdin -hide_banner -loglevel info -i "${stream_url}" -t 8 -vn -sn -dn -f null - 2>&1 | sed -n "s/.*StreamTitle='\([^']*\)'.*/\1/p" | head -n1 | tr -d '\r' || true)"
+  fi
+  printf '%s' "${title}"
+}
 
 if [ "${RDS_PROG2_ENABLE}" != "true" ]; then
   _log "RDS_PROG2_ENABLE is not true; exiting"
   exit 0
 fi
 
-if [ -z "${RDS_PROG2_RT_URL}" ]; then
+if [ "${RDS_PROG2_SOURCE}" = "metadata" ] && [ -z "${RADIO2_URL}" ]; then
+  _log "RDS_PROG2_SOURCE=metadata but RADIO2_URL is empty; exiting"
+  exit 0
+fi
+
+if [ "${RDS_PROG2_SOURCE}" != "metadata" ] && [ -z "${RDS_PROG2_RT_URL}" ]; then
   _log "RDS_PROG2_RT_URL is empty; exiting"
   exit 0
 fi
@@ -2597,10 +2688,20 @@ mkdir -p "$(dirname "${RDS_PROG2_RT_PATH}")"
 tmp_path="${RDS_PROG2_RT_PATH}.tmp"
 
 while true; do
-  if wget -q -T 20 -O "${tmp_path}" "${RDS_PROG2_RT_URL}"; then
-    mv -f "${tmp_path}" "${RDS_PROG2_RT_PATH}"
+  if [ "${RDS_PROG2_SOURCE}" = "metadata" ]; then
+    rt_text="$(_fetch_stream_title "${RADIO2_URL}")"
+    if [ -n "${rt_text}" ]; then
+      printf '%s\n' "${rt_text}" > "${tmp_path}"
+      mv -f "${tmp_path}" "${RDS_PROG2_RT_PATH}"
+    else
+      _log "No StreamTitle metadata found from RADIO2_URL"
+    fi
   else
-    _log "Failed to fetch ${RDS_PROG2_RT_URL}"
+    if wget -q -T 20 -O "${tmp_path}" "${RDS_PROG2_RT_URL}"; then
+      mv -f "${tmp_path}" "${RDS_PROG2_RT_PATH}"
+    else
+      _log "Failed to fetch ${RDS_PROG2_RT_URL}"
+    fi
   fi
   sleep "${RDS_PROG2_INTERVAL_SEC}"
 done
@@ -2754,6 +2855,8 @@ echo ""
 echo "  9. RDS/RadioText file paths for your processor:"
 echo "     Program 1 RT file: /home/ompx/rds/prog1/rt.txt"
 echo "     Program 2 RT file: /home/ompx/rds/prog2/rt.txt"
+echo "     RDS source mode is per-program: URL text file or stream metadata (StreamTitle)."
+echo "     Metadata mode reads Program 1 from RADIO1_URL and Program 2 from RADIO2_URL."
 echo "     If your processor can read RadioText from a file, point it at those paths."
 echo "     Stereo Tool example strings:"
 echo "       Program 1: \\r\"/home/ompx/rds/prog1/rt.txt\""
