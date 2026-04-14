@@ -2560,9 +2560,12 @@ _log(){ logger -t rds-sync-prog1 "$*"; echo "$(date +'%F %T') [rds-sync-prog1] $
 _fetch_stream_title(){
   local stream_url="$1"
   local title=""
-  title="$(timeout 20 ffprobe -v error -show_entries format_tags=StreamTitle -of default=noprint_wrappers=1:nokey=1 "${stream_url}" 2>/dev/null | head -n1 | tr -d '\r' || true)"
+  title="$(timeout 20 ffprobe -v error -show_entries format_tags:stream_tags -of default=noprint_wrappers=1:nokey=0 "${stream_url}" 2>/dev/null | awk 'BEGIN{IGNORECASE=1} /^TAG:(StreamTitle|title)=/ {sub(/^[^=]*=/,""); print; exit}' | tr -d '\r' || true)"
   if [ -z "${title}" ]; then
-    title="$(timeout 20 ffmpeg -nostdin -hide_banner -loglevel info -i "${stream_url}" -t 8 -vn -sn -dn -f null - 2>&1 | sed -n "s/.*StreamTitle='\([^']*\)'.*/\1/p" | head -n1 | tr -d '\r' || true)"
+    title="$(timeout 20 ffmpeg -nostdin -hide_banner -loglevel info -headers "Icy-MetaData:1" -i "${stream_url}" -t 12 -vn -sn -dn -f null - 2>&1 | sed -n "s/.*StreamTitle='\([^']*\)'.*/\1/p" | head -n1 | tr -d '\r' || true)"
+  fi
+  if [ -z "${title}" ]; then
+    title="$(timeout 20 ffmpeg -nostdin -hide_banner -loglevel info -headers "Icy-MetaData:1" -i "${stream_url}" -t 12 -vn -sn -dn -f null - 2>&1 | sed -n "s/.*[Tt][Ii][Tt][Ll][Ee][[:space:]]*:[[:space:]]*\(.*\)$/\1/p" | head -n1 | tr -d '\r' || true)"
   fi
   printf '%s' "${title}"
 }
@@ -2601,7 +2604,12 @@ while true; do
     fi
   else
     if wget -q -T 20 -O "${tmp_path}" "${RDS_PROG1_RT_URL}"; then
-      mv -f "${tmp_path}" "${RDS_PROG1_RT_PATH}"
+      if [ -s "${tmp_path}" ] && grep -q '[^[:space:]]' "${tmp_path}" 2>/dev/null; then
+        mv -f "${tmp_path}" "${RDS_PROG1_RT_PATH}"
+      else
+        rm -f "${tmp_path}" || true
+        _log "Fetched empty RT from ${RDS_PROG1_RT_URL}; keeping previous file contents"
+      fi
     else
       _log "Failed to fetch ${RDS_PROG1_RT_URL}"
     fi
@@ -2659,9 +2667,12 @@ _log(){ logger -t rds-sync-prog2 "$*"; echo "$(date +'%F %T') [rds-sync-prog2] $
 _fetch_stream_title(){
   local stream_url="$1"
   local title=""
-  title="$(timeout 20 ffprobe -v error -show_entries format_tags=StreamTitle -of default=noprint_wrappers=1:nokey=1 "${stream_url}" 2>/dev/null | head -n1 | tr -d '\r' || true)"
+  title="$(timeout 20 ffprobe -v error -show_entries format_tags:stream_tags -of default=noprint_wrappers=1:nokey=0 "${stream_url}" 2>/dev/null | awk 'BEGIN{IGNORECASE=1} /^TAG:(StreamTitle|title)=/ {sub(/^[^=]*=/,""); print; exit}' | tr -d '\r' || true)"
   if [ -z "${title}" ]; then
-    title="$(timeout 20 ffmpeg -nostdin -hide_banner -loglevel info -i "${stream_url}" -t 8 -vn -sn -dn -f null - 2>&1 | sed -n "s/.*StreamTitle='\([^']*\)'.*/\1/p" | head -n1 | tr -d '\r' || true)"
+    title="$(timeout 20 ffmpeg -nostdin -hide_banner -loglevel info -headers "Icy-MetaData:1" -i "${stream_url}" -t 12 -vn -sn -dn -f null - 2>&1 | sed -n "s/.*StreamTitle='\([^']*\)'.*/\1/p" | head -n1 | tr -d '\r' || true)"
+  fi
+  if [ -z "${title}" ]; then
+    title="$(timeout 20 ffmpeg -nostdin -hide_banner -loglevel info -headers "Icy-MetaData:1" -i "${stream_url}" -t 12 -vn -sn -dn -f null - 2>&1 | sed -n "s/.*[Tt][Ii][Tt][Ll][Ee][[:space:]]*:[[:space:]]*\(.*\)$/\1/p" | head -n1 | tr -d '\r' || true)"
   fi
   printf '%s' "${title}"
 }
@@ -2700,7 +2711,12 @@ while true; do
     fi
   else
     if wget -q -T 20 -O "${tmp_path}" "${RDS_PROG2_RT_URL}"; then
-      mv -f "${tmp_path}" "${RDS_PROG2_RT_PATH}"
+      if [ -s "${tmp_path}" ] && grep -q '[^[:space:]]' "${tmp_path}" 2>/dev/null; then
+        mv -f "${tmp_path}" "${RDS_PROG2_RT_PATH}"
+      else
+        rm -f "${tmp_path}" || true
+        _log "Fetched empty RT from ${RDS_PROG2_RT_URL}; keeping previous file contents"
+      fi
     else
       _log "Failed to fetch ${RDS_PROG2_RT_URL}"
     fi
