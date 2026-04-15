@@ -2258,18 +2258,12 @@ CODEC_ARGS=(-c:a flac -compression_level 0 -content_type audio/flac -f flac)
 
 if [ "${P2_AVAILABLE}" -eq 1 ]; then
   # Both programs available: P1 mono → L, P2 mono → R
-  # anoisesrc at -80 dBFS (amplitude 0.0001) split to both channels keeps VLC/players
-  # alive even when one program carries silence — FLAC all-zero frames cause many
-  # players to never activate their audio output.
   exec ffmpeg -nostdin \
     -f alsa -thread_queue_size 16384 -i "${ST_OUT_P1}" \
     -f alsa -thread_queue_size 16384 -i "${ST_OUT_P2}" \
     -filter_complex \
-      "anoisesrc=r=${ICECAST_SAMPLE_RATE}:amplitude=0.0001,asplit=2[kpl][kpr];\
-       [0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[p1raw];\
-       [1:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[p2raw];\
-       [p1raw][kpl]amix=inputs=2:normalize=0[p1];\
-       [p2raw][kpr]amix=inputs=2:normalize=0[p2];\
+      "[0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[p1];\
+       [1:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[p2];\
        [p1][p2]join=inputs=2:channel_layout=stereo[out]" \
     -map "[out]" \
     -ice_name "oMPX Stereo 192k" \
@@ -2282,9 +2276,7 @@ else
   exec ffmpeg -nostdin \
     -f alsa -thread_queue_size 16384 -i "${ST_OUT_P1}" \
     -filter_complex \
-      "anoisesrc=r=${ICECAST_SAMPLE_RATE}:amplitude=0.0001[kp];\
-       [0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[p1raw];\
-       [p1raw][kp]amix=inputs=2:normalize=0[mono];\
+      "[0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[mono];\
        [mono]asplit=2[l][r];\
        [l][r]join=inputs=2:channel_layout=stereo[out]" \
     -map "[out]" \
