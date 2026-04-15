@@ -722,8 +722,8 @@ detect_loopback_card_ref(){
 
 render_asound_config(){
   # card_ref kept for caller compatibility but is no longer used; each loopback
-  # card has its own ALSA name (loaded with id=<name>) so we reference by name,
-  # which is stable across reboots regardless of card number assignment.
+  # card has its own ALSA name (loaded with id=<name>) so Stereo Tool can list
+  # multiple distinct sinks instead of just substreams on one card.
   cat <<EOF
 # BEGIN OMPX ALSA BLOCK
 # oMPX ALSA virtual PCM map (auto-generated)
@@ -1324,7 +1324,23 @@ strip_legacy_hw_references(){
 }
 
 load_ompx_aloop_profile(){
-  modprobe snd_aloop enable=1 pcm_substreams=2
+  local ompx_modprobe_conf="/etc/modprobe.d/70-ompx-snd-aloop.conf"
+  local ompx_modules_load_conf="/etc/modules-load.d/70-ompx-snd-aloop.conf"
+
+  # Expose multiple named loopback cards so apps that do not enumerate ALSA
+  # substreams (including some Stereo Tool builds) still show distinct sinks.
+  cat > "${ompx_modprobe_conf}" <<'EOF'
+options snd-aloop enable=1,1,1,1,1,1,1,1,1 index=10,11,12,13,14,15,16,17,18 id=program1in,program2in,program1preview,program2preview,program1mpxsrc,program2mpxsrc,dscasource,dscainjectionsr,mpxmix pcm_substreams=2,2,2,2,2,2,2,2,2
+EOF
+  chmod 644 "${ompx_modprobe_conf}" || true
+
+  cat > "${ompx_modules_load_conf}" <<'EOF'
+snd-aloop
+EOF
+  chmod 644 "${ompx_modules_load_conf}" || true
+
+  modprobe -r snd_aloop >/dev/null 2>&1 || true
+  modprobe snd_aloop enable=1,1,1,1,1,1,1,1,1 index=10,11,12,13,14,15,16,17,18 id=program1in,program2in,program1preview,program2preview,program1mpxsrc,program2mpxsrc,dscasource,dscainjectionsr,mpxmix pcm_substreams=2,2,2,2,2,2,2,2,2
 }
 
 if [ "${EUID}" -ne 0 ]; then
