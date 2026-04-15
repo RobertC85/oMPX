@@ -699,6 +699,38 @@ prompt_stereo_tool_limit_preset(){
   esac
 }
 
+prompt_stereo_tool_web_binding(){
+  local cfg_st_bind=""
+  local cfg_st_port=""
+  local cfg_st_whitelist=""
+
+  echo "  Stereo Tool web bind configuration:"
+  echo "    Current bind address : ${STEREO_TOOL_WEB_BIND}"
+  echo "    Current web port     : ${STEREO_TOOL_WEB_PORT}"
+  echo "    Current whitelist    : ${STEREO_TOOL_WEB_WHITELIST}"
+
+  read -t 60 -p "Bind address (IP/host, default ${STEREO_TOOL_WEB_BIND}): " cfg_st_bind || cfg_st_bind=""
+  if [ -n "${cfg_st_bind}" ]; then
+    STEREO_TOOL_WEB_BIND="${cfg_st_bind}"
+  fi
+
+  read -t 60 -p "Web port (1-65535, default ${STEREO_TOOL_WEB_PORT}): " cfg_st_port || cfg_st_port=""
+  if [ -n "${cfg_st_port}" ]; then
+    if [[ "${cfg_st_port}" =~ ^[0-9]+$ ]] && [ "${cfg_st_port}" -ge 1 ] && [ "${cfg_st_port}" -le 65535 ]; then
+      STEREO_TOOL_WEB_PORT="${cfg_st_port}"
+    else
+      echo "[WARNING] Invalid port '${cfg_st_port}', keeping ${STEREO_TOOL_WEB_PORT}"
+    fi
+  fi
+
+  read -t 60 -p "CIDR whitelist (default ${STEREO_TOOL_WEB_WHITELIST}): " cfg_st_whitelist || cfg_st_whitelist=""
+  if [ -n "${cfg_st_whitelist}" ]; then
+    STEREO_TOOL_WEB_WHITELIST="${cfg_st_whitelist}"
+  fi
+
+  echo "[INFO] Stereo Tool web endpoint configured: bind=${STEREO_TOOL_WEB_BIND}, port=${STEREO_TOOL_WEB_PORT}, whitelist=${STEREO_TOOL_WEB_WHITELIST}"
+}
+
 safe_apt_update(){
   DEBIAN_FRONTEND=noninteractive apt update -y || true
 }
@@ -1464,6 +1496,7 @@ if [ -t 0 ]; then
     if [ "${cfg_st_enable_existing}" != "N" ]; then
       ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
       prompt_stereo_tool_limit_preset
+      prompt_stereo_tool_web_binding
       read -t 45 -p "Start Stereo Tool Enterprise immediately after install (no reboot)? [Y/n] (default Y): " cfg_st_start_now || cfg_st_start_now="Y"
       cfg_st_start_now=${cfg_st_start_now^^}
       if [ "${cfg_st_start_now}" = "N" ]; then
@@ -1486,6 +1519,7 @@ if [ -t 0 ]; then
       fi
       ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
       prompt_stereo_tool_limit_preset
+      prompt_stereo_tool_web_binding
       read -t 45 -p "Start Stereo Tool Enterprise immediately after install (no reboot)? [Y/n] (default Y): " cfg_st_start_now || cfg_st_start_now="Y"
       cfg_st_start_now=${cfg_st_start_now^^}
       if [ "${cfg_st_start_now}" = "N" ]; then
