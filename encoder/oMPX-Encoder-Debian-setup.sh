@@ -15,6 +15,12 @@ ENV_STREAM_ENGINE_SET="${STREAM_ENGINE+x}"
 ENV_STREAM_ENGINE_VAL="${STREAM_ENGINE-}"
 ENV_STREAM_SILENCE_SET="${STREAM_SILENCE_MAX_DBFS+x}"
 ENV_STREAM_SILENCE_VAL="${STREAM_SILENCE_MAX_DBFS-}"
+ENV_ENABLE_DSCA_SET="${ENABLE_DSCA_SINKS+x}"
+ENV_ENABLE_DSCA_VAL="${ENABLE_DSCA_SINKS-}"
+ENV_ENABLE_PREVIEW_SET="${ENABLE_PREVIEW_SINKS+x}"
+ENV_ENABLE_PREVIEW_VAL="${ENABLE_PREVIEW_SINKS-}"
+ENV_NON_MPX_SAMPLE_RATE_SET="${NON_MPX_SAMPLE_RATE+x}"
+ENV_NON_MPX_SAMPLE_RATE_VAL="${NON_MPX_SAMPLE_RATE-}"
 
 OMPX_USER="ompx"
 OMPX_HOME="/home/ompx"
@@ -38,6 +44,7 @@ OMPX_AUDIO_UDEV_RULE="/etc/udev/rules.d/70-ompx-audio.rules"
 ASOUND_MAP_HELPER="/usr/local/bin/asound-map"
 ASOUND_SWITCH_HELPER="/usr/local/bin/asound-switch"
 SAMPLE_RATE=192000
+NON_MPX_SAMPLE_RATE="${NON_MPX_SAMPLE_RATE:-48000}"
 CRON_SLEEP=10
 
 # These can be overridden by exporting env vars before running the installer.
@@ -53,6 +60,8 @@ ALLOW_PLACEHOLDER_STREAM_OVERWRITE="${ALLOW_PLACEHOLDER_STREAM_OVERWRITE:-false}
 REMOVE_OLD_SINKS="${REMOVE_OLD_SINKS:-false}"
 RUN_QUICK_AUDIO_TEST="${RUN_QUICK_AUDIO_TEST:-false}"
 STREAM_VALIDATION_ENABLED="${STREAM_VALIDATION_ENABLED:-false}"
+ENABLE_DSCA_SINKS="${ENABLE_DSCA_SINKS:-false}"
+ENABLE_PREVIEW_SINKS="${ENABLE_PREVIEW_SINKS:-false}"
 FETCH_STEREO_TOOL_ENTERPRISE="${FETCH_STEREO_TOOL_ENTERPRISE:-false}"
 STEREO_TOOL_ENTERPRISE_URL="${STEREO_TOOL_ENTERPRISE_URL:-https://download.thimeo.com/ST-Enterprise}"
 STEREO_TOOL_DOWNLOAD_DIR="${STEREO_TOOL_DOWNLOAD_DIR:-${OMPX_HOME}/stereo-tool-enterprise}"
@@ -114,6 +123,23 @@ if [ "${ENV_RADIO1_SET}" = "x" ]; then RADIO1_URL="${ENV_RADIO1_VAL}"; fi
 if [ "${ENV_RADIO2_SET}" = "x" ]; then RADIO2_URL="${ENV_RADIO2_VAL}"; fi
 if [ "${ENV_STREAM_ENGINE_SET}" = "x" ]; then STREAM_ENGINE="${ENV_STREAM_ENGINE_VAL}"; fi
 if [ "${ENV_STREAM_SILENCE_SET}" = "x" ]; then STREAM_SILENCE_MAX_DBFS="${ENV_STREAM_SILENCE_VAL}"; fi
+if [ "${ENV_ENABLE_DSCA_SET}" = "x" ]; then ENABLE_DSCA_SINKS="${ENV_ENABLE_DSCA_VAL}"; fi
+if [ "${ENV_ENABLE_PREVIEW_SET}" = "x" ]; then ENABLE_PREVIEW_SINKS="${ENV_ENABLE_PREVIEW_VAL}"; fi
+if [ "${ENV_NON_MPX_SAMPLE_RATE_SET}" = "x" ]; then NON_MPX_SAMPLE_RATE="${ENV_NON_MPX_SAMPLE_RATE_VAL}"; fi
+ENABLE_DSCA_SINKS="${ENABLE_DSCA_SINKS,,}"
+ENABLE_PREVIEW_SINKS="${ENABLE_PREVIEW_SINKS,,}"
+if [ "${ENABLE_DSCA_SINKS}" != "true" ] && [ "${ENABLE_DSCA_SINKS}" != "false" ]; then
+  echo "[WARNING] Invalid ENABLE_DSCA_SINKS='${ENABLE_DSCA_SINKS}'; defaulting to false"
+  ENABLE_DSCA_SINKS="false"
+fi
+if [ "${ENABLE_PREVIEW_SINKS}" != "true" ] && [ "${ENABLE_PREVIEW_SINKS}" != "false" ]; then
+  echo "[WARNING] Invalid ENABLE_PREVIEW_SINKS='${ENABLE_PREVIEW_SINKS}'; defaulting to false"
+  ENABLE_PREVIEW_SINKS="false"
+fi
+if ! [[ "${NON_MPX_SAMPLE_RATE}" =~ ^[0-9]+$ ]] || [ "${NON_MPX_SAMPLE_RATE}" -lt 8000 ] || [ "${NON_MPX_SAMPLE_RATE}" -gt 192000 ]; then
+  echo "[WARNING] Invalid NON_MPX_SAMPLE_RATE='${NON_MPX_SAMPLE_RATE}'; defaulting to 48000"
+  NON_MPX_SAMPLE_RATE="48000"
+fi
 STREAM_ENGINE="ffmpeg"
 
 OS_ID="unknown"
@@ -756,49 +782,22 @@ render_asound_config(){
   # card_ref kept for caller compatibility but is no longer used; each loopback
   # card has its own ALSA name (loaded with id=<name>) so Stereo Tool can list
   # multiple distinct sinks instead of just substreams on one card.
-  cat <<EOF
-# BEGIN OMPX ALSA BLOCK
-# oMPX ALSA virtual PCM map (auto-generated)
+  local enable_dsca="${ENABLE_DSCA_SINKS:-false}"
+  local enable_preview="${ENABLE_PREVIEW_SINKS:-false}"
+  local non_mpx_rate="${NON_MPX_SAMPLE_RATE:-48000}"
+  local dsca_pcm_block=""
+  local dsca_alias_block=""
+  local preview_pcm_block=""
+  local preview_alias_block=""
 
-pcm.ompx_prg1in {
-  type plug
-  slave.pcm "hw:program1in,0"
-  hint {
-    show on
-    description "oMPX Program 1 Input (write/playback)"
-  }
-}
-
-pcm.ompx_prg1in_cap {
-  type plug
-  slave.pcm "hw:program1in,1"
-  hint {
-    show on
-    description "oMPX Program 1 Input Capture (read/capture)"
-  }
-}
-
-pcm.ompx_prg2in {
-  type plug
-  slave.pcm "hw:program2in,0"
-  hint {
-    show on
-    description "oMPX Program 2 Input (write/playback)"
-  }
-}
-
-pcm.ompx_prg2in_cap {
-  type plug
-  slave.pcm "hw:program2in,1"
-  hint {
-    show on
-    description "oMPX Program 2 Input Capture (read/capture)"
-  }
-}
-
+  if [ "${enable_preview}" = "true" ]; then
+    preview_pcm_block=$(cat <<EOF
 pcm.ompx_prg1prev {
   type plug
-  slave.pcm "hw:program1preview,0"
+  slave {
+    pcm "hw:program1preview,0"
+    rate ${non_mpx_rate}
+  }
   hint {
     show on
     description "oMPX Program 1 Preview (write/playback)"
@@ -807,7 +806,10 @@ pcm.ompx_prg1prev {
 
 pcm.ompx_prg1prev_cap {
   type plug
-  slave.pcm "hw:program1preview,1"
+  slave {
+    pcm "hw:program1preview,1"
+    rate ${non_mpx_rate}
+  }
   hint {
     show on
     description "oMPX Program 1 Preview Capture (read/capture)"
@@ -816,7 +818,10 @@ pcm.ompx_prg1prev_cap {
 
 pcm.ompx_prg2prev {
   type plug
-  slave.pcm "hw:program2preview,0"
+  slave {
+    pcm "hw:program2preview,0"
+    rate ${non_mpx_rate}
+  }
   hint {
     show on
     description "oMPX Program 2 Preview (write/playback)"
@@ -825,12 +830,177 @@ pcm.ompx_prg2prev {
 
 pcm.ompx_prg2prev_cap {
   type plug
-  slave.pcm "hw:program2preview,1"
+  slave {
+    pcm "hw:program2preview,1"
+    rate ${non_mpx_rate}
+  }
   hint {
     show on
     description "oMPX Program 2 Preview Capture (read/capture)"
   }
 }
+
+EOF
+)
+
+    preview_alias_block=$(cat <<'EOF'
+pcm.ompx_program1_preview {
+  type plug
+  slave.pcm "ompx_prg1prev"
+  hint {
+    show on
+    description "oMPX Program 1 Preview (alias)"
+  }
+}
+
+pcm.ompx_program1_preview_capture {
+  type plug
+  slave.pcm "ompx_prg1prev_cap"
+  hint {
+    show on
+    description "oMPX Program 1 Preview Capture (alias)"
+  }
+}
+
+pcm.ompx_program2_preview {
+  type plug
+  slave.pcm "ompx_prg2prev"
+  hint {
+    show on
+    description "oMPX Program 2 Preview (alias)"
+  }
+}
+
+pcm.ompx_program2_preview_capture {
+  type plug
+  slave.pcm "ompx_prg2prev_cap"
+  hint {
+    show on
+    description "oMPX Program 2 Preview Capture (alias)"
+  }
+}
+
+EOF
+)
+  fi
+
+  if [ "${enable_dsca}" = "true" ]; then
+    dsca_pcm_block=$(cat <<EOF
+pcm.ompx_dsca_src {
+  type plug
+  slave {
+    pcm "hw:dscasource,0"
+    rate ${non_mpx_rate}
+  }
+  hint {
+    show on
+    description "oMPX DSCA Source (write/playback)"
+  }
+}
+
+pcm.ompx_dsca_src_cap {
+  type plug
+  slave {
+    pcm "hw:dscasource,1"
+    rate ${non_mpx_rate}
+  }
+  hint {
+    show on
+    description "oMPX DSCA Source Capture (read/capture)"
+  }
+}
+
+pcm.ompx_dsca_injection {
+  type plug
+  slave {
+    pcm "hw:dscainjectionsr,0"
+    rate ${non_mpx_rate}
+  }
+  hint {
+    show on
+    description "oMPX DSCA Injection"
+  }
+}
+
+EOF
+)
+
+    dsca_alias_block=$(cat <<'EOF'
+pcm.ompx_dsca_source {
+  type plug
+  slave.pcm "ompx_dsca_src"
+  hint {
+    show on
+    description "oMPX DSCA Source (alias)"
+  }
+}
+
+pcm.ompx_dsca_source_capture {
+  type plug
+  slave.pcm "ompx_dsca_src_cap"
+  hint {
+    show on
+    description "oMPX DSCA Source Capture (alias)"
+  }
+}
+
+EOF
+)
+  fi
+
+  cat <<EOF
+# BEGIN OMPX ALSA BLOCK
+# oMPX ALSA virtual PCM map (auto-generated)
+
+pcm.ompx_prg1in {
+  type plug
+  slave {
+    pcm "hw:program1in,0"
+    rate ${non_mpx_rate}
+  }
+  hint {
+    show on
+    description "oMPX Program 1 Input (write/playback)"
+  }
+}
+
+pcm.ompx_prg1in_cap {
+  type plug
+  slave {
+    pcm "hw:program1in,1"
+    rate ${non_mpx_rate}
+  }
+  hint {
+    show on
+    description "oMPX Program 1 Input Capture (read/capture)"
+  }
+}
+
+pcm.ompx_prg2in {
+  type plug
+  slave {
+    pcm "hw:program2in,0"
+    rate ${non_mpx_rate}
+  }
+  hint {
+    show on
+    description "oMPX Program 2 Input (write/playback)"
+  }
+}
+
+pcm.ompx_prg2in_cap {
+  type plug
+  slave {
+    pcm "hw:program2in,1"
+    rate ${non_mpx_rate}
+  }
+  hint {
+    show on
+    description "oMPX Program 2 Input Capture (read/capture)"
+  }
+}
+
+${preview_pcm_block}
 
 pcm.ompx_prg1mpx {
   type plug
@@ -868,32 +1038,7 @@ pcm.ompx_prg2mpx_cap {
   }
 }
 
-pcm.ompx_dsca_src {
-  type plug
-  slave.pcm "hw:dscasource,0"
-  hint {
-    show on
-    description "oMPX DSCA Source (write/playback)"
-  }
-}
-
-pcm.ompx_dsca_src_cap {
-  type plug
-  slave.pcm "hw:dscasource,1"
-  hint {
-    show on
-    description "oMPX DSCA Source Capture (read/capture)"
-  }
-}
-
-pcm.ompx_dsca_injection {
-  type plug
-  slave.pcm "hw:dscainjectionsr,0"
-  hint {
-    show on
-    description "oMPX DSCA Injection"
-  }
-}
+${dsca_pcm_block}
 
 pcm.ompx_mpx_to_icecast {
   type plug
@@ -941,41 +1086,7 @@ pcm.ompx_program2_input_capture {
   }
 }
 
-pcm.ompx_program1_preview {
-  type plug
-  slave.pcm "ompx_prg1prev"
-  hint {
-    show on
-    description "oMPX Program 1 Preview (alias)"
-  }
-}
-
-pcm.ompx_program1_preview_capture {
-  type plug
-  slave.pcm "ompx_prg1prev_cap"
-  hint {
-    show on
-    description "oMPX Program 1 Preview Capture (alias)"
-  }
-}
-
-pcm.ompx_program2_preview {
-  type plug
-  slave.pcm "ompx_prg2prev"
-  hint {
-    show on
-    description "oMPX Program 2 Preview (alias)"
-  }
-}
-
-pcm.ompx_program2_preview_capture {
-  type plug
-  slave.pcm "ompx_prg2prev_cap"
-  hint {
-    show on
-    description "oMPX Program 2 Preview Capture (alias)"
-  }
-}
+${preview_alias_block}
 
 pcm.ompx_program1_mpx_output {
   type plug
@@ -1013,23 +1124,7 @@ pcm.ompx_program2_mpx_output_capture {
   }
 }
 
-pcm.ompx_dsca_source {
-  type plug
-  slave.pcm "ompx_dsca_src"
-  hint {
-    show on
-    description "oMPX DSCA Source (alias)"
-  }
-}
-
-pcm.ompx_dsca_source_capture {
-  type plug
-  slave.pcm "ompx_dsca_src_cap"
-  hint {
-    show on
-    description "oMPX DSCA Source Capture (alias)"
-  }
-}
+${dsca_alias_block}
 
 # END OMPX ALSA BLOCK
 
@@ -1081,6 +1176,9 @@ ICECAST_ADMIN_USER="${ICECAST_ADMIN_USER}"
 ICECAST_MOUNT="${ICECAST_MOUNT}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE}"
 ICECAST_CODEC="${ICECAST_CODEC}"
+ENABLE_DSCA_SINKS="${ENABLE_DSCA_SINKS}"
+ENABLE_PREVIEW_SINKS="${ENABLE_PREVIEW_SINKS}"
+NON_MPX_SAMPLE_RATE="${NON_MPX_SAMPLE_RATE}"
 ST_OUT_P1="${ST_OUT_P1}"
 ST_OUT_P2="${ST_OUT_P2}"
 RDS_PROG1_ENABLE="${RDS_PROG1_ENABLE}"
@@ -1358,11 +1456,51 @@ strip_legacy_hw_references(){
 load_ompx_aloop_profile(){
   local ompx_modprobe_conf="/etc/modprobe.d/70-ompx-snd-aloop.conf"
   local ompx_modules_load_conf="/etc/modules-load.d/70-ompx-snd-aloop.conf"
+  local modprobe_opts=""
+  local ids=()
+  local enable_list=""
+  local index_list=""
+  local id_list=""
+  local pcm_substreams_list=""
+  local idx=10
+  local id=""
 
   # Expose multiple named loopback cards so apps that do not enumerate ALSA
   # substreams (including some Stereo Tool builds) still show distinct sinks.
-  cat > "${ompx_modprobe_conf}" <<'EOF'
-options snd-aloop enable=1,1,1,1,1,1,1,1,1 index=10,11,12,13,14,15,16,17,18 id=program1in,program2in,program1preview,program2preview,program1mpxsrc,program2mpxsrc,dscasource,dscainjectionsr,mpxmix pcm_substreams=2,2,2,2,2,2,2,2,2
+  ids=(program1in program2in)
+  if [ "${ENABLE_PREVIEW_SINKS}" = "true" ]; then
+    ids+=(program1preview program2preview)
+  fi
+  ids+=(program1mpxsrc program2mpxsrc)
+  if [ "${ENABLE_DSCA_SINKS}" = "true" ]; then
+    ids+=(dscasource dscainjectionsr)
+  fi
+  ids+=(mpxmix)
+
+  for id in "${ids[@]}"; do
+    if [ -n "${enable_list}" ]; then enable_list+=","; fi
+    enable_list+="1"
+    if [ -n "${index_list}" ]; then
+      index_list+=","
+    fi
+    index_list+="${idx}"
+    if [ -n "${id_list}" ]; then
+      id_list+=","
+    fi
+    id_list+="${id}"
+    if [ -n "${pcm_substreams_list}" ]; then
+      pcm_substreams_list+=","
+    fi
+    pcm_substreams_list+="2"
+    idx=$((idx + 1))
+  done
+
+  if [ -n "${id_list}" ]; then
+    modprobe_opts="enable=${enable_list} index=${index_list} id=${id_list} pcm_substreams=${pcm_substreams_list}"
+  fi
+
+  cat > "${ompx_modprobe_conf}" <<EOF
+options snd-aloop ${modprobe_opts}
 EOF
   chmod 644 "${ompx_modprobe_conf}" || true
 
@@ -1372,7 +1510,7 @@ EOF
   chmod 644 "${ompx_modules_load_conf}" || true
 
   modprobe -r snd_aloop >/dev/null 2>&1 || true
-  modprobe snd_aloop enable=1,1,1,1,1,1,1,1,1 index=10,11,12,13,14,15,16,17,18 id=program1in,program2in,program1preview,program2preview,program1mpxsrc,program2mpxsrc,dscasource,dscainjectionsr,mpxmix pcm_substreams=2,2,2,2,2,2,2,2,2
+  modprobe snd_aloop ${modprobe_opts}
 }
 
 if [ "${EUID}" -ne 0 ]; then
@@ -1479,9 +1617,34 @@ if [ -t 0 ]; then
   echo ""
   echo "Streaming ingest engine is fixed to FFmpeg."
   echo "  Reason: simpler runtime, fewer moving parts, no Liquidsoap dependency."
-  echo "[INFO] Ingest can be any decodable format; Icecast output is fixed to FLAC at ${ICECAST_SAMPLE_RATE} Hz."
+  echo "[INFO] Ingest can be any decodable format; non-MPX sink sample rate defaults to ${NON_MPX_SAMPLE_RATE} Hz; Icecast output is fixed to FLAC at ${ICECAST_SAMPLE_RATE} Hz."
   STREAM_ENGINE="ffmpeg"
   echo "[INFO] Selected streaming engine: ${STREAM_ENGINE}"
+  read -t 30 -p "Enable DSCA sinks/cards? [y/N] (default N): " cfg_dsca || cfg_dsca="N"
+  cfg_dsca=${cfg_dsca^^}
+  if [ "${cfg_dsca}" = "Y" ]; then
+    ENABLE_DSCA_SINKS="true"
+  else
+    ENABLE_DSCA_SINKS="false"
+  fi
+  read -t 30 -p "Enable preview sinks/cards? [y/N] (default N): " cfg_preview || cfg_preview="N"
+  cfg_preview=${cfg_preview^^}
+  if [ "${cfg_preview}" = "Y" ]; then
+    ENABLE_PREVIEW_SINKS="true"
+  else
+    ENABLE_PREVIEW_SINKS="false"
+  fi
+  read -t 30 -p "Non-MPX sink sample rate in Hz (default ${NON_MPX_SAMPLE_RATE}): " cfg_non_mpx_sr || cfg_non_mpx_sr=""
+  if [ -n "${cfg_non_mpx_sr}" ]; then
+    if [[ "${cfg_non_mpx_sr}" =~ ^[0-9]+$ ]] && [ "${cfg_non_mpx_sr}" -ge 8000 ] && [ "${cfg_non_mpx_sr}" -le 192000 ]; then
+      NON_MPX_SAMPLE_RATE="${cfg_non_mpx_sr}"
+    else
+      echo "[WARNING] Invalid non-MPX sample rate '${cfg_non_mpx_sr}', keeping ${NON_MPX_SAMPLE_RATE}"
+    fi
+  fi
+  echo "[INFO] ENABLE_DSCA_SINKS=${ENABLE_DSCA_SINKS}"
+  echo "[INFO] ENABLE_PREVIEW_SINKS=${ENABLE_PREVIEW_SINKS}"
+  echo "[INFO] NON_MPX_SAMPLE_RATE=${NON_MPX_SAMPLE_RATE}"
 
   configure_icecast_dialog
   configure_rds_dialog
@@ -1536,25 +1699,71 @@ fi
 cat > "${ASOUND_MAP_HELPER}" <<'ASMAP'
 #!/usr/bin/env bash
 set -euo pipefail
+PROFILE="/home/ompx/.profile"
+ENABLE_DSCA_SINKS="${ENABLE_DSCA_SINKS:-false}"
+ENABLE_PREVIEW_SINKS="${ENABLE_PREVIEW_SINKS:-false}"
+if [ -f "${PROFILE}" ]; then
+  # shellcheck disable=SC1090
+  . "${PROFILE}" || true
+fi
+ENABLE_DSCA_SINKS="${ENABLE_DSCA_SINKS,,}"
+ENABLE_PREVIEW_SINKS="${ENABLE_PREVIEW_SINKS,,}"
+
 echo "oMPX sink map helper"
 echo "--------------------"
 echo "Write/playback endpoints (send audio into these):"
-for id in ompx_prg1in ompx_prg1prev ompx_prg2in ompx_prg2prev ompx_dsca_src ompx_prg1mpx ompx_prg2mpx ompx_dsca_injection ompx_mpx_to_icecast; do
+for id in ompx_prg1in ompx_prg2in ompx_prg1mpx ompx_prg2mpx ompx_mpx_to_icecast; do
   printf '  %s\n' "$id"
 done
+if [ "${ENABLE_PREVIEW_SINKS}" = "true" ]; then
+  for id in ompx_prg1prev ompx_prg2prev; do
+    printf '  %s\n' "$id"
+  done
+fi
+if [ "${ENABLE_DSCA_SINKS}" = "true" ]; then
+  for id in ompx_dsca_src ompx_dsca_injection; do
+    printf '  %s\n' "$id"
+  done
+fi
 echo "Friendly playback aliases:"
-for id in ompx_program1_input ompx_program2_input ompx_program1_preview ompx_program2_preview ompx_program1_mpx_output ompx_program2_mpx_output ompx_dsca_source ompx_dsca_injection ompx_mpx_to_icecast; do
+for id in ompx_program1_input ompx_program2_input ompx_program1_mpx_output ompx_program2_mpx_output ompx_mpx_to_icecast; do
   printf '  %s\n' "$id"
 done
+if [ "${ENABLE_PREVIEW_SINKS}" = "true" ]; then
+  for id in ompx_program1_preview ompx_program2_preview; do
+    printf '  %s\n' "$id"
+  done
+fi
+if [ "${ENABLE_DSCA_SINKS}" = "true" ]; then
+  for id in ompx_dsca_source ompx_dsca_injection; do
+    printf '  %s\n' "$id"
+  done
+fi
 echo ""
 echo "Read/capture endpoints (read audio back from these):"
-for id in ompx_prg1in_cap ompx_prg1prev_cap ompx_prg2in_cap ompx_prg2prev_cap ompx_prg1mpx_cap ompx_prg2mpx_cap ompx_dsca_src_cap; do
+for id in ompx_prg1in_cap ompx_prg2in_cap ompx_prg1mpx_cap ompx_prg2mpx_cap; do
   printf '  %s\n' "$id"
 done
+if [ "${ENABLE_PREVIEW_SINKS}" = "true" ]; then
+  for id in ompx_prg1prev_cap ompx_prg2prev_cap; do
+    printf '  %s\n' "$id"
+  done
+fi
+if [ "${ENABLE_DSCA_SINKS}" = "true" ]; then
+  printf '  %s\n' "ompx_dsca_src_cap"
+fi
 echo "Friendly capture aliases:"
-for id in ompx_program1_input_capture ompx_program2_input_capture ompx_program1_preview_capture ompx_program2_preview_capture ompx_program1_mpx_output_capture ompx_program2_mpx_output_capture ompx_dsca_source_capture; do
+for id in ompx_program1_input_capture ompx_program2_input_capture ompx_program1_mpx_output_capture ompx_program2_mpx_output_capture; do
   printf '  %s\n' "$id"
 done
+if [ "${ENABLE_PREVIEW_SINKS}" = "true" ]; then
+  for id in ompx_program1_preview_capture ompx_program2_preview_capture; do
+    printf '  %s\n' "$id"
+  done
+fi
+if [ "${ENABLE_DSCA_SINKS}" = "true" ]; then
+  printf '  %s\n' "ompx_dsca_source_capture"
+fi
 ASMAP
 chmod 755 "${ASOUND_MAP_HELPER}"
 chown root:root "${ASOUND_MAP_HELPER}"
@@ -1860,7 +2069,17 @@ echo "[INFO] Available ALSA devices:"
 aplay -l 2>/dev/null || echo "[WARNING] No ALSA devices found"
 echo "[INFO] Hardware-only list above (aplay -l). Virtual named PCMs are shown with: aplay -L"
 _log "ALSA devices listed above"
-echo "[INFO] Expected named ALSA PCMs: write/playback endpoints ompx_prg1in, ompx_prg2in, ompx_prg1prev, ompx_prg2prev, ompx_prg1mpx, ompx_prg2mpx, ompx_dsca_src, ompx_dsca_injection, ompx_mpx_to_icecast; read/capture endpoints ompx_prg1in_cap, ompx_prg2in_cap, ompx_prg1prev_cap, ompx_prg2prev_cap, ompx_prg1mpx_cap, ompx_prg2mpx_cap, ompx_dsca_src_cap"
+expected_playback="ompx_prg1in, ompx_prg2in, ompx_prg1mpx, ompx_prg2mpx, ompx_mpx_to_icecast"
+expected_capture="ompx_prg1in_cap, ompx_prg2in_cap, ompx_prg1mpx_cap, ompx_prg2mpx_cap"
+if [ "${ENABLE_PREVIEW_SINKS}" = "true" ]; then
+  expected_playback="${expected_playback}, ompx_prg1prev, ompx_prg2prev"
+  expected_capture="${expected_capture}, ompx_prg1prev_cap, ompx_prg2prev_cap"
+fi
+if [ "${ENABLE_DSCA_SINKS}" = "true" ]; then
+  expected_playback="${expected_playback}, ompx_dsca_src, ompx_dsca_injection"
+  expected_capture="${expected_capture}, ompx_dsca_src_cap"
+fi
+echo "[INFO] Expected named ALSA PCMs: write/playback endpoints ${expected_playback}; read/capture endpoints ${expected_capture}"
 echo "[INFO] Resolved sink map helper: ${ASOUND_MAP_HELPER}"
 "${ASOUND_MAP_HELPER}" || true
 
@@ -1946,9 +2165,9 @@ if false && [ "${RUN_QUICK_AUDIO_TEST}" = true ] && [ "${CONFIG_SKIP}" = false ]
     test_rms=0
     ffmpeg_volume_output=""
     ffmpeg_max_volume=""
-    sox -n -r ${SAMPLE_RATE} -c 2 -b 16 "${test_tone}" synth 1.8 sine 1000 vol 0.6 >/dev/null 2>&1 || true
+    sox -n -r ${NON_MPX_SAMPLE_RATE} -c 2 -b 16 "${test_tone}" synth 1.8 sine 1000 vol 0.6 >/dev/null 2>&1 || true
 
-    if arecord -D ompx_prg1in_cap -f S16_LE -c 2 -r ${SAMPLE_RATE} -d 2 "${test_wav}" >"${test_capture_log}" 2>&1 & then
+    if arecord -D ompx_prg1in_cap -f S16_LE -c 2 -r ${NON_MPX_SAMPLE_RATE} -d 2 "${test_wav}" >"${test_capture_log}" 2>&1 & then
       rec_pid=$!
       sleep 0.6
 
@@ -1960,7 +2179,7 @@ if false && [ "${RUN_QUICK_AUDIO_TEST}" = true ] && [ "${CONFIG_SKIP}" = false ]
       fi
 
       if [ "${inject_ok}" -ne 1 ]; then
-        if ffmpeg -hide_banner -loglevel error -f lavfi -i "sine=frequency=1000:sample_rate=${SAMPLE_RATE}:duration=1.8" -ac 2 -f alsa ompx_prg1in >"${test_inject_log}" 2>&1; then
+        if ffmpeg -hide_banner -loglevel error -f lavfi -i "sine=frequency=1000:sample_rate=${NON_MPX_SAMPLE_RATE}:duration=1.8" -ac 2 -f alsa ompx_prg1in >"${test_inject_log}" 2>&1; then
           inject_ok=1
         fi
       fi
@@ -2057,8 +2276,12 @@ PROFILE="${OMPX_HOME}/.profile"
 RADIO_VAR_NAME="RADIO${n}_URL"
 RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
 INGEST_DELAY_SEC="\${INGEST_DELAY_SEC:-10}"
+NON_MPX_SAMPLE_RATE="\${NON_MPX_SAMPLE_RATE:-48000}"
 if ! [[ "\${INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
   INGEST_DELAY_SEC=10
+fi
+if ! [[ "\${NON_MPX_SAMPLE_RATE}" =~ ^[0-9]+$ ]]; then
+  NON_MPX_SAMPLE_RATE=48000
 fi
 INGEST_DELAY_MS=$((INGEST_DELAY_SEC * 1000))
 if [ "${n}" = "1" ]; then
@@ -2075,7 +2298,7 @@ if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   echo "[\$(date +'%F %T')] source${n}: named sink unavailable; using fallback \${SINK_NAME}"
 fi
 echo "[\$(date +'%F %T')] source${n}: using ALSA output endpoint \${SINK_NAME}"
-echo "[\$(date +'%F %T')] source${n}: ingest via ffmpeg (input format auto-detected, delay \${INGEST_DELAY_SEC}s)"
+echo "[\$(date +'%F %T')] source${n}: ingest via ffmpeg (input format auto-detected, delay \${INGEST_DELAY_SEC}s, sink rate \${NON_MPX_SAMPLE_RATE}Hz)"
 
 if [ -z "\${RADIO_URL_VALUE}" ] || [[ "\${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "\${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
   echo "[\$(date +'%F %T')] source${n}: RADIO${n}_URL is empty/placeholder; exiting"
@@ -2089,7 +2312,7 @@ do
     -vn -sn -dn \
     -max_delay 5000000 \
     -af "aformat=channel_layouts=stereo,adelay=\${INGEST_DELAY_MS}|\${INGEST_DELAY_MS}" \
-    -ar ${SAMPLE_RATE} -ac 2 -f alsa "\${SINK_NAME}" || true
+    -ar "\${NON_MPX_SAMPLE_RATE}" -ac 2 -f alsa "\${SINK_NAME}" || true
 done
 WRAP
 chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/source${n}.sh"
@@ -3045,8 +3268,18 @@ echo "     tail -f ${OMPX_LOG_DIR}/radio-source1.log"
 echo "     tail -f ${OMPX_LOG_DIR}/radio-source2.log"
 echo ""
 echo "  4. Verify ALSA named sinks:"
-echo "     aplay -L | grep -E 'ompx_prg1in|ompx_prg2in|ompx_prg1prev|ompx_prg2prev|ompx_prg1mpx|ompx_prg2mpx|ompx_dsca_src|ompx_dsca_injection|ompx_mpx_to_icecast'"
-echo "     arecord -L | grep -E 'ompx_prg1in_cap|ompx_prg2in_cap|ompx_prg1prev_cap|ompx_prg2prev_cap|ompx_dsca_src_cap'"
+playback_pattern='ompx_prg1in|ompx_prg2in|ompx_prg1mpx|ompx_prg2mpx|ompx_mpx_to_icecast'
+capture_pattern='ompx_prg1in_cap|ompx_prg2in_cap|ompx_prg1mpx_cap|ompx_prg2mpx_cap'
+if [ "${ENABLE_PREVIEW_SINKS}" = "true" ]; then
+  playback_pattern="${playback_pattern}|ompx_prg1prev|ompx_prg2prev"
+  capture_pattern="${capture_pattern}|ompx_prg1prev_cap|ompx_prg2prev_cap"
+fi
+if [ "${ENABLE_DSCA_SINKS}" = "true" ]; then
+  playback_pattern="${playback_pattern}|ompx_dsca_src|ompx_dsca_injection"
+  capture_pattern="${capture_pattern}|ompx_dsca_src_cap"
+fi
+echo "     aplay -L | grep -E '${playback_pattern}'"
+echo "     arecord -L | grep -E '${capture_pattern}'"
 echo ""
 echo "  5. Runtime endpoint logs:"
 echo "     source*.sh logs print the chosen ALSA write/playback endpoint"
