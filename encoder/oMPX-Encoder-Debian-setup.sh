@@ -5038,6 +5038,8 @@ PAGE_HTML = """<!doctype html>
   .global-field { display:none; }
   .program-field.active { display:block; }
   .global-field.active { display:block; }
+  .stereo-adv { display:none; }
+  .stereo-adv.active { display:block; }
   @media (max-width:900px) { .grid { grid-template-columns:1fr; } }
   </style>
   <style id="ui_custom_css_tag"></style>
