@@ -4062,7 +4062,7 @@ DEFAULT_STATE = {
   "active_program": 1,
   "active_tab": "program1",
   "ui_experience_mode": "hobbyist",
-  "ui_hobbyist_mode": true,
+  "ui_hobbyist_mode": True,
   "tab_name_prog1": "Program 1",
   "tab_name_prog2": "Program 2",
   "multiband_preset": DEFAULT_MULTIBAND_PRESET,
