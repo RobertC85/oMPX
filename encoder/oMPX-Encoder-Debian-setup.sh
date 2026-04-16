@@ -184,6 +184,7 @@ IS_PROXMOX=false
 [[ "$(uname -r)" == *"pve"* ]] && IS_PROXMOX=true
 KERNEL_HELPER_PACKAGE=""
 LOOPBACK_CARD_REF="${LOOPBACK_CARD_REF:-Loopback}"
+CHANNEL_MODE_SET_BY_PROMPT="false"
 
 _log(){
   logger -t mpx "$*" 2>/dev/null || true
@@ -1543,6 +1544,21 @@ load_ompx_aloop_profile(){
   fi
   ids+=(mpxmix)
 
+  if [ "${PROGRAM2_ENABLED}" = "true" ]; then
+    if ! printf '%s\n' "${ids[@]}" | grep -qx 'program2in'; then
+      echo "[ERROR] PROGRAM2_ENABLED=true but program2in card was not included in snd_aloop profile"
+      return 1
+    fi
+    if ! printf '%s\n' "${ids[@]}" | grep -qx 'program2mpxsrc'; then
+      echo "[ERROR] PROGRAM2_ENABLED=true but program2mpxsrc card was not included in snd_aloop profile"
+      return 1
+    fi
+    if [ "${ENABLE_PREVIEW_SINKS}" = "true" ] && ! printf '%s\n' "${ids[@]}" | grep -qx 'program2preview'; then
+      echo "[ERROR] PROGRAM2_ENABLED=true with preview enabled but program2preview card was not included"
+      return 1
+    fi
+  fi
+
   for id in "${ids[@]}"; do
     if [ -n "${enable_list}" ]; then enable_list+=","; fi
     enable_list+="1"
@@ -1690,10 +1706,12 @@ if [ -t 0 ]; then
   case "${cfg_channel_count}" in
     2)
       PROGRAM2_ENABLED="true"
+      CHANNEL_MODE_SET_BY_PROMPT="true"
       echo "[INFO] Channel mode: 2-channel (Program 2 enabled)"
       ;;
     *)
       PROGRAM2_ENABLED="false"
+      CHANNEL_MODE_SET_BY_PROMPT="true"
       echo "[INFO] Channel mode: 1-channel (Program 2 disabled; Program 1 will be duplicated to L/R)"
       ;;
   esac
@@ -2173,7 +2191,7 @@ if [ "${STREAM_SETUP_MODE:-header}" != "later" ]; then
     echo "[INFO] Stream availability summary: no active stream URLs configured yet. Installation will continue; you can add streams later with ${OMPX_ADD}."
   fi
 
-  if [ "${ENV_PROGRAM2_ENABLED_SET}" != "x" ]; then
+  if [ "${ENV_PROGRAM2_ENABLED_SET}" != "x" ] && [ "${CHANNEL_MODE_SET_BY_PROMPT}" != "true" ]; then
     if is_placeholder_stream_url "${RADIO2_URL}"; then
       PROGRAM2_ENABLED="false"
     else
