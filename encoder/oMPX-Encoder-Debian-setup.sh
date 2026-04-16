@@ -23,6 +23,12 @@ ENV_NON_MPX_SAMPLE_RATE_SET="${NON_MPX_SAMPLE_RATE+x}"
 ENV_NON_MPX_SAMPLE_RATE_VAL="${NON_MPX_SAMPLE_RATE-}"
 ENV_PROGRAM2_ENABLED_SET="${PROGRAM2_ENABLED+x}"
 ENV_PROGRAM2_ENABLED_VAL="${PROGRAM2_ENABLED-}"
+ENV_P1_INGEST_DELAY_SET="${P1_INGEST_DELAY_SEC+x}"
+ENV_P1_INGEST_DELAY_VAL="${P1_INGEST_DELAY_SEC-}"
+ENV_P2_INGEST_DELAY_SET="${P2_INGEST_DELAY_SEC+x}"
+ENV_P2_INGEST_DELAY_VAL="${P2_INGEST_DELAY_SEC-}"
+ENV_OMPX_PASSWORD_SET="${OMPX_USER_PASSWORD+x}"
+ENV_OMPX_PASSWORD_VAL="${OMPX_USER_PASSWORD-}"
 
 OMPX_USER="ompx"
 OMPX_HOME="/home/ompx"
@@ -58,6 +64,8 @@ STREAM_SETUP_MODE="${STREAM_SETUP_MODE:-header}"
 STREAM_ENGINE="${STREAM_ENGINE:-ffmpeg}"
 STREAM_SILENCE_MAX_DBFS="${STREAM_SILENCE_MAX_DBFS:--85}"
 INGEST_DELAY_SEC="${INGEST_DELAY_SEC:-10}"
+P1_INGEST_DELAY_SEC="${P1_INGEST_DELAY_SEC:-}"
+P2_INGEST_DELAY_SEC="${P2_INGEST_DELAY_SEC:-}"
 ALLOW_PLACEHOLDER_STREAM_OVERWRITE="${ALLOW_PLACEHOLDER_STREAM_OVERWRITE:-false}"
 REMOVE_OLD_SINKS="${REMOVE_OLD_SINKS:-false}"
 RUN_QUICK_AUDIO_TEST="${RUN_QUICK_AUDIO_TEST:-false}"
@@ -77,6 +85,7 @@ STEREO_TOOL_START_LIMIT_BURST="${STEREO_TOOL_START_LIMIT_BURST:-10}"
 ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE="${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE:-false}"
 AUTO_ENABLE_STEREO_TOOL_IF_PRESENT="${AUTO_ENABLE_STEREO_TOOL_IF_PRESENT:-true}"
 START_STEREO_TOOL_AFTER_INSTALL="${START_STEREO_TOOL_AFTER_INSTALL:-true}"
+OMPX_USER_PASSWORD="${OMPX_USER_PASSWORD:-}"
 
 # Icecast output (MPX mix → Icecast)
 ICECAST_HOST="${ICECAST_HOST:-127.0.0.1}"
@@ -130,6 +139,9 @@ if [ "${ENV_ENABLE_DSCA_SET}" = "x" ]; then ENABLE_DSCA_SINKS="${ENV_ENABLE_DSCA
 if [ "${ENV_ENABLE_PREVIEW_SET}" = "x" ]; then ENABLE_PREVIEW_SINKS="${ENV_ENABLE_PREVIEW_VAL}"; fi
 if [ "${ENV_NON_MPX_SAMPLE_RATE_SET}" = "x" ]; then NON_MPX_SAMPLE_RATE="${ENV_NON_MPX_SAMPLE_RATE_VAL}"; fi
 if [ "${ENV_PROGRAM2_ENABLED_SET}" = "x" ]; then PROGRAM2_ENABLED="${ENV_PROGRAM2_ENABLED_VAL}"; fi
+if [ "${ENV_P1_INGEST_DELAY_SET}" = "x" ]; then P1_INGEST_DELAY_SEC="${ENV_P1_INGEST_DELAY_VAL}"; fi
+if [ "${ENV_P2_INGEST_DELAY_SET}" = "x" ]; then P2_INGEST_DELAY_SEC="${ENV_P2_INGEST_DELAY_VAL}"; fi
+if [ "${ENV_OMPX_PASSWORD_SET}" = "x" ]; then OMPX_USER_PASSWORD="${ENV_OMPX_PASSWORD_VAL}"; fi
 ENABLE_DSCA_SINKS="${ENABLE_DSCA_SINKS,,}"
 ENABLE_PREVIEW_SINKS="${ENABLE_PREVIEW_SINKS,,}"
 PROGRAM2_ENABLED="${PROGRAM2_ENABLED,,}"
@@ -148,6 +160,18 @@ fi
 if ! [[ "${NON_MPX_SAMPLE_RATE}" =~ ^[0-9]+$ ]] || [ "${NON_MPX_SAMPLE_RATE}" -lt 8000 ] || [ "${NON_MPX_SAMPLE_RATE}" -gt 192000 ]; then
   echo "[WARNING] Invalid NON_MPX_SAMPLE_RATE='${NON_MPX_SAMPLE_RATE}'; defaulting to 48000"
   NON_MPX_SAMPLE_RATE="48000"
+fi
+if ! [[ "${INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
+  echo "[WARNING] Invalid INGEST_DELAY_SEC='${INGEST_DELAY_SEC}'; defaulting to 10"
+  INGEST_DELAY_SEC="10"
+fi
+if [ -n "${P1_INGEST_DELAY_SEC}" ] && ! [[ "${P1_INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
+  echo "[WARNING] Invalid P1_INGEST_DELAY_SEC='${P1_INGEST_DELAY_SEC}'; using INGEST_DELAY_SEC (${INGEST_DELAY_SEC})"
+  P1_INGEST_DELAY_SEC=""
+fi
+if [ -n "${P2_INGEST_DELAY_SEC}" ] && ! [[ "${P2_INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
+  echo "[WARNING] Invalid P2_INGEST_DELAY_SEC='${P2_INGEST_DELAY_SEC}'; using INGEST_DELAY_SEC (${INGEST_DELAY_SEC})"
+  P2_INGEST_DELAY_SEC=""
 fi
 STREAM_ENGINE="ffmpeg"
 
@@ -172,6 +196,26 @@ have_crontab(){
 
 has_systemd(){
   command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]
+}
+
+apply_ompx_user_password(){
+  local new_password="$1"
+  if [ -z "${new_password}" ]; then
+    return 0
+  fi
+  if ! id -u "${OMPX_USER}" >/dev/null 2>&1; then
+    echo "[WARNING] Cannot set password: user ${OMPX_USER} does not exist"
+    return 0
+  fi
+  if command -v chpasswd >/dev/null 2>&1; then
+    if printf '%s:%s\n' "${OMPX_USER}" "${new_password}" | chpasswd; then
+      echo "[SUCCESS] Password set for user ${OMPX_USER}"
+    else
+      echo "[WARNING] Failed to set password for user ${OMPX_USER}"
+    fi
+  else
+    echo "[WARNING] chpasswd not found; cannot set password for ${OMPX_USER}"
+  fi
 }
 
 ensure_ompx_alsa_access(){
@@ -1177,6 +1221,8 @@ RADIO2_URL="${RADIO2_URL}"
 STREAM_ENGINE="${STREAM_ENGINE}"
 STREAM_SILENCE_MAX_DBFS="${STREAM_SILENCE_MAX_DBFS}"
 INGEST_DELAY_SEC="${INGEST_DELAY_SEC}"
+P1_INGEST_DELAY_SEC="${P1_INGEST_DELAY_SEC}"
+P2_INGEST_DELAY_SEC="${P2_INGEST_DELAY_SEC}"
 ICECAST_MODE="${ICECAST_MODE}"
 ICECAST_HOST="${ICECAST_HOST}"
 ICECAST_PORT="${ICECAST_PORT}"
@@ -1635,6 +1681,53 @@ if [ -t 0 ]; then
   esac
 
   echo ""
+  ch_count_default="1"
+  if [ "${PROGRAM2_ENABLED}" = "true" ] || ! is_placeholder_stream_url "${RADIO2_URL}"; then
+    ch_count_default="2"
+  fi
+  read -t 45 -p "How many channels do you want active now? [1/2] (default ${ch_count_default}): " cfg_channel_count || cfg_channel_count="${ch_count_default}"
+  case "${cfg_channel_count}" in
+    2)
+      PROGRAM2_ENABLED="true"
+      echo "[INFO] Channel mode: 2-channel (Program 2 enabled)"
+      ;;
+    *)
+      PROGRAM2_ENABLED="false"
+      echo "[INFO] Channel mode: 1-channel (Program 2 disabled; Program 1 will be duplicated to L/R)"
+      ;;
+  esac
+
+  p1_delay_default="${P1_INGEST_DELAY_SEC:-${INGEST_DELAY_SEC}}"
+  p2_delay_default="${P2_INGEST_DELAY_SEC:-${INGEST_DELAY_SEC}}"
+  read -t 30 -p "Enable built-in broadcast delay? [Y/n] (default Y): " cfg_delay_enable || cfg_delay_enable="Y"
+  cfg_delay_enable=${cfg_delay_enable^^}
+  if [ "${cfg_delay_enable}" = "N" ]; then
+    INGEST_DELAY_SEC="0"
+    P1_INGEST_DELAY_SEC="0"
+    P2_INGEST_DELAY_SEC="0"
+    echo "[INFO] Broadcast delay disabled for all channels"
+  else
+    read -t 45 -p "Program 1 delay in seconds (default ${p1_delay_default}): " cfg_p1_delay || cfg_p1_delay=""
+    if [ -n "${cfg_p1_delay}" ] && [[ "${cfg_p1_delay}" =~ ^[0-9]+$ ]]; then
+      P1_INGEST_DELAY_SEC="${cfg_p1_delay}"
+    else
+      P1_INGEST_DELAY_SEC="${p1_delay_default}"
+    fi
+
+    if [ "${PROGRAM2_ENABLED}" = "true" ]; then
+      read -t 45 -p "Program 2 delay in seconds (default ${p2_delay_default}): " cfg_p2_delay || cfg_p2_delay=""
+      if [ -n "${cfg_p2_delay}" ] && [[ "${cfg_p2_delay}" =~ ^[0-9]+$ ]]; then
+        P2_INGEST_DELAY_SEC="${cfg_p2_delay}"
+      else
+        P2_INGEST_DELAY_SEC="${p2_delay_default}"
+      fi
+    else
+      P2_INGEST_DELAY_SEC="0"
+    fi
+    echo "[INFO] Broadcast delay configured: P1=${P1_INGEST_DELAY_SEC}s, P2=${P2_INGEST_DELAY_SEC}s"
+  fi
+
+  echo ""
   echo "Streaming ingest engine is fixed to FFmpeg."
   echo "  Reason: simpler runtime, fewer moving parts, no Liquidsoap dependency."
   echo "[INFO] Ingest can be any decodable format; non-MPX sink sample rate defaults to ${NON_MPX_SAMPLE_RATE} Hz; Icecast output is fixed to FLAC at ${ICECAST_SAMPLE_RATE} Hz."
@@ -1665,6 +1758,27 @@ if [ -t 0 ]; then
   echo "[INFO] ENABLE_DSCA_SINKS=${ENABLE_DSCA_SINKS}"
   echo "[INFO] ENABLE_PREVIEW_SINKS=${ENABLE_PREVIEW_SINKS}"
   echo "[INFO] NON_MPX_SAMPLE_RATE=${NON_MPX_SAMPLE_RATE}"
+
+  read -t 30 -p "Set a login password for user ${OMPX_USER}? [y/N] (default N): " cfg_set_pwd || cfg_set_pwd="N"
+  cfg_set_pwd=${cfg_set_pwd^^}
+  if [ "${cfg_set_pwd}" = "Y" ]; then
+    while true; do
+      read -r -s -p "Enter password for ${OMPX_USER}: " cfg_pwd_1 || cfg_pwd_1=""
+      echo ""
+      read -r -s -p "Confirm password for ${OMPX_USER}: " cfg_pwd_2 || cfg_pwd_2=""
+      echo ""
+      if [ -z "${cfg_pwd_1}" ]; then
+        echo "[WARNING] Empty password entered; leaving ${OMPX_USER} password unchanged"
+        break
+      fi
+      if [ "${cfg_pwd_1}" != "${cfg_pwd_2}" ]; then
+        echo "[WARNING] Passwords did not match. Try again."
+        continue
+      fi
+      OMPX_USER_PASSWORD="${cfg_pwd_1}"
+      break
+    done
+  fi
 
   configure_icecast_dialog
   configure_rds_dialog
@@ -1988,6 +2102,7 @@ echo "[SUCCESS] User shell updated"
 fi
 
 ensure_ompx_alsa_access
+apply_ompx_user_password "${OMPX_USER_PASSWORD}"
 echo "[INFO] ${OMPX_USER} groups after ALSA access fix: $(id -nG "${OMPX_USER}" 2>/dev/null || echo unknown)"
 
 # --- Write profile (overwrite) ---
@@ -2347,25 +2462,38 @@ PROFILE="${OMPX_HOME}/.profile"
 RADIO_VAR_NAME="RADIO${n}_URL"
 RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
 INGEST_DELAY_SEC="\${INGEST_DELAY_SEC:-10}"
+P1_INGEST_DELAY_SEC="\${P1_INGEST_DELAY_SEC:-}"
+P2_INGEST_DELAY_SEC="\${P2_INGEST_DELAY_SEC:-}"
 NON_MPX_SAMPLE_RATE="\${NON_MPX_SAMPLE_RATE:-48000}"
 PROGRAM2_ENABLED="\${PROGRAM2_ENABLED:-false}"
 if ! [[ "\${INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
   INGEST_DELAY_SEC=10
 fi
+if [ -n "\${P1_INGEST_DELAY_SEC}" ] && ! [[ "\${P1_INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
+  P1_INGEST_DELAY_SEC=""
+fi
+if [ -n "\${P2_INGEST_DELAY_SEC}" ] && ! [[ "\${P2_INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
+  P2_INGEST_DELAY_SEC=""
+fi
 if ! [[ "\${NON_MPX_SAMPLE_RATE}" =~ ^[0-9]+$ ]]; then
   NON_MPX_SAMPLE_RATE=48000
 fi
 PROGRAM2_ENABLED="\${PROGRAM2_ENABLED,,}"
-INGEST_DELAY_MS=$((INGEST_DELAY_SEC * 1000))
 if [ "${n}" = "1" ]; then
   SINK_NAME="ompx_prg1in"
+  CHANNEL_DELAY_SEC="\${P1_INGEST_DELAY_SEC:-\${INGEST_DELAY_SEC}}"
 else
   SINK_NAME="ompx_prg2in"
+  CHANNEL_DELAY_SEC="\${P2_INGEST_DELAY_SEC:-\${INGEST_DELAY_SEC}}"
   if [ "\${PROGRAM2_ENABLED}" != "true" ]; then
     echo "[\$(date +'%F %T')] source${n}: PROGRAM2_ENABLED=false; exiting"
     exit 0
   fi
 fi
+if ! [[ "\${CHANNEL_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
+  CHANNEL_DELAY_SEC=0
+fi
+INGEST_DELAY_MS=$((CHANNEL_DELAY_SEC * 1000))
 if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   if [ "${n}" = "1" ]; then
     SINK_NAME="plughw:${LOOPBACK_CARD_REF},0,0"
@@ -2375,7 +2503,7 @@ if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   echo "[\$(date +'%F %T')] source${n}: named sink unavailable; using fallback \${SINK_NAME}"
 fi
 echo "[\$(date +'%F %T')] source${n}: using ALSA output endpoint \${SINK_NAME}"
-echo "[\$(date +'%F %T')] source${n}: ingest via ffmpeg (input format auto-detected, delay \${INGEST_DELAY_SEC}s, sink rate \${NON_MPX_SAMPLE_RATE}Hz)"
+echo "[\$(date +'%F %T')] source${n}: ingest via ffmpeg (input format auto-detected, delay \${CHANNEL_DELAY_SEC}s, sink rate \${NON_MPX_SAMPLE_RATE}Hz)"
 
 if [ -z "\${RADIO_URL_VALUE}" ] || [[ "\${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "\${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
   echo "[\$(date +'%F %T')] source${n}: RADIO${n}_URL is empty/placeholder; exiting"
@@ -2582,17 +2710,15 @@ if [ "${P2_AVAILABLE}" -eq 1 ]; then
     "${CODEC_ARGS[@]}" \
     "icecast://${ICECAST_SOURCE_USER}:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
 else
-  # Only P1: duplicate to both channels so clients always receive full L/R program audio.
+  # Only P1: duplicate Program 1 directly to both output channels.
   _log "P2 not available — duplicating P1 to both channels"
   exec ffmpeg -nostdin \
     -f alsa -thread_queue_size 16384 -i "${ST_OUT_P1}" \
     -filter_complex \
-      "[0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[mono];\
-       [mono]asplit=2[l][r];\
-       [l][r]join=inputs=2:channel_layout=stereo[out]" \
+      "[0:a]aresample=${ICECAST_SAMPLE_RATE},pan=stereo|c0=c0|c1=c0[out]" \
     -map "[out]" \
     -ice_name "oMPX Stereo 192k" \
-    -ice_description "P1 duplicated to L+R (P2 not configured)" \
+    -ice_description "P1 duplicated to L+R without mono-sum (P2 not configured)" \
     "${CODEC_ARGS[@]}" \
     "icecast://${ICECAST_SOURCE_USER}:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
 fi
@@ -2845,15 +2971,28 @@ PROFILE="${OMPX_HOME}/.profile"
 RADIO_VAR_NAME="RADIO${RADIO}_URL"
 RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
 INGEST_DELAY_SEC="\${INGEST_DELAY_SEC:-10}"
+P1_INGEST_DELAY_SEC="\${P1_INGEST_DELAY_SEC:-}"
+P2_INGEST_DELAY_SEC="\${P2_INGEST_DELAY_SEC:-}"
 if ! [[ "\${INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
   INGEST_DELAY_SEC=10
 fi
-INGEST_DELAY_MS=\$((INGEST_DELAY_SEC * 1000))
+if [ -n "\${P1_INGEST_DELAY_SEC}" ] && ! [[ "\${P1_INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
+  P1_INGEST_DELAY_SEC=""
+fi
+if [ -n "\${P2_INGEST_DELAY_SEC}" ] && ! [[ "\${P2_INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
+  P2_INGEST_DELAY_SEC=""
+fi
 if [ "${RADIO}" = "1" ]; then
   SINK_NAME="ompx_prg1in"
+  CHANNEL_DELAY_SEC="\${P1_INGEST_DELAY_SEC:-\${INGEST_DELAY_SEC}}"
 else
   SINK_NAME="ompx_prg2in"
+  CHANNEL_DELAY_SEC="\${P2_INGEST_DELAY_SEC:-\${INGEST_DELAY_SEC}}"
 fi
+if ! [[ "\${CHANNEL_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
+  CHANNEL_DELAY_SEC=0
+fi
+INGEST_DELAY_MS=\$((CHANNEL_DELAY_SEC * 1000))
 if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   if [ "${RADIO}" = "1" ]; then
     SINK_NAME="plughw:${LOOPBACK_CARD_REF},0,0"
@@ -2863,7 +3002,7 @@ if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   echo "[\$(date +'%F %T')] source${RADIO}: named sink unavailable; using fallback \${SINK_NAME}"
 fi
 echo "[\$(date +'%F %T')] source${RADIO}: using ALSA output endpoint \${SINK_NAME}"
-echo "[\$(date +'%F %T')] source${RADIO}: ingest via ffmpeg (input format auto-detected, delay \${INGEST_DELAY_SEC}s)"
+echo "[\$(date +'%F %T')] source${RADIO}: ingest via ffmpeg (input format auto-detected, delay \${CHANNEL_DELAY_SEC}s)"
 if [ -z "\${RADIO_URL_VALUE}" ] || [[ "\${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "\${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
   echo "[\$(date +'%F %T')] source${RADIO}: RADIO${RADIO}_URL is empty/placeholder; exiting"
   exit 0
@@ -3338,7 +3477,9 @@ echo "Next steps:"
 echo "  1. Configure radio streams:"
 echo "     ${OMPX_ADD} --radio 1 --url 'https://your.stream/url' --cron-user oMPX --start-now"
 echo "     ${OMPX_ADD} --radio 2 --url 'https://your.stream/url' --cron-user oMPX --start-now"
-echo "     Ingest delay is controlled by INGEST_DELAY_SEC in ${OMPX_HOME}/.profile (current/default: ${INGEST_DELAY_SEC}s)"
+echo "     Broadcast delay is optional and applied at ingest."
+echo "     Defaults: INGEST_DELAY_SEC=${INGEST_DELAY_SEC}, P1_INGEST_DELAY_SEC=${P1_INGEST_DELAY_SEC:-${INGEST_DELAY_SEC}}, P2_INGEST_DELAY_SEC=${P2_INGEST_DELAY_SEC:-${INGEST_DELAY_SEC}}"
+echo "     Set delay to 0 to disable it per channel."
 if [ "${PROGRAM2_ENABLED}" = "true" ]; then
   echo "     After changing it, restart ingest: systemctl restart mpx-source1.service mpx-source2.service"
 else
