@@ -4023,6 +4023,8 @@ RDS_PROG1_INFO_PATH = ENV.get("RDS_PROG1_INFO_PATH", "/home/ompx/rds/prog1/rds-i
 RDS_PROG2_INFO_PATH = ENV.get("RDS_PROG2_INFO_PATH", "/home/ompx/rds/prog2/rds-info.json")
 RDS_PROG1_OVERRIDE_PATH = ENV.get("RDS_PROG1_OVERRIDE_PATH", "/home/ompx/rds/prog1/rds-override.json")
 RDS_PROG2_OVERRIDE_PATH = ENV.get("RDS_PROG2_OVERRIDE_PATH", "/home/ompx/rds/prog2/rds-override.json")
+RADIO1_URL = ENV.get("RADIO1_URL", "")
+RADIO2_URL = ENV.get("RADIO2_URL", "")
 
 ALLOWED_NETWORKS = []
 for token in WHITELIST_RAW.split(","):
@@ -4034,8 +4036,23 @@ for token in WHITELIST_RAW.split(","):
   except ValueError:
     pass
 
+def _is_placeholder_url(url):
+  if not url:
+    return True
+  return ("example-icecast.local" in url) or ("your.stream/url" in url)
+
+
+DEFAULT_P1_INPUT = "radio1_url" if not _is_placeholder_url(RADIO1_URL) else "ompx_prg1in_cap"
+DEFAULT_P2_INPUT = "radio2_url" if not _is_placeholder_url(RADIO2_URL) else "ompx_prg2in_cap"
+
+
 DEFAULT_STATE = {
-  "input_device": "ompx_prg1in_cap",
+  "active_program": 1,
+  "tab_name_prog1": "Program 1",
+  "tab_name_prog2": "Program 2",
+  "input_device": DEFAULT_P1_INPUT,
+  "input_device_prog1": DEFAULT_P1_INPUT,
+  "input_device_prog2": DEFAULT_P2_INPUT,
   "preview_mode": "auto",
   "sample_rate": 48000,
   "pre_gain_db": 0.0,
@@ -4045,6 +4062,8 @@ DEFAULT_STATE = {
   "hf_tame_freq": 7000,
   "output_limit": 0.96,
   "fft_input_device": "ompx_prg1mpx_cap",
+  "fft_input_device_prog1": "ompx_prg1mpx_cap",
+  "fft_input_device_prog2": "ompx_prg2mpx_cap",
   "fft_sample_rate": 192000,
   "fft_max_hz": 60000,
   "ui_theme": "forest",
@@ -4255,9 +4274,21 @@ def build_preview_filter(state):
   )
 
 
+def resolve_input_source(input_device):
+  dev = str(input_device or "").strip()
+  if dev == "radio1_url":
+    return str(RADIO1_URL or "").strip(), True
+  if dev == "radio2_url":
+    return str(RADIO2_URL or "").strip(), True
+  return dev, False
+
+
 def spawn_patch_playback(state):
   global PATCH_PROC
   input_device = str(state.get("input_device", "ompx_prg1in_cap"))
+  resolved_input, input_is_url = resolve_input_source(input_device)
+  if not resolved_input:
+    return
   output_device = str(state.get("patch_output_device", "default"))
   sample_rate = int(float(state.get("sample_rate", 48000)))
   filt = build_preview_filter(state)
@@ -4267,20 +4298,39 @@ def spawn_patch_playback(state):
     "-loglevel",
     "warning",
     "-nostdin",
-    "-f",
-    "alsa",
-    "-ac",
-    "2",
-    "-ar",
-    str(sample_rate),
-    "-i",
-    input_device,
-    "-filter:a",
-    filt,
-    "-f",
-    "alsa",
-    output_device,
   ]
+  if input_is_url:
+    cmd += [
+      "-thread_queue_size",
+      "10240",
+      "-i",
+      resolved_input,
+      "-filter:a",
+      filt,
+      "-ar",
+      str(sample_rate),
+      "-ac",
+      "2",
+      "-f",
+      "alsa",
+      output_device,
+    ]
+  else:
+    cmd += [
+      "-f",
+      "alsa",
+      "-ac",
+      "2",
+      "-ar",
+      str(sample_rate),
+      "-i",
+      resolved_input,
+      "-filter:a",
+      filt,
+      "-f",
+      "alsa",
+      output_device,
+    ]
   PATCH_PROC = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -4344,12 +4394,23 @@ class Handler(BaseHTTPRequestHandler):
     if parsed.path == "/api/preview.mp3":
       with STATE_LOCK:
         state = load_state()
-      input_device = str(state.get("input_device", "ompx_prg1in_cap"))
+      qs = urllib.parse.parse_qs(parsed.query or "")
+      req_program = str((qs.get("program") or [""])[0]).strip()
+      if req_program in ("1", "2"):
+        input_device = str(state.get(f"input_device_prog{req_program}", state.get("input_device", "ompx_prg1in_cap")))
+      else:
+        input_device = str(state.get("input_device", "ompx_prg1in_cap"))
+      resolved_input, input_is_url = resolve_input_source(input_device)
+      if not resolved_input:
+        self.send_error(HTTPStatus.BAD_REQUEST, "Preview source is not configured")
+        return
       preview_mode = str(state.get("preview_mode", "auto"))
       sample_rate = int(float(state.get("sample_rate", 48000)))
       filt = build_preview_filter(state)
-      is_mpx_input = "mpx" in input_device
+      is_mpx_input = (not input_is_url) and ("mpx" in resolved_input)
       decode_mpx = (preview_mode == "mpx-decode") or (preview_mode == "auto" and is_mpx_input)
+      if input_is_url and decode_mpx:
+        decode_mpx = False
       if decode_mpx:
         mpx_decode_graph = (
           "[0:a]pan=mono|c0=c0[m];"
@@ -4376,7 +4437,7 @@ class Handler(BaseHTTPRequestHandler):
           "-ar",
           "192000",
           "-i",
-          input_device,
+          resolved_input,
           "-filter_complex",
           mpx_decode_graph,
           "-map",
@@ -4400,24 +4461,47 @@ class Handler(BaseHTTPRequestHandler):
           "-loglevel",
           "warning",
           "-nostdin",
-          "-f",
-          "alsa",
-          "-ac",
-          "2",
-          "-ar",
-          str(sample_rate),
-          "-i",
-          input_device,
-          "-filter:a",
-          filt,
-          "-c:a",
-          "libmp3lame",
-          "-b:a",
-          "192k",
-          "-f",
-          "mp3",
-          "-",
         ]
+        if input_is_url:
+          cmd += [
+            "-thread_queue_size",
+            "10240",
+            "-i",
+            resolved_input,
+            "-filter:a",
+            filt,
+            "-ar",
+            str(sample_rate),
+            "-ac",
+            "2",
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "192k",
+            "-f",
+            "mp3",
+            "-",
+          ]
+        else:
+          cmd += [
+            "-f",
+            "alsa",
+            "-ac",
+            "2",
+            "-ar",
+            str(sample_rate),
+            "-i",
+            resolved_input,
+            "-filter:a",
+            filt,
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "192k",
+            "-f",
+            "mp3",
+            "-",
+          ]
       proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
       self.send_response(HTTPStatus.OK)
       self.send_header("Content-Type", "audio/mpeg")
@@ -4566,6 +4650,12 @@ PAGE_HTML = """<!doctype html>
   .meter-row .db { font-size:12px; color:var(--ink); text-align:right; }
   .meter-track { height:10px; border-radius:999px; border:1px solid #2a4f47; background:#0a1412; overflow:hidden; }
   .meter-fill { height:100%; width:0%; background:linear-gradient(90deg, #2fd38a, #f2b642); transition:width 120ms linear; }
+  .tabs { display:flex; gap:8px; margin-bottom:10px; align-items:center; }
+  .tab-btn { width:auto; padding:8px 12px; border-radius:999px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink); }
+  .tab-btn.active { background:linear-gradient(180deg, #f2b642, #d99424); color:#1b1406; border-color:#d99424; }
+  .tab-name { max-width:180px; }
+  .program-field { display:none; }
+  .program-field.active { display:block; }
   @media (max-width:900px) { .grid { grid-template-columns:1fr; } }
   </style>
   <style id="ui_custom_css_tag"></style>
@@ -4574,11 +4664,21 @@ PAGE_HTML = """<!doctype html>
   <div class=\"wrap\">
   <h1>oMPX Live Control + Patch Preview</h1>
   <div class=\"grid\">
-    <div class=\"card\">
+    <div class=\"card\"> 
+    <div class=\"tabs\">
+      <button type=\"button\" id=\"tab_prog1\" class=\"tab-btn active\">Program 1</button>
+      <button type=\"button\" id=\"tab_prog2\" class=\"tab-btn\">Program 2</button>
+    </div>
+    <div class=\"row\">
+      <div><label>Program 1 Tab Name</label><input id=\"tab_name_prog1\" class=\"tab-name\" type=\"text\" maxlength=\"24\" /></div>
+      <div><label>Program 2 Tab Name</label><input id=\"tab_name_prog2\" class=\"tab-name\" type=\"text\" maxlength=\"24\" /></div>
+    </div>
     <div class=\"row\">
       <div>
       <label>Input Channel</label>
       <select id=\"input_device\">
+        <option value=\"radio1_url\">Program 1 stream URL</option>
+        <option value=\"radio2_url\">Program 2 stream URL</option>
         <option value=\"ompx_prg1in_cap\">Program 1 input</option>
         <option value=\"ompx_prg2in_cap\">Program 2 input</option>
         <option value=\"ompx_prg1mpx_cap\">Program 1 MPX path</option>
@@ -4659,33 +4759,33 @@ PAGE_HTML = """<!doctype html>
     </div>
     <label style=\"margin-top:12px\">RDS Live Overrides</label>
     <div class=\"row\">
-      <div><label>P1 PS</label><input id=\"rds_prog1_ps\" type=\"text\" maxlength=\"8\" /></div>
-      <div><label>P2 PS</label><input id=\"rds_prog2_ps\" type=\"text\" maxlength=\"8\" /></div>
+      <div class=\"program-field program-1\"><label>P1 PS</label><input id=\"rds_prog1_ps\" type=\"text\" maxlength=\"8\" /></div>
+      <div class=\"program-field program-2\"><label>P2 PS</label><input id=\"rds_prog2_ps\" type=\"text\" maxlength=\"8\" /></div>
     </div>
     <div class=\"row\">
-      <div><label>P1 PI (hex)</label><input id=\"rds_prog1_pi\" type=\"text\" maxlength=\"4\" /></div>
-      <div><label>P2 PI (hex)</label><input id=\"rds_prog2_pi\" type=\"text\" maxlength=\"4\" /></div>
+      <div class=\"program-field program-1\"><label>P1 PI (hex)</label><input id=\"rds_prog1_pi\" type=\"text\" maxlength=\"4\" /></div>
+      <div class=\"program-field program-2\"><label>P2 PI (hex)</label><input id=\"rds_prog2_pi\" type=\"text\" maxlength=\"4\" /></div>
     </div>
     <div class=\"row\">
-      <div><label>P1 PTY (0-31)</label><input id=\"rds_prog1_pty\" type=\"number\" min=\"0\" max=\"31\" step=\"1\" /></div>
-      <div><label>P2 PTY (0-31)</label><input id=\"rds_prog2_pty\" type=\"number\" min=\"0\" max=\"31\" step=\"1\" /></div>
+      <div class=\"program-field program-1\"><label>P1 PTY (0-31)</label><input id=\"rds_prog1_pty\" type=\"number\" min=\"0\" max=\"31\" step=\"1\" /></div>
+      <div class=\"program-field program-2\"><label>P2 PTY (0-31)</label><input id=\"rds_prog2_pty\" type=\"number\" min=\"0\" max=\"31\" step=\"1\" /></div>
     </div>
     <div class=\"row\">
-      <div><label>P1 RT Text</label><input id=\"rds_prog1_rt\" type=\"text\" /></div>
-      <div><label>P2 RT Text</label><input id=\"rds_prog2_rt\" type=\"text\" /></div>
+      <div class=\"program-field program-1\"><label>P1 RT Text</label><input id=\"rds_prog1_rt\" type=\"text\" /></div>
+      <div class=\"program-field program-2\"><label>P2 RT Text</label><input id=\"rds_prog2_rt\" type=\"text\" /></div>
     </div>
     <div class=\"row\">
-      <div>
+      <div class=\"program-field program-1\">
         <label>P1 CT Mode</label>
         <select id=\"rds_prog1_ct_mode\"><option value=\"local\">Local</option><option value=\"utc\">UTC</option></select>
       </div>
-      <div>
+      <div class=\"program-field program-2\">
         <label>P2 CT Mode</label>
         <select id=\"rds_prog2_ct_mode\"><option value=\"local\">Local</option><option value=\"utc\">UTC</option></select>
       </div>
     </div>
     <div class=\"row\">
-      <div>
+      <div class=\"program-field program-1\">
         <label>P1 Flags</label>
         <div style=\"display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px;\">
           <label><input id=\"rds_prog1_tp\" type=\"checkbox\" /> TP</label>
@@ -4694,7 +4794,7 @@ PAGE_HTML = """<!doctype html>
           <label><input id=\"rds_prog1_ct_enable\" type=\"checkbox\" /> CT</label>
         </div>
       </div>
-      <div>
+      <div class=\"program-field program-2\">
         <label>P2 Flags</label>
         <div style=\"display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px;\">
           <label><input id=\"rds_prog2_tp\" type=\"checkbox\" /> TP</label>
@@ -4706,8 +4806,8 @@ PAGE_HTML = """<!doctype html>
     </div>
     <button id=\"rds_apply\" style=\"margin-top:8px;\">Apply RDS Overrides</button>
     <div class=\"row\" style=\"margin-top:8px\">
-      <div class=\"status\">P1 CT: <span id=\"rds_prog1_ct_current\">-</span> | Updated: <span id=\"rds_prog1_updated_at\">-</span></div>
-      <div class=\"status\">P2 CT: <span id=\"rds_prog2_ct_current\">-</span> | Updated: <span id=\"rds_prog2_updated_at\">-</span></div>
+      <div class=\"status program-field program-1\">P1 CT: <span id=\"rds_prog1_ct_current\">-</span> | Updated: <span id=\"rds_prog1_updated_at\">-</span></div>
+      <div class=\"status program-field program-2\">P2 CT: <span id=\"rds_prog2_ct_current\">-</span> | Updated: <span id=\"rds_prog2_updated_at\">-</span></div>
     </div>
     <audio id=\"audio\" controls autoplay style=\"width:100%; margin-top:10px\"></audio>
     <div class=\"status\" id=\"status\">Ready.</div>
@@ -4737,7 +4837,8 @@ PAGE_HTML = """<!doctype html>
   </div>
   </div>
   <script>
-  const ids = ["input_device","preview_mode","sample_rate","pre_gain_db","post_gain_db","stereo_width","output_limit","hf_tame_db","hf_tame_freq","patch_output_device","fft_input_device","fft_sample_rate","fft_max_hz","ui_theme","ui_custom_css"];
+  const ids = ["input_device","preview_mode","sample_rate","pre_gain_db","post_gain_db","stereo_width","output_limit","hf_tame_db","hf_tame_freq","patch_output_device","fft_input_device","fft_sample_rate","fft_max_hz","ui_theme","ui_custom_css","tab_name_prog1","tab_name_prog2"];
+  const programScopedIds = ["input_device","fft_input_device"];
   const rdsIds = ["rds_prog1_ps","rds_prog1_pi","rds_prog1_pty","rds_prog1_rt","rds_prog1_ct_mode","rds_prog2_ps","rds_prog2_pi","rds_prog2_pty","rds_prog2_rt","rds_prog2_ct_mode"];
   const rdsBoolIds = ["rds_prog1_tp","rds_prog1_ta","rds_prog1_ms","rds_prog1_ct_enable","rds_prog2_tp","rds_prog2_ta","rds_prog2_ms","rds_prog2_ct_enable"];
   const rdsLiveTextIds = ["rds_prog1_ct_current","rds_prog1_updated_at","rds_prog2_ct_current","rds_prog2_updated_at"];
@@ -4747,6 +4848,10 @@ PAGE_HTML = """<!doctype html>
   const pilotMarker = document.getElementById("pilot_marker");
   const subMarker = document.getElementById("sub_marker");
   const customCssTag = document.getElementById("ui_custom_css_tag");
+  const tabProg1 = document.getElementById("tab_prog1");
+  const tabProg2 = document.getElementById("tab_prog2");
+  let activeProgram = 1;
+  let currentState = {};
   let fftTimer = null;
 
   const themePalettes = {
@@ -4758,10 +4863,57 @@ PAGE_HTML = """<!doctype html>
 
   function setStatus(msg){ st.textContent = msg; }
 
+  function programKey(base, program){ return `${base}_prog${program}`; }
+
+  function updateTabTitles(){
+    const t1 = (document.getElementById('tab_name_prog1').value || 'Program 1').trim();
+    const t2 = (document.getElementById('tab_name_prog2').value || 'Program 2').trim();
+    tabProg1.textContent = t1 || 'Program 1';
+    tabProg2.textContent = t2 || 'Program 2';
+  }
+
+  function persistProgramScopedInputs(program){
+    programScopedIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      currentState[programKey(id, program)] = el.value;
+      currentState[id] = el.value;
+    });
+  }
+
+  function applyProgramScopedInputs(program){
+    programScopedIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const v = currentState[programKey(id, program)] || currentState[id] || el.value;
+      el.value = v;
+    });
+  }
+
+  function setActiveProgram(program){
+    if (program !== 1 && program !== 2) program = 1;
+    persistProgramScopedInputs(activeProgram);
+    activeProgram = program;
+    currentState.active_program = activeProgram;
+    applyProgramScopedInputs(activeProgram);
+    tabProg1.classList.toggle('active', activeProgram === 1);
+    tabProg2.classList.toggle('active', activeProgram === 2);
+    document.querySelectorAll('.program-field').forEach((el) => {
+      const show = el.classList.contains(`program-${activeProgram}`);
+      el.classList.toggle('active', show);
+    });
+  }
+
   async function loadState(){
     const res = await fetch('/api/state');
     const data = await res.json();
-    ids.forEach((id)=>{ if(data[id] !== undefined){ document.getElementById(id).value = data[id]; }});
+    currentState = data || {};
+    ids.forEach((id)=>{
+      if(programScopedIds.includes(id)) return;
+      if(data[id] !== undefined){ document.getElementById(id).value = data[id]; }
+    });
+    updateTabTitles();
+    setActiveProgram(Number(data.active_program || 1));
     applyTheme(data.ui_theme || 'forest');
     applyCustomCss(data.ui_custom_css || '');
     await loadRdsState();
@@ -4791,7 +4943,18 @@ PAGE_HTML = """<!doctype html>
 
   function collect(){
     const payload = {};
-    ids.forEach((id)=> payload[id] = document.getElementById(id).value);
+    ids.forEach((id)=>{
+      if(programScopedIds.includes(id)) return;
+      payload[id] = document.getElementById(id).value;
+    });
+    payload.active_program = activeProgram;
+    programScopedIds.forEach((id) => {
+      const v = document.getElementById(id).value;
+      payload[id] = v;
+      payload[programKey(id, activeProgram)] = v;
+      currentState[programKey(id, activeProgram)] = v;
+      currentState[id] = v;
+    });
     return payload;
   }
 
@@ -4844,10 +5007,15 @@ PAGE_HTML = """<!doctype html>
   }
 
   function refreshPreview(){
-    audio.src = '/api/preview.mp3?ts=' + Date.now();
+    audio.src = '/api/preview.mp3?program=' + activeProgram + '&ts=' + Date.now();
     audio.play().catch(()=>{});
     setStatus('Preview refreshed.');
   }
+
+  tabProg1.onclick = async () => { setActiveProgram(1); await saveState(); refreshPreview(); };
+  tabProg2.onclick = async () => { setActiveProgram(2); await saveState(); refreshPreview(); };
+  document.getElementById('tab_name_prog1').addEventListener('input', updateTabTitles);
+  document.getElementById('tab_name_prog2').addEventListener('input', updateTabTitles);
 
   document.getElementById('apply').onclick = async () => {
     await saveState();
