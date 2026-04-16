@@ -4383,6 +4383,7 @@ class Handler(BaseHTTPRequestHandler):
       if fft_max_hz < 1000 or fft_max_hz > nyquist:
         fft_max_hz = min(60000, nyquist)
       stop_hz = fft_max_hz
+      analysis_rate = max(32000, min(384000, stop_hz * 2))
       cmd = [
         "ffmpeg",
         "-hide_banner",
@@ -4398,9 +4399,14 @@ class Handler(BaseHTTPRequestHandler):
         "-i",
         fft_input_device,
         "-t",
-        "0.35",
+        "0.8",
         "-filter_complex",
-        f"[0:a]pan=mono|c0=c0,showspectrumpic=s=1280x360:legend=1:gain=2:drange=100:fscale=lin:start=0:stop={stop_hz}",
+        (
+          f"[0:a]pan=mono|c0=c0,"
+          f"aresample={analysis_rate},"
+          "highpass=f=50,"
+          "showfreqs=s=1280x360:mode=bar:fscale=lin:ascale=sqrt:cmode=combined:win_size=65536"
+        ),
         "-frames:v",
         "1",
         "-f",
@@ -4637,7 +4643,7 @@ PAGE_HTML = """<!doctype html>
     <canvas id=\"spec\" width=\"900\" height=\"280\"></canvas>
     <label style=\"margin-top:12px\">MPX FFT Snapshot (server-side)</label>
     <div style=\"position:relative; border:1px solid #2a4f47; border-radius:8px; overflow:hidden; background:#0a1412;\">
-      <img id=\"fft_img\" alt=\"MPX FFT\" style=\"display:block; width:100%; height:auto;\" />
+      <img id=\"fft_img\" alt=\"MPX FFT\" style=\"display:block; width:100%; height:300px; object-fit:fill;\" />
       <div id=\"pilot_marker\" style=\"position:absolute; top:0; bottom:0; width:2px; background:#f2b642; opacity:0.9;\"></div>
       <div id=\"sub_marker\" style=\"position:absolute; top:0; bottom:0; width:2px; background:#52d3c7; opacity:0.9;\"></div>
       <div style=\"position:absolute; top:6px; left:8px; font-size:11px; color:#f2b642; background:#0008; padding:2px 6px; border-radius:4px;\">19 kHz pilot</div>
