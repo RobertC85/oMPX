@@ -164,6 +164,8 @@ ICECAST_BIT_DEPTH="${ICECAST_BIT_DEPTH:-16}"
 ICECAST_CODEC="flac"
 # ICECAST_MODE: local | remote | disabled
 ICECAST_MODE="${ICECAST_MODE:-disabled}"
+# ICECAST_INPUT_MODE: auto | alsa | direct_urls
+ICECAST_INPUT_MODE="${ICECAST_INPUT_MODE:-auto}"
 # ALSA capture endpoints Stereo Tool Enterprise writes its processed output to
 ST_OUT_P1="${ST_OUT_P1:-ompx_prg1mpx_cap}"
 ST_OUT_P2="${ST_OUT_P2:-ompx_prg2mpx_cap}"
@@ -274,6 +276,11 @@ fi
 if ! [[ "${ICECAST_BIT_DEPTH}" =~ ^(16|24)$ ]]; then
   echo "[WARNING] Invalid ICECAST_BIT_DEPTH='${ICECAST_BIT_DEPTH}'; defaulting to 16"
   ICECAST_BIT_DEPTH="16"
+fi
+ICECAST_INPUT_MODE="${ICECAST_INPUT_MODE,,}"
+if [ "${ICECAST_INPUT_MODE}" != "auto" ] && [ "${ICECAST_INPUT_MODE}" != "alsa" ] && [ "${ICECAST_INPUT_MODE}" != "direct_urls" ]; then
+  echo "[WARNING] Invalid ICECAST_INPUT_MODE='${ICECAST_INPUT_MODE}'; defaulting to auto"
+  ICECAST_INPUT_MODE="auto"
 fi
 if [ -n "${P1_INGEST_DELAY_SEC}" ] && ! [[ "${P1_INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
   echo "[WARNING] Invalid P1_INGEST_DELAY_SEC='${P1_INGEST_DELAY_SEC}'; using INGEST_DELAY_SEC (${INGEST_DELAY_SEC})"
@@ -1393,7 +1400,10 @@ EOF
     program2_mpx_block=$(cat <<'EOF'
 pcm.ompx_prg2mpx {
   type plug
-  slave.pcm "hw:program2mpxsrc,0"
+  slave {
+    pcm "hw:program2mpxsrc,0"
+    channels 2
+  }
   hint {
     show on
     description "oMPX Program 2 MPX Output"
@@ -1402,7 +1412,10 @@ pcm.ompx_prg2mpx {
 
 pcm.ompx_prg2mpx_cap {
   type plug
-  slave.pcm "hw:program2mpxsrc,1"
+  slave {
+    pcm "hw:program2mpxsrc,1"
+    channels 2
+  }
   hint {
     show on
     description "oMPX Program 2 MPX Output Capture (read/capture)"
@@ -1597,7 +1610,10 @@ ${preview_pcm_block}
 
 pcm.ompx_prg1mpx {
   type plug
-  slave.pcm "hw:program1mpxsrc,0"
+  slave {
+    pcm "hw:program1mpxsrc,0"
+    channels 2
+  }
   hint {
     show on
     description "oMPX Program 1 MPX Output"
@@ -1606,7 +1622,10 @@ pcm.ompx_prg1mpx {
 
 pcm.ompx_prg1mpx_cap {
   type plug
-  slave.pcm "hw:program1mpxsrc,1"
+  slave {
+    pcm "hw:program1mpxsrc,1"
+    channels 2
+  }
   hint {
     show on
     description "oMPX Program 1 MPX Output Capture (read/capture)"
@@ -1724,6 +1743,7 @@ ICECAST_MOUNT="${ICECAST_MOUNT}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE}"
 ICECAST_BIT_DEPTH="${ICECAST_BIT_DEPTH}"
 ICECAST_CODEC="${ICECAST_CODEC}"
+ICECAST_INPUT_MODE="${ICECAST_INPUT_MODE}"
 ENABLE_DSCA_SINKS="${ENABLE_DSCA_SINKS}"
 ENABLE_PREVIEW_SINKS="${ENABLE_PREVIEW_SINKS}"
 NON_MPX_SAMPLE_RATE="${NON_MPX_SAMPLE_RATE}"
@@ -3179,10 +3199,10 @@ chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/source${n}.sh"
 chmod 750 "${SYS_SCRIPTS_DIR}/source${n}.sh"
 echo "[SUCCESS] Created source${n}.sh wrapper"
 done
-# --- Processing script: run_processing_alsa_liquid.sh ---
+# --- Processing script: run_processing_alsa.sh ---
 echo "[INFO] Creating processing script..."
 
-cat > "${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh" <<'RUNP'
+cat > "${SYS_SCRIPTS_DIR}/run_processing_alsa.sh" <<'RUNP'
 #!/usr/bin/env bash
 set -euo pipefail
 PROFILE="/home/ompx/.profile"
@@ -3280,22 +3300,23 @@ ALSA_OUTPUT="hw:${LOOPBACK_CARD_REF},0,0"
 fi
 fi
 if [ -z "$ALSA_OUTPUT" ]; then _log "No ALSA output selected."; exit 1; fi
-ffmpeg -hide_banner -loglevel warning -f s16le -ar ${SAMPLE_RATE} -ac 2 -i "${MPX_STEREO_FIFO}" -f wav - | aplay -f S16_LE -c 2 -r ${SAMPLE_RATE} -D "${ALSA_OUTPUT}" &
+ffmpeg -hide_banner -loglevel warning -f s16le -ar ${SAMPLE_RATE} -ac 2 -i "${MPX_STEREO_FIFO}" -f alsa "${ALSA_OUTPUT}" &
 PLAY_PID=$!; _log "MPX playback started (pid ${PLAY_PID:-0})"
 wait ${PLAY_PID:-0} || true
 kill ${FF_PROG1_MONO_PID:-0} ${FF_PROG2_MONO_PID:-0} ${STEREO_PID:-0} ${FF_MERGE_PID:-0} 2>/dev/null || true
-_log "run_processing_alsa_liquid.sh exiting"
+_log "run_processing_alsa.sh exiting"
 RUNP
-chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh"
-chmod 750 "${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh"
+chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/run_processing_alsa.sh"
+chmod 750 "${SYS_SCRIPTS_DIR}/run_processing_alsa.sh"
 echo "[SUCCESS] Processing script created"
 
 # --- MPX mix + Icecast encoder script ---
 echo "[INFO] Creating mpx-mix.sh (mono sum, hard pan, Icecast ffmpeg encoder)..."
 cat > "${SYS_SCRIPTS_DIR}/mpx-mix.sh" <<'MPXMIX'
 #!/usr/bin/env bash
-# mpx-mix.sh — read two Stereo Tool output loopbacks, mono-sum each,
-# hard pan P1→L / P2→R, combine to stereo, encode FLAC-in-Ogg → Icecast.
+# mpx-mix.sh — publish MPX stereo to Icecast.
+# Default topology uses a single combined stereo source on ST_OUT_P1.
+# Optional split-source mode can be enabled by setting ST_OUT_P2.
 set -euo pipefail
 
 PROFILE="/home/ompx/.profile"
@@ -3310,10 +3331,22 @@ ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
 ICECAST_BIT_DEPTH="${ICECAST_BIT_DEPTH:-16}"
 ICECAST_CODEC="flac"
 ICECAST_MODE="${ICECAST_MODE:-disabled}"
+ICECAST_INPUT_MODE="${ICECAST_INPUT_MODE:-auto}"
 ST_OUT_P1="${ST_OUT_P1:-ompx_prg1mpx_cap}"
-ST_OUT_P2="${ST_OUT_P2:-ompx_prg2mpx_cap}"
+ST_OUT_P2="${ST_OUT_P2:-}"
+RADIO1_URL="${RADIO1_URL:-}"
+RADIO2_URL="${RADIO2_URL:-}"
 PROGRAM2_ENABLED="${PROGRAM2_ENABLED:-false}"
 OMPX_LOG_DIR="/home/ompx/logs"
+
+is_placeholder_stream_url(){
+  local u="$1"
+  [ -z "${u}" ] && return 0
+  case "${u}" in
+    *example-icecast.local*|*your.stream/url*) return 0 ;;
+  esac
+  return 1
+}
 
 mkdir -p "${OMPX_LOG_DIR}"
 _log(){ logger -t mpx-mix "$*"; echo "$(date +'%F %T') [mpx-mix] $*"; }
@@ -3345,20 +3378,19 @@ wait_alsa_cap(){
   return 1
 }
 
-_log "Waiting for ST output endpoints..."
-wait_alsa_cap "${ST_OUT_P1}" || { _log "ERROR: ${ST_OUT_P1} not available"; exit 1; }
-
-# Check if P2 is available; fall back to silence if not
 P2_AVAILABLE=0
 PROGRAM2_ENABLED="${PROGRAM2_ENABLED,,}"
-if [ "${PROGRAM2_ENABLED}" = "true" ]; then
-  if arecord -L 2>/dev/null | grep -q "^${ST_OUT_P2}$"; then
-    P2_AVAILABLE=1
+if [ "${ICECAST_INPUT_MODE}" != "direct_urls" ]; then
+  _log "Waiting for ST output endpoints..."
+  wait_alsa_cap "${ST_OUT_P1}" || { _log "ERROR: ${ST_OUT_P1} not available"; exit 1; }
+  if [ -n "${ST_OUT_P2}" ] && [ "${PROGRAM2_ENABLED}" = "true" ]; then
+    if arecord -L 2>/dev/null | grep -q "^${ST_OUT_P2}$"; then
+      P2_AVAILABLE=1
+    fi
   fi
+  _log "P1 source: ${ST_OUT_P1}"
+  _log "P2 source: ${ST_OUT_P2} (enabled: ${PROGRAM2_ENABLED}, available: ${P2_AVAILABLE})"
 fi
-
-_log "P1 source: ${ST_OUT_P1}"
-_log "P2 source: ${ST_OUT_P2} (enabled: ${PROGRAM2_ENABLED}, available: ${P2_AVAILABLE})"
 if [ "${ICECAST_BIT_DEPTH}" = "24" ]; then
   FLAC_SAMPLE_FMT="s32"
   FLAC_BITS_PER_RAW="24"
@@ -3371,30 +3403,60 @@ _log "Icecast: FLAC-in-Ogg ${ICECAST_SAMPLE_RATE}Hz ${ICECAST_BIT_DEPTH}-bit →
 
 CODEC_ARGS=(-c:a flac -compression_level 0 -sample_fmt "${FLAC_SAMPLE_FMT}" -bits_per_raw_sample "${FLAC_BITS_PER_RAW}" -content_type audio/ogg -f ogg)
 
+ICECAST_INPUT_MODE="${ICECAST_INPUT_MODE,,}"
+if [ "${ICECAST_INPUT_MODE}" = "auto" ]; then
+  if [ "${PROGRAM2_ENABLED}" = "true" ] && ! is_placeholder_stream_url "${RADIO1_URL}" && ! is_placeholder_stream_url "${RADIO2_URL}"; then
+    ICECAST_INPUT_MODE="direct_urls"
+  else
+    ICECAST_INPUT_MODE="alsa"
+  fi
+fi
+_log "Input mode: ${ICECAST_INPUT_MODE}"
+
+if [ "${ICECAST_INPUT_MODE}" = "direct_urls" ]; then
+  if [ -z "${RADIO1_URL}" ] || [ -z "${RADIO2_URL}" ]; then
+    _log "ERROR: ICECAST_INPUT_MODE=direct_urls requires RADIO1_URL and RADIO2_URL"
+    exit 1
+  fi
+  _log "Input mode: direct_urls (RADIO1_URL -> L, RADIO2_URL -> R)"
+  exec ffmpeg -nostdin \
+    -reconnect 1 -reconnect_streamed 1 -reconnect_at_eof 1 -reconnect_delay_max 5 -thread_queue_size 16384 -i "${RADIO1_URL}" \
+    -reconnect 1 -reconnect_streamed 1 -reconnect_at_eof 1 -reconnect_delay_max 5 -thread_queue_size 16384 -i "${RADIO2_URL}" \
+    -filter_complex \
+      "[0:a]pan=mono|c0=0.5*c0+0.5*c1[p1];\
+       [1:a]pan=mono|c0=0.5*c0+0.5*c1[p2];\
+       [p1][p2]join=inputs=2:channel_layout=stereo:map=0.0-FL|1.0-FR[st];\
+       [st]aresample=${ICECAST_SAMPLE_RATE}[out]" \
+    -map "[out]" \
+    -ice_name "oMPX Stereo 192k" \
+    -ice_description "Direct dual URL mode: RADIO1_URL (L) + RADIO2_URL (R)" \
+    "${CODEC_ARGS[@]}" \
+    "icecast://${ICECAST_SOURCE_USER}:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
+fi
+
 if [ "${P2_AVAILABLE}" -eq 1 ]; then
-  # Both programs available: P1 mono → L, P2 mono → R
+  # Optional split-source mode: P1 mono -> L, P2 mono -> R
   exec ffmpeg -nostdin \
     -f alsa -thread_queue_size 16384 -i "${ST_OUT_P1}" \
     -f alsa -thread_queue_size 16384 -i "${ST_OUT_P2}" \
     -filter_complex \
-      "[0:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[p1];\
-       [1:a]pan=mono|c0=0.5*c0+0.5*c1,aresample=${ICECAST_SAMPLE_RATE}[p2];\
-       [p1][p2]join=inputs=2:channel_layout=stereo[out]" \
+      "[0:a]pan=mono|c0=c0,aresample=${ICECAST_SAMPLE_RATE}[p1];\
+       [1:a]pan=mono|c0=c0,aresample=${ICECAST_SAMPLE_RATE}[p2];\
+       [p1][p2]join=inputs=2:channel_layout=stereo:map=0.0-FL|1.0-FR[out]" \
     -map "[out]" \
     -ice_name "oMPX Stereo 192k" \
-    -ice_description "P1 (L) + P2 (R) mono-summed, hard-panned" \
+    -ice_description "P1 ch0 (L) + P2 ch0 (R), hard-panned" \
     "${CODEC_ARGS[@]}" \
     "icecast://${ICECAST_SOURCE_USER}:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
 else
-  # Only P1: duplicate Program 1 directly to both output channels.
-  _log "P2 not available — duplicating P1 to both channels"
+  # Default mode: publish the combined stereo MPX path as-is.
+  _log "Using P1 stereo source only"
   exec ffmpeg -nostdin \
     -f alsa -thread_queue_size 16384 -i "${ST_OUT_P1}" \
-    -filter_complex \
-      "[0:a]aresample=${ICECAST_SAMPLE_RATE},pan=stereo|c0=c0|c1=c0[out]" \
-    -map "[out]" \
+    -af "aresample=${ICECAST_SAMPLE_RATE}" \
+    -map 0:a \
     -ice_name "oMPX Stereo 192k" \
-    -ice_description "P1 duplicated to L+R without mono-sum (P2 not configured)" \
+    -ice_description "P1 stereo passthrough (P2 not configured)" \
     "${CODEC_ARGS[@]}" \
     "icecast://${ICECAST_SOURCE_USER}:${ICECAST_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
 fi
@@ -3426,7 +3488,7 @@ ExecStartPre=/bin/sh -c 'if command -v udevadm >/dev/null 2>&1; then udevadm con
 ExecStartPre=/bin/sh -c 'if [ -d /dev/snd ]; then chgrp -R audio /dev/snd >/dev/null 2>&1 || true; chmod -R g+rw /dev/snd >/dev/null 2>&1 || true; fi'
 ExecStartPre=/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do [ -d /dev/snd ] && ls -A /dev/snd >/dev/null 2>&1 && exit 0; sleep 1; done; exit 0'
 ExecStartPre=/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do runuser -u ${OMPX_USER} -- aplay -l >/dev/null 2>&1 && exit 0; sleep 1; done; exit 0'
-ExecStart=${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh
+ExecStart=${SYS_SCRIPTS_DIR}/run_processing_alsa.sh
 Restart=always
 RestartSec=2
 StandardOutput=journal
@@ -4498,6 +4560,12 @@ PAGE_HTML = """<!doctype html>
   .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
   canvas { width:100%; height:140px; background:#0a1412; border:1px solid #2a4f47; border-radius:8px; }
   .status { font-size:12px; color:var(--muted); margin-top:10px; }
+  .meter-grid { display:grid; grid-template-columns:1fr; gap:8px; margin-top:8px; }
+  .meter-row { display:grid; grid-template-columns:86px 1fr 62px; gap:8px; align-items:center; }
+  .meter-row .name { font-size:12px; color:var(--muted); }
+  .meter-row .db { font-size:12px; color:var(--ink); text-align:right; }
+  .meter-track { height:10px; border-radius:999px; border:1px solid #2a4f47; background:#0a1412; overflow:hidden; }
+  .meter-fill { height:100%; width:0%; background:linear-gradient(90deg, #2fd38a, #f2b642); transition:width 120ms linear; }
   @media (max-width:900px) { .grid { grid-template-columns:1fr; } }
   </style>
   <style id="ui_custom_css_tag"></style>
@@ -4649,6 +4717,14 @@ PAGE_HTML = """<!doctype html>
     <canvas id=\"wave\" width=\"900\" height=\"280\"></canvas>
     <label style=\"margin-top:12px\">Band Spectrum</label>
     <canvas id=\"spec\" width=\"900\" height=\"280\"></canvas>
+    <label style=\"margin-top:12px\">Processor Band Meters</label>
+    <div class=\"meter-grid\" id=\"band_meters\">
+      <div class=\"meter-row\"><span class=\"name\">Sub (30-120)</span><div class=\"meter-track\"><div id=\"meter_sub\" class=\"meter-fill\"></div></div><span id=\"meter_sub_db\" class=\"db\">-inf dB</span></div>
+      <div class=\"meter-row\"><span class=\"name\">Low (120-400)</span><div class=\"meter-track\"><div id=\"meter_low\" class=\"meter-fill\"></div></div><span id=\"meter_low_db\" class=\"db\">-inf dB</span></div>
+      <div class=\"meter-row\"><span class=\"name\">Mid (400-2k)</span><div class=\"meter-track\"><div id=\"meter_mid\" class=\"meter-fill\"></div></div><span id=\"meter_mid_db\" class=\"db\">-inf dB</span></div>
+      <div class=\"meter-row\"><span class=\"name\">Presence (2k-6k)</span><div class=\"meter-track\"><div id=\"meter_pres\" class=\"meter-fill\"></div></div><span id=\"meter_pres_db\" class=\"db\">-inf dB</span></div>
+      <div class=\"meter-row\"><span class=\"name\">Air (6k-15k)</span><div class=\"meter-track\"><div id=\"meter_air\" class=\"meter-fill\"></div></div><span id=\"meter_air_db\" class=\"db\">-inf dB</span></div>
+    </div>
     <label style=\"margin-top:12px\">MPX FFT Snapshot (server-side)</label>
     <div style=\"position:relative; border:1px solid #2a4f47; border-radius:8px; overflow:hidden; background:#0a1412;\">
       <img id=\"fft_img\" alt=\"MPX FFT\" style=\"display:block; width:100%; height:300px; object-fit:fill;\" />
@@ -4824,6 +4900,37 @@ PAGE_HTML = """<!doctype html>
   const sctx = spec.getContext('2d');
   const timeData = new Uint8Array(analyser.fftSize);
   const freqData = new Uint8Array(analyser.frequencyBinCount);
+  const bandDefs = [
+    {name:'sub', lo:30, hi:120},
+    {name:'low', lo:120, hi:400},
+    {name:'mid', lo:400, hi:2000},
+    {name:'pres', lo:2000, hi:6000},
+    {name:'air', lo:6000, hi:15000},
+  ];
+
+  function updateBandMeters(){
+    const nyquist = ctx.sampleRate / 2;
+    const hzPerBin = nyquist / freqData.length;
+    bandDefs.forEach((b) => {
+      const start = Math.max(0, Math.floor(b.lo / hzPerBin));
+      const end = Math.min(freqData.length - 1, Math.ceil(b.hi / hzPerBin));
+      let sum = 0;
+      let n = 0;
+      for(let i=start;i<=end;i++){
+        sum += freqData[i] || 0;
+        n++;
+      }
+      const avg = n > 0 ? (sum / n) : 0;
+      const linear = Math.max(1e-6, avg / 255);
+      const db = 20 * Math.log10(linear);
+      const clampedDb = Math.max(-60, Math.min(0, db));
+      const pct = ((clampedDb + 60) / 60) * 100;
+      const fill = document.getElementById(`meter_${b.name}`);
+      const label = document.getElementById(`meter_${b.name}_db`);
+      if(fill) fill.style.width = `${pct.toFixed(1)}%`;
+      if(label) label.textContent = `${db.toFixed(1)} dB`;
+    });
+  }
 
   function draw(){
     requestAnimationFrame(draw);
@@ -4855,6 +4962,7 @@ PAGE_HTML = """<!doctype html>
     const bw = spec.width / bars;
     sctx.fillRect(i*bw, spec.height - h, bw-2, h);
     }
+    updateBandMeters();
   }
 
   document.body.addEventListener('click', () => ctx.resume(), {once:true});
