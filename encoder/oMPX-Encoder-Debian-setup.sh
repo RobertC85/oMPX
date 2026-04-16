@@ -4061,6 +4061,7 @@ if DEFAULT_MULTIBAND_PRESET not in (
 DEFAULT_STATE = {
   "active_program": 1,
   "active_tab": "program1",
+  "ui_experience_mode": "hobbyist",
   "tab_name_prog1": "Program 1",
   "tab_name_prog2": "Program 2",
   "multiband_preset": DEFAULT_MULTIBAND_PRESET,
@@ -4172,8 +4173,10 @@ def load_state():
 
 def save_state(state):
   os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
-  with open(STATE_PATH, "w", encoding="utf-8") as f:
+  tmp = f"{STATE_PATH}.tmp"
+  with open(tmp, "w", encoding="utf-8") as f:
     json.dump(state, f, indent=2)
+  os.replace(tmp, STATE_PATH)
 
 
 def _parse_bool(value, default=False):
@@ -4517,7 +4520,8 @@ def build_preview_filter(state):
   if clipper_enabled:
     if clipper_drive_db > 0.0:
       core += f"volume={clipper_drive_db}dB,"
-    core += f"aclip=min=-{clipper_ceiling}:max={clipper_ceiling},"
+    # Keep the clipper stage compatible across ffmpeg builds.
+    core += f"alimiter=limit={clipper_ceiling}:attack=1:release=25,"
   core += (
     f"extrastereo=m={width},"
     f"volume={post}dB"
@@ -4934,6 +4938,8 @@ class Handler(BaseHTTPRequestHandler):
       ]
       if fft_input_is_url:
         cmd += [
+          "-rw_timeout",
+          "5000000",
           "-thread_queue_size",
           "10240",
           "-i",
@@ -4952,7 +4958,7 @@ class Handler(BaseHTTPRequestHandler):
         ]
       cmd += [
         "-t",
-        "0.8",
+        "1.2",
         "-filter_complex",
         (
           f"[0:a]pan=mono|c0=c0,"
@@ -4970,7 +4976,7 @@ class Handler(BaseHTTPRequestHandler):
       ]
       proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
       try:
-        out, err = proc.communicate(timeout=3)
+        out, err = proc.communicate(timeout=8)
       except subprocess.TimeoutExpired:
         try:
           proc.kill()
@@ -5063,6 +5069,11 @@ PAGE_HTML = """<!doctype html>
   .global-field.active { display:block; }
   .stereo-adv { display:none; }
   .stereo-adv.active { display:block; }
+  .func-nav { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:6px; margin:8px 0 12px; }
+  .func-nav-btn { width:auto; padding:7px 10px; border-radius:8px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink); }
+  .func-nav-btn.active { background:linear-gradient(180deg, #f2b642, #d99424); color:#1b1406; border-color:#d99424; }
+  .func-hidden { display:none !important; }
+  .func-hint { font-size:12px; color:var(--muted); margin:-4px 0 8px; }
   @media (max-width:900px) { .grid { grid-template-columns:1fr; } }
   </style>
   <style id="ui_custom_css_tag"></style>
@@ -5077,6 +5088,14 @@ PAGE_HTML = """<!doctype html>
       <button type=\"button\" id=\"tab_prog2\" class=\"tab-btn\">Program 2</button>
       <button type=\"button\" id=\"tab_global\" class=\"tab-btn\">Global Settings</button>
     </div>
+    <div class=\"func-nav\" id=\"func_nav\">
+      <button type=\"button\" class=\"func-nav-btn active\" data-func=\"agc\">AGC</button>
+      <button type=\"button\" class=\"func-nav-btn\" data-func=\"multiband\">Multiband</button>
+      <button type=\"button\" class=\"func-nav-btn\" data-func=\"clipper\">Clipper</button>
+      <button type=\"button\" class=\"func-nav-btn\" data-func=\"stereo\">Stereo</button>
+      <button type=\"button\" class=\"func-nav-btn\" data-func=\"all\">All</button>
+    </div>
+    <div class=\"func-hint\" id=\"func_hint\">Showing AGC controls. Use sidebar tabs to reduce clutter.</div>
     <div class=\"row\">
       <div><label>Program 1 Tab Name</label><input id=\"tab_name_prog1\" class=\"tab-name\" type=\"text\" maxlength=\"24\" /></div>
       <div><label>Program 2 Tab Name</label><input id=\"tab_name_prog2\" class=\"tab-name\" type=\"text\" maxlength=\"24\" /></div>
@@ -5381,11 +5400,15 @@ PAGE_HTML = """<!doctype html>
   const stereoAdvWrap = document.getElementById("stereo_adv_wrap");
   const presetSelect = document.getElementById("multiband_preset");
   const presetApplyBtn = document.getElementById("multiband_preset_apply");
+  const funcHint = document.getElementById("func_hint");
+  const funcNavButtons = Array.from(document.querySelectorAll(".func-nav-btn"));
   let activeProgram = 1;
   let activeTab = 'program1';
+  let activeFunctionView = 'agc';
   let currentState = {};
   let fftTimer = null;
   let analysisPaused = false;
+  let saveTimer = null;
   let bypassBeforeHold = null;
   const waveHistoryIn = [];
   const waveHistoryOut = [];
@@ -5428,6 +5451,50 @@ PAGE_HTML = """<!doctype html>
   }
 
   function setStatus(msg){ st.textContent = msg; }
+
+  function queueSaveState(){
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => { saveState().catch(()=>{}); }, 250);
+  }
+
+  function _blockForId(id){
+    const el = document.getElementById(id);
+    if (!el) return null;
+    return el.closest('.row') || el.closest('.stereo-adv') || el;
+  }
+
+  function setFunctionView(view){
+    const sections = {
+      agc: ['preview_mode','pre_gain_db','post_gain_db','processor_input_gain_db','hf_tame_db','output_limit','processing_bypass','bypass_level_match_enabled','apply'],
+      multiband: ['multiband_preset','multiband_preset_apply','band1_enabled','band1_drive_db','band2_drive_db','band3_drive_db','band4_drive_db','band5_drive_db'],
+      clipper: ['multiband_clipper_enabled','multiband_clipper_drive_db','multiband_clipper_ceiling'],
+      stereo: ['stereo_width','multiband_stereo_independent','azimuth_correction_enabled','auto_balance_enabled','band1_drive_db_l','band2_drive_db_l','band3_drive_db_l','band4_drive_db_l','band5_drive_db_l']
+    };
+    const all = new Set();
+    Object.keys(sections).forEach((k) => sections[k].forEach((id) => {
+      const b = _blockForId(id);
+      if (b) all.add(b);
+    }));
+    if (stereoAdvWrap) all.add(stereoAdvWrap);
+    if (!sections[view] || view === 'all' || activeTab === 'global') {
+      all.forEach((b) => b.classList.remove('func-hidden'));
+      activeFunctionView = 'all';
+      if (funcHint) funcHint.textContent = 'Showing all controls.';
+    } else {
+      const show = new Set();
+      sections[view].forEach((id) => {
+        const b = _blockForId(id);
+        if (b) show.add(b);
+      });
+      if (view === 'stereo' && stereoAdvWrap) show.add(stereoAdvWrap);
+      all.forEach((b) => b.classList.toggle('func-hidden', !show.has(b)));
+      activeFunctionView = view;
+      if (funcHint) funcHint.textContent = `Showing ${view.toUpperCase()} controls.`;
+    }
+    funcNavButtons.forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.func === activeFunctionView);
+    });
+  }
 
   function updateMomentaryControlVisibility(){
     const enabled = !!enableMomentaryAbCtl.checked;
@@ -5495,6 +5562,10 @@ PAGE_HTML = """<!doctype html>
     document.querySelectorAll('.global-field').forEach((el) => {
       el.classList.toggle('active', tab === 'global');
     });
+    const funcNav = document.getElementById('func_nav');
+    if (funcNav) funcNav.style.display = (tab === 'global') ? 'none' : 'grid';
+    if (funcHint) funcHint.style.display = (tab === 'global') ? 'none' : 'block';
+    if (tab === 'global') setFunctionView('all'); else setFunctionView(activeFunctionView || 'agc');
     setActiveProgram(activeProgram);
   }
 
@@ -5675,15 +5746,31 @@ PAGE_HTML = """<!doctype html>
   document.getElementById('tab_name_prog2').addEventListener('input', updateTabTitles);
   enableMomentaryAbCtl.addEventListener('change', () => {
     updateMomentaryControlVisibility();
-    saveState().catch(()=>{});
+    queueSaveState();
   });
   stereoIndependentCtl.addEventListener('change', () => {
     updateStereoAdvancedVisibility();
-    saveState().catch(()=>{});
+    queueSaveState();
   });
   waveWindowCtl.addEventListener('input', () => {
     updateWaveWindowReadout();
-    saveState().catch(()=>{});
+    queueSaveState();
+  });
+  funcNavButtons.forEach((btn) => {
+    btn.addEventListener('click', () => setFunctionView(btn.dataset.func || 'all'));
+  });
+  ids.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('change', () => queueSaveState());
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+      el.addEventListener('input', () => queueSaveState());
+    }
+  });
+  boolStateIds.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('change', () => queueSaveState());
   });
   processingBypassToggleBtn.onclick = async () => {
     processingBypassCtl.checked = !processingBypassCtl.checked;
@@ -5878,6 +5965,7 @@ PAGE_HTML = """<!doctype html>
     ctxIn.resume().catch(()=>{});
   }, {once:true});
   loadState().then(() => {
+    setFunctionView('agc');
     draw();
     refreshFft();
     startFftLoop();
