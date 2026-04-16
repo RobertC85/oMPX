@@ -93,7 +93,7 @@ ICECAST_PORT="${ICECAST_PORT:-8000}"
 ICECAST_SOURCE_USER="${ICECAST_SOURCE_USER:-source}"
 ICECAST_PASSWORD="${ICECAST_PASSWORD:-hackme}"
 ICECAST_ADMIN_USER="${ICECAST_ADMIN_USER:-admin}"
-ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx.flac}"
+ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx.ogg}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
 ICECAST_CODEC="flac"
 # ICECAST_MODE: local | remote | disabled
@@ -481,8 +481,8 @@ configure_icecast_dialog(){
       ICECAST_SOURCE_USER="${_ice_source_user:-source}"
       read -t 60 -p "Icecast source password (default hackme): " _ice_pass || _ice_pass=""
       ICECAST_PASSWORD="${_ice_pass:-hackme}"
-      read -t 60 -p "Mount point (default /mpx.flac): " _ice_mount || _ice_mount=""
-      _ice_mount="${_ice_mount:-mpx.flac}"; ICECAST_MOUNT="/${_ice_mount#/}"
+      read -t 60 -p "Mount point (default /mpx.ogg): " _ice_mount || _ice_mount=""
+      _ice_mount="${_ice_mount:-mpx.ogg}"; ICECAST_MOUNT="/${_ice_mount#/}"
       read -t 60 -p "Icecast admin username (default admin): " _ice_admin_user || _ice_admin_user=""
       ICECAST_ADMIN_USER="${_ice_admin_user:-admin}"
       read -t 60 -p "Icecast admin password (default admin): " _ice_admin || _ice_admin=""
@@ -509,8 +509,8 @@ configure_icecast_dialog(){
         echo "[WARNING] No password entered — Icecast mode set to disabled"; ICECAST_MODE="disabled"; return
       fi
       ICECAST_PASSWORD="${_ice_pass}"
-      read -t 60 -p "Mount point (default /mpx.flac): " _ice_mount || _ice_mount=""
-      _ice_mount="${_ice_mount:-mpx.flac}"; ICECAST_MOUNT="/${_ice_mount#/}"
+      read -t 60 -p "Mount point (default /mpx.ogg): " _ice_mount || _ice_mount=""
+      _ice_mount="${_ice_mount:-mpx.ogg}"; ICECAST_MOUNT="/${_ice_mount#/}"
       echo "[INFO] Remote Icecast push → ${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
       ;;
     *)
@@ -524,10 +524,10 @@ configure_icecast_dialog(){
   [[ "${_ice_sr}" =~ ^[0-9]+$ ]] && ICECAST_SAMPLE_RATE="${_ice_sr}" || ICECAST_SAMPLE_RATE=192000
   echo "[INFO] Icecast encoder sample rate: ${ICECAST_SAMPLE_RATE} Hz"
   ICECAST_CODEC="flac"
-  if [ -z "${ICECAST_MOUNT:-}" ] || [ "${ICECAST_MOUNT}" = "/mpx.ogg" ]; then
-    ICECAST_MOUNT="/mpx.flac"
+  if [ -z "${ICECAST_MOUNT:-}" ]; then
+    ICECAST_MOUNT="/mpx.ogg"
   fi
-  echo "[INFO] Icecast codec fixed to FLAC (${ICECAST_MOUNT})"
+  echo "[INFO] Icecast codec fixed to FLAC-in-Ogg for broad player compatibility (${ICECAST_MOUNT})"
 
   echo ""
   echo "MPX capture endpoints consumed by mpx-mix (read/capture side of ST's MPX output loopbacks):"
@@ -2675,7 +2675,7 @@ echo "[INFO] Creating mpx-mix.sh (mono sum, hard pan, Icecast ffmpeg encoder)...
 cat > "${SYS_SCRIPTS_DIR}/mpx-mix.sh" <<'MPXMIX'
 #!/usr/bin/env bash
 # mpx-mix.sh — read two Stereo Tool output loopbacks, mono-sum each,
-# hard pan P1→L / P2→R, combine to stereo, encode (Opus/FLAC) → Icecast.
+# hard pan P1→L / P2→R, combine to stereo, encode FLAC-in-Ogg → Icecast.
 set -euo pipefail
 
 PROFILE="/home/ompx/.profile"
@@ -2685,7 +2685,7 @@ ICECAST_HOST="${ICECAST_HOST:-127.0.0.1}"
 ICECAST_PORT="${ICECAST_PORT:-8000}"
 ICECAST_SOURCE_USER="${ICECAST_SOURCE_USER:-source}"
 ICECAST_PASSWORD="${ICECAST_PASSWORD:-hackme}"
-ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx.flac}"
+ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx.ogg}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
 ICECAST_CODEC="flac"
 ICECAST_MODE="${ICECAST_MODE:-disabled}"
@@ -2725,12 +2725,9 @@ fi
 
 _log "P1 source: ${ST_OUT_P1}"
 _log "P2 source: ${ST_OUT_P2} (enabled: ${PROGRAM2_ENABLED}, available: ${P2_AVAILABLE})"
-if [ "${ICECAST_MOUNT}" = "/mpx.ogg" ]; then
-  ICECAST_MOUNT="/mpx.flac"
-fi
-_log "Icecast: flac ${ICECAST_SAMPLE_RATE}Hz → icecast://${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
+_log "Icecast: FLAC-in-Ogg ${ICECAST_SAMPLE_RATE}Hz → icecast://${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
 
-CODEC_ARGS=(-c:a flac -compression_level 0 -content_type audio/flac -f flac)
+CODEC_ARGS=(-c:a flac -compression_level 0 -content_type audio/ogg -f ogg)
 
 if [ "${P2_AVAILABLE}" -eq 1 ]; then
   # Both programs available: P1 mono → L, P2 mono → R
