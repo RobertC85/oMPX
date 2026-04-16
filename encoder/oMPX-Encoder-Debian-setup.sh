@@ -2863,8 +2863,8 @@ ffmpeg -hide_banner -loglevel warning -f s16le -ar ${SAMPLE_RATE} -ac 1 -i "${MP
 FF_MERGE_PID=$!; _log "ffmpeg merge pid $FF_MERGE_PID"
 ALSA_OUTPUT="${ALSA_OUTPUT:-}"
 if [ -z "$ALSA_OUTPUT" ]; then
-if wait_for_alsa_endpoint playback "ompx_prg1in" 20; then
-ALSA_OUTPUT="ompx_prg1in"
+if wait_for_alsa_endpoint playback "ompx_prg1mpx" 20; then
+ALSA_OUTPUT="ompx_prg1mpx"
 elif aplay -l 2>/dev/null | grep -qi loopback; then
 ALSA_OUTPUT="hw:${LOOPBACK_CARD_REF},0,0"
 fi
