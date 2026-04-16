@@ -262,6 +262,12 @@ if [ "${OMPX_FM_PREEMPHASIS}" != "75" ] && [ "${OMPX_FM_PREEMPHASIS}" != "50" ] 
   echo "[WARNING] Invalid OMPX_FM_PREEMPHASIS='${OMPX_FM_PREEMPHASIS}'; defaulting to 75"
   OMPX_FM_PREEMPHASIS="75"
 fi
+if [ "${OMPX_STEREO_BACKEND}" != "stereotool" ]; then
+  # When using the internal oMPX wrapper chain, Stereo Tool Enterprise must not auto-start.
+  ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE="false"
+  AUTO_ENABLE_STEREO_TOOL_IF_PRESENT="false"
+  START_STEREO_TOOL_AFTER_INSTALL="false"
+fi
 STREAM_ENGINE="ffmpeg"
 
 OS_ID="unknown"
@@ -857,6 +863,13 @@ ICEXML
   systemctl enable icecast2 || true
   systemctl restart icecast2 || true
   echo "[SUCCESS] icecast2 running on port ${port}, mount ${ICECAST_MOUNT}, source user ${source_user}"
+}
+
+remove_stereo_tool_enterprise_service(){
+  if has_systemd; then
+    systemctl disable --now stereo-tool-enterprise.service >/dev/null 2>&1 || true
+  fi
+  rm -f "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" || true
 }
 
 prompt_stereo_tool_limit_preset(){
@@ -2012,45 +2025,51 @@ if [ -t 0 ]; then
   echo ""
   FETCH_STEREO_TOOL_ENTERPRISE=false
   ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=false
-  if [ -x "${STEREO_TOOL_ENTERPRISE_BIN}" ]; then
-    echo "[INFO] Existing Stereo Tool Enterprise binary detected at ${STEREO_TOOL_ENTERPRISE_BIN}."
-    read -t 45 -p "Enable Stereo Tool Enterprise service at boot with existing binary? [Y/n] (default Y): " cfg_st_enable_existing || cfg_st_enable_existing="Y"
-    cfg_st_enable_existing=${cfg_st_enable_existing^^}
-    if [ "${cfg_st_enable_existing}" != "N" ]; then
-      ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
-      prompt_stereo_tool_limit_preset
-      prompt_stereo_tool_web_binding
-      read -t 45 -p "Start Stereo Tool Enterprise immediately after install (no reboot)? [Y/n] (default Y): " cfg_st_start_now || cfg_st_start_now="Y"
-      cfg_st_start_now=${cfg_st_start_now^^}
-      if [ "${cfg_st_start_now}" = "N" ]; then
-        START_STEREO_TOOL_AFTER_INSTALL=false
-      else
-        START_STEREO_TOOL_AFTER_INSTALL=true
+  if [ "${OMPX_STEREO_BACKEND}" = "stereotool" ]; then
+    if [ -x "${STEREO_TOOL_ENTERPRISE_BIN}" ]; then
+      echo "[INFO] Existing Stereo Tool Enterprise binary detected at ${STEREO_TOOL_ENTERPRISE_BIN}."
+      read -t 45 -p "Enable Stereo Tool Enterprise service at boot with existing binary? [Y/n] (default Y): " cfg_st_enable_existing || cfg_st_enable_existing="Y"
+      cfg_st_enable_existing=${cfg_st_enable_existing^^}
+      if [ "${cfg_st_enable_existing}" != "N" ]; then
+        ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
+        prompt_stereo_tool_limit_preset
+        prompt_stereo_tool_web_binding
+        read -t 45 -p "Start Stereo Tool Enterprise immediately after install (no reboot)? [Y/n] (default Y): " cfg_st_start_now || cfg_st_start_now="Y"
+        cfg_st_start_now=${cfg_st_start_now^^}
+        if [ "${cfg_st_start_now}" = "N" ]; then
+          START_STEREO_TOOL_AFTER_INSTALL=false
+        else
+          START_STEREO_TOOL_AFTER_INSTALL=true
+        fi
+      fi
+    else
+      read -t 45 -p "Stereo Tool Enterprise not found locally. Download latest for Linux during install? [y/N] (default N): " cfg_st_fetch || cfg_st_fetch="N"
+      cfg_st_fetch=${cfg_st_fetch^^}
+      if [ "${cfg_st_fetch}" = "Y" ]; then
+        FETCH_STEREO_TOOL_ENTERPRISE=true
+        if [ -n "${STEREO_TOOL_ENTERPRISE_URL}" ]; then
+          echo "[INFO] Current Stereo Tool Enterprise URL from environment: ${STEREO_TOOL_ENTERPRISE_URL}"
+        fi
+        read -t 180 -p "Enter Stereo Tool Enterprise Linux URL (leave empty to keep current): " cfg_st_url || cfg_st_url=""
+        if [ -n "${cfg_st_url}" ]; then
+          STEREO_TOOL_ENTERPRISE_URL="${cfg_st_url}"
+        fi
+        ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
+        prompt_stereo_tool_limit_preset
+        prompt_stereo_tool_web_binding
+        read -t 45 -p "Start Stereo Tool Enterprise immediately after install (no reboot)? [Y/n] (default Y): " cfg_st_start_now || cfg_st_start_now="Y"
+        cfg_st_start_now=${cfg_st_start_now^^}
+        if [ "${cfg_st_start_now}" = "N" ]; then
+          START_STEREO_TOOL_AFTER_INSTALL=false
+        else
+          START_STEREO_TOOL_AFTER_INSTALL=true
+        fi
       fi
     fi
   else
-    read -t 45 -p "Stereo Tool Enterprise not found locally. Download latest for Linux during install? [y/N] (default N): " cfg_st_fetch || cfg_st_fetch="N"
-    cfg_st_fetch=${cfg_st_fetch^^}
-    if [ "${cfg_st_fetch}" = "Y" ]; then
-      FETCH_STEREO_TOOL_ENTERPRISE=true
-      if [ -n "${STEREO_TOOL_ENTERPRISE_URL}" ]; then
-        echo "[INFO] Current Stereo Tool Enterprise URL from environment: ${STEREO_TOOL_ENTERPRISE_URL}"
-      fi
-      read -t 180 -p "Enter Stereo Tool Enterprise Linux URL (leave empty to keep current): " cfg_st_url || cfg_st_url=""
-      if [ -n "${cfg_st_url}" ]; then
-        STEREO_TOOL_ENTERPRISE_URL="${cfg_st_url}"
-      fi
-      ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE=true
-      prompt_stereo_tool_limit_preset
-      prompt_stereo_tool_web_binding
-      read -t 45 -p "Start Stereo Tool Enterprise immediately after install (no reboot)? [Y/n] (default Y): " cfg_st_start_now || cfg_st_start_now="Y"
-      cfg_st_start_now=${cfg_st_start_now^^}
-      if [ "${cfg_st_start_now}" = "N" ]; then
-        START_STEREO_TOOL_AFTER_INSTALL=false
-      else
-        START_STEREO_TOOL_AFTER_INSTALL=true
-      fi
-    fi
+    AUTO_ENABLE_STEREO_TOOL_IF_PRESENT="false"
+    START_STEREO_TOOL_AFTER_INSTALL="false"
+    echo "[INFO] OMPX_STEREO_BACKEND=${OMPX_STEREO_BACKEND}; Stereo Tool Enterprise boot service will be removed/disabled."
   fi
 
   echo "[INFO] Quick loopback self-test is disabled by default (historically unreliable on some hosts)."
@@ -2364,7 +2383,7 @@ if [ "${FETCH_STEREO_TOOL_ENTERPRISE}" = true ]; then
 fi
 
 # Fail-safe: on systemd hosts, auto-enable service when binary already exists.
-if has_systemd && [ "${AUTO_ENABLE_STEREO_TOOL_IF_PRESENT}" = "true" ] && [ -x "${STEREO_TOOL_ENTERPRISE_BIN}" ]; then
+if has_systemd && [ "${OMPX_STEREO_BACKEND}" = "stereotool" ] && [ "${AUTO_ENABLE_STEREO_TOOL_IF_PRESENT}" = "true" ] && [ -x "${STEREO_TOOL_ENTERPRISE_BIN}" ]; then
   if [ "${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE}" != "true" ]; then
     echo "[INFO] Stereo Tool Enterprise binary detected; auto-enabling boot service (AUTO_ENABLE_STEREO_TOOL_IF_PRESENT=true)"
   fi
@@ -2374,6 +2393,8 @@ fi
 if [ "${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE}" = true ]; then
   apply_stereo_tool_start_limit_preset
   install_stereo_tool_enterprise_service "${STEREO_TOOL_ENTERPRISE_BIN}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" "${STEREO_TOOL_WEB_BIND}" "${STEREO_TOOL_WEB_PORT}" "${STEREO_TOOL_WEB_WHITELIST}" "${STEREO_TOOL_START_LIMIT_INTERVAL_SEC}" "${STEREO_TOOL_START_LIMIT_BURST}"
+elif [ "${OMPX_STEREO_BACKEND}" != "stereotool" ]; then
+  remove_stereo_tool_enterprise_service
 fi
 
 if [ "${STREAM_SETUP_MODE:-header}" != "later" ]; then
@@ -2992,11 +3013,18 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
+mpx_mix_after="network-online.target sound.target"
+mpx_mix_wants="network-online.target sound.target"
+if [ "${OMPX_STEREO_BACKEND}" = "stereotool" ]; then
+  mpx_mix_after="network-online.target stereo-tool-enterprise.service sound.target"
+  mpx_mix_wants="network-online.target stereo-tool-enterprise.service sound.target"
+fi
+
 cat > "${SYSTEMD_DIR}/mpx-mix.service" <<EOF
 [Unit]
 Description=oMPX MPX mix — mono sum / hard pan / Icecast FLAC encoder
-After=network-online.target stereo-tool-enterprise.service sound.target
-Wants=stereo-tool-enterprise.service
+After=${mpx_mix_after}
+Wants=${mpx_mix_wants}
 
 [Service]
 Type=simple
