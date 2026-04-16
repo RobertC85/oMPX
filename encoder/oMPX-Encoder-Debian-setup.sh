@@ -5139,33 +5139,26 @@ PAGE_HTML = """<!doctype html>
       <div><label>Program 1 Tab Name</label><input id=\"tab_name_prog1\" class=\"tab-name\" type=\"text\" maxlength=\"24\" /></div>
       <div><label>Program 2 Tab Name</label><input id=\"tab_name_prog2\" class=\"tab-name\" type=\"text\" maxlength=\"24\" /></div>
     </div>
-    <div class=\"global-field\">
-      <label style=\"margin-top:8px\">Global Settings</label>
-      <label><input id=\"enable_momentary_ab\" type=\"checkbox\" /> Enable Momentary A/B Hold (optional)</label>
-      <label><input id=\"ui_pro_left_rail\" type=\"checkbox\" /> Enable Pro Left-Rail Layout (optional)</label>
-      <label><input id=\"ui_hobbyist_mode\" type=\"checkbox\" /> Hobbyist Simplified Controls (recommended)</label>
-      <div class=\"status\">When enabled, hold the A/B button to temporarily bypass processing, then release to return.</div>
-    </div>
-      <div>
-      <label>Input Channel</label>
-      <select id=\"input_device\">
-        <option value=\"radio1_url\">Program 1 stream URL</option>
-        <option value=\"radio2_url\">Program 2 stream URL</option>
-        <option value=\"ompx_prg1in_cap\">Program 1 input</option>
-        <option value=\"ompx_prg2in_cap\">Program 2 input</option>
-        <option value=\"ompx_prg1mpx_cap\">Program 1 MPX path</option>
-        <option value=\"ompx_prg2mpx_cap\">Program 2 MPX path</option>
-      </select>
+    <div class=\"grid\"> 
+      <!-- Visualizer card moved to top, input waveform and FFT removed -->
+      <div class=\"card\"> 
+        <label style=\"margin-top:12px\">Output Waveform (L)</label>
+        <canvas id=\"wave_out_l\" width=\"900\" height=\"120\"></canvas>
+        <label style=\"margin-top:12px\">Output Waveform (R)</label>
+        <canvas id=\"wave_out_r\" width=\"900\" height=\"120\"></canvas>
+        <label style=\"margin-top:12px\">Band Spectrum</label>
+        <canvas id=\"spec\" width=\"900\" height=\"140\"></canvas>
+        <label style=\"margin-top:12px\">Processor Band Meters</label>
+        <div class=\"meter-grid\" id=\"band_meters\"> 
+          ...existing code...
+        </div>
+        <label style=\"margin-top:12px\">System Monitor</label>
+        <div class=\"status\" id=\"cpu_status\">CPU: pending...</div>
+        <div class=\"status\" id=\"mem_status\">Memory: pending...</div>
       </div>
-      <div>
-      <label>Sample Rate</label>
-      <input id=\"sample_rate\" type=\"number\" min=\"8000\" max=\"192000\" step=\"1000\" />
+      <div class=\"card\"> 
+        ...existing code for controls card...
       </div>
-    </div>
-    <div class=\"row\">
-      <div>
-      <label>Waveform Window (seconds)</label>
-      <input id=\"wave_window_sec\" type=\"range\" min=\"0.25\" max=\"10\" step=\"0.25\" />
       <div class=\"status\" id=\"wave_window_readout\">3.00 s</div>
       </div>
       <div>
@@ -6023,13 +6016,17 @@ PAGE_HTML = """<!doctype html>
   inSilentGain.connect(ctxIn.destination);
 
   const waveIn = document.getElementById('wave_in');
-  const waveOut = document.getElementById('wave_out');
+  // const waveIn = document.getElementById('wave_in');
+  const waveOutL = document.getElementById('wave_out_l');
+  const waveOutR = document.getElementById('wave_out_r');
   const spec = document.getElementById('spec');
   const wctxIn = waveIn.getContext('2d');
-  const wctxOut = waveOut.getContext('2d');
+  // const wctxIn = waveIn.getContext('2d');
+  const wctxOutL = waveOutL.getContext('2d');
+  const wctxOutR = waveOutR.getContext('2d');
   const sctx = spec.getContext('2d');
   const timeDataOut = new Uint8Array(analyserOut.fftSize);
-  const timeDataIn = new Uint8Array(analyserIn.fftSize);
+  // const timeDataIn = new Uint8Array(analyserIn.fftSize);
   const freqData = new Uint8Array(analyserOut.frequencyBinCount);
   const bandDefs = [
     {name:'sub', lo:30, hi:120},
@@ -6065,11 +6062,23 @@ PAGE_HTML = """<!doctype html>
 
   function renderAnalysisFrame(){
     analyserOut.getByteTimeDomainData(timeDataOut);
-    analyserIn.getByteTimeDomainData(timeDataIn);
-    captureWaveHistory(timeDataOut, waveHistoryOut, false);
-    captureWaveHistory(timeDataIn, waveHistoryIn, true);
-    drawWaveFromHistory(waveHistoryIn, waveIn, wctxIn, '#52d3c7');
-    drawWaveFromHistory(waveHistoryOut, waveOut, wctxOut, '#f2b642');
+    // Split timeDataOut into L and R channels (assume even indices = L, odd = R)
+    const lData = [];
+    const rData = [];
+    for (let i = 0; i < timeDataOut.length - 1; i += 2) {
+      lData.push(timeDataOut[i]);
+      rData.push(timeDataOut[i + 1]);
+    }
+    // Maintain separate histories for L and R
+    if (!window.waveHistoryOutL) window.waveHistoryOutL = [];
+    if (!window.waveHistoryOutR) window.waveHistoryOutR = [];
+    captureWaveHistory(lData, window.waveHistoryOutL, false);
+    captureWaveHistory(rData, window.waveHistoryOutR, false);
+    drawWaveFromHistory(window.waveHistoryOutL, waveOutL, wctxOutL, '#f2b642');
+    drawWaveFromHistory(window.waveHistoryOutR, waveOutR, wctxOutR, '#52d3c7');
+    // Input waveform and FFT are removed/disabled.
+    // drawWaveFromHistory(waveHistoryIn, waveIn, wctxIn, '#52d3c7');
+    // drawWaveFromHistory(waveHistoryOut, waveOut, wctxOut, '#f2b642');
 
     analyserOut.getByteFrequencyData(freqData);
     sctx.fillStyle = '#07110f';
