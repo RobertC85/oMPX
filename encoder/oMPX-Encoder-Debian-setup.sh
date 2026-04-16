@@ -331,11 +331,11 @@ fi
 if [ -r /etc/asound.conf ]; then
   export ALSA_CONFIG_PATH=/etc/asound.conf
 fi
-_alsa_probe_l="$(aplay -l 2>&1 || true)"
-_alsa_probe_L="$(aplay -L 2>&1 || true)"
-if printf '%s\n%s\n' "${_alsa_probe_l}" "${_alsa_probe_L}" | grep -qiE 'Invalid CTL|control open \([0-9]+\): No such file|Unknown PCM'; then
+_alsa_probe_l="\$(aplay -l 2>&1 || true)"
+_alsa_probe_L="\$(aplay -L 2>&1 || true)"
+if printf '%s\n%s\n' "\${_alsa_probe_l}" "\${_alsa_probe_L}" | grep -qiE 'Invalid CTL|control open \([0-9]+\): No such file|Unknown PCM'; then
   unset ALSA_CONFIG_PATH || true
-elif [ -z "${_alsa_probe_L}" ]; then
+elif [ -z "\${_alsa_probe_L}" ]; then
   unset ALSA_CONFIG_PATH || true
 fi
 
