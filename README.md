@@ -25,3 +25,16 @@ Runtime defaults:
 - default bind: `0.0.0.0`
 - default port: `8082`
 
+## RDS Metadata Sidecar
+
+When Program 1/2 RDS sync is enabled, the installer now also writes sidecar JSON files:
+- `/home/ompx/rds/prog1/rds-info.json`
+- `/home/ompx/rds/prog2/rds-info.json`
+
+Each sidecar includes adjustable RDS fields:
+- `ps`, `pi`, `pty`, `tp`, `ta`, `ms`
+- `ct` (clock time; local or UTC mode)
+- `rt` (current RadioText)
+
+These values are configured in the installer RDS dialog and persisted in `/home/ompx/.profile`.
+

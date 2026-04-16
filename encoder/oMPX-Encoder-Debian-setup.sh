@@ -174,6 +174,16 @@ RDS_PROG1_ICECAST_STATS_URL="${RDS_PROG1_ICECAST_STATS_URL:-}"
 RDS_PROG1_ICECAST_MOUNT="${RDS_PROG1_ICECAST_MOUNT:-}"
 RDS_PROG1_INTERVAL_SEC="${RDS_PROG1_INTERVAL_SEC:-5}"
 RDS_PROG1_RT_PATH="${RDS_PROG1_RT_PATH:-${OMPX_HOME}/rds/prog1/rt.txt}"
+RDS_PROG1_PS="${RDS_PROG1_PS:-OMPXFM1}"
+RDS_PROG1_PI="${RDS_PROG1_PI:-1A01}"
+RDS_PROG1_PTY="${RDS_PROG1_PTY:-10}"
+RDS_PROG1_TP="${RDS_PROG1_TP:-true}"
+RDS_PROG1_TA="${RDS_PROG1_TA:-false}"
+RDS_PROG1_MS="${RDS_PROG1_MS:-true}"
+RDS_PROG1_CT_ENABLE="${RDS_PROG1_CT_ENABLE:-true}"
+RDS_PROG1_CT_MODE="${RDS_PROG1_CT_MODE:-local}"
+RDS_PROG1_INFO_PATH="${RDS_PROG1_INFO_PATH:-${OMPX_HOME}/rds/prog1/rds-info.json}"
+RDS_PROG1_OVERRIDE_PATH="${RDS_PROG1_OVERRIDE_PATH:-${OMPX_HOME}/rds/prog1/rds-override.json}"
 RDS_PROG2_ENABLE="${RDS_PROG2_ENABLE:-false}"
 RDS_PROG2_SOURCE="${RDS_PROG2_SOURCE:-url}"
 RDS_PROG2_RT_URL="${RDS_PROG2_RT_URL:-}"
@@ -181,6 +191,16 @@ RDS_PROG2_ICECAST_STATS_URL="${RDS_PROG2_ICECAST_STATS_URL:-}"
 RDS_PROG2_ICECAST_MOUNT="${RDS_PROG2_ICECAST_MOUNT:-}"
 RDS_PROG2_INTERVAL_SEC="${RDS_PROG2_INTERVAL_SEC:-5}"
 RDS_PROG2_RT_PATH="${RDS_PROG2_RT_PATH:-${OMPX_HOME}/rds/prog2/rt.txt}"
+RDS_PROG2_PS="${RDS_PROG2_PS:-OMPXFM2}"
+RDS_PROG2_PI="${RDS_PROG2_PI:-1A02}"
+RDS_PROG2_PTY="${RDS_PROG2_PTY:-10}"
+RDS_PROG2_TP="${RDS_PROG2_TP:-true}"
+RDS_PROG2_TA="${RDS_PROG2_TA:-false}"
+RDS_PROG2_MS="${RDS_PROG2_MS:-true}"
+RDS_PROG2_CT_ENABLE="${RDS_PROG2_CT_ENABLE:-true}"
+RDS_PROG2_CT_MODE="${RDS_PROG2_CT_MODE:-local}"
+RDS_PROG2_INFO_PATH="${RDS_PROG2_INFO_PATH:-${OMPX_HOME}/rds/prog2/rds-info.json}"
+RDS_PROG2_OVERRIDE_PATH="${RDS_PROG2_OVERRIDE_PATH:-${OMPX_HOME}/rds/prog2/rds-override.json}"
 CONFIG_OVERWRITE="${CONFIG_OVERWRITE:-true}"
 CONFIG_BACKUP="${CONFIG_BACKUP:-true}"
 CONFIG_SKIP="${CONFIG_SKIP:-false}"
@@ -364,6 +384,38 @@ if [ -z "${ICECAST_PASSWORD}" ]; then
   ICECAST_PASSWORD="$(generate_secure_password 24)"
   echo "[INFO] ICECAST_PASSWORD not provided; generated a secure random password"
 fi
+
+RDS_PROG1_PS="${RDS_PROG1_PS:0:8}"
+RDS_PROG2_PS="${RDS_PROG2_PS:0:8}"
+RDS_PROG1_PI="${RDS_PROG1_PI^^}"
+RDS_PROG2_PI="${RDS_PROG2_PI^^}"
+if ! [[ "${RDS_PROG1_PI}" =~ ^[0-9A-F]{4}$ ]]; then
+  echo "[WARNING] Invalid RDS_PROG1_PI='${RDS_PROG1_PI}'; defaulting to 1A01"
+  RDS_PROG1_PI="1A01"
+fi
+if ! [[ "${RDS_PROG2_PI}" =~ ^[0-9A-F]{4}$ ]]; then
+  echo "[WARNING] Invalid RDS_PROG2_PI='${RDS_PROG2_PI}'; defaulting to 1A02"
+  RDS_PROG2_PI="1A02"
+fi
+if ! [[ "${RDS_PROG1_PTY}" =~ ^[0-9]+$ ]] || [ "${RDS_PROG1_PTY}" -lt 0 ] || [ "${RDS_PROG1_PTY}" -gt 31 ]; then
+  echo "[WARNING] Invalid RDS_PROG1_PTY='${RDS_PROG1_PTY}'; defaulting to 10"
+  RDS_PROG1_PTY="10"
+fi
+if ! [[ "${RDS_PROG2_PTY}" =~ ^[0-9]+$ ]] || [ "${RDS_PROG2_PTY}" -lt 0 ] || [ "${RDS_PROG2_PTY}" -gt 31 ]; then
+  echo "[WARNING] Invalid RDS_PROG2_PTY='${RDS_PROG2_PTY}'; defaulting to 10"
+  RDS_PROG2_PTY="10"
+fi
+RDS_PROG1_TP="${RDS_PROG1_TP,,}"; [ "${RDS_PROG1_TP}" = "true" ] || RDS_PROG1_TP="false"
+RDS_PROG1_TA="${RDS_PROG1_TA,,}"; [ "${RDS_PROG1_TA}" = "true" ] || RDS_PROG1_TA="false"
+RDS_PROG1_MS="${RDS_PROG1_MS,,}"; [ "${RDS_PROG1_MS}" = "true" ] || RDS_PROG1_MS="false"
+RDS_PROG2_TP="${RDS_PROG2_TP,,}"; [ "${RDS_PROG2_TP}" = "true" ] || RDS_PROG2_TP="false"
+RDS_PROG2_TA="${RDS_PROG2_TA,,}"; [ "${RDS_PROG2_TA}" = "true" ] || RDS_PROG2_TA="false"
+RDS_PROG2_MS="${RDS_PROG2_MS,,}"; [ "${RDS_PROG2_MS}" = "true" ] || RDS_PROG2_MS="false"
+RDS_PROG1_CT_ENABLE="${RDS_PROG1_CT_ENABLE,,}"; [ "${RDS_PROG1_CT_ENABLE}" = "true" ] || RDS_PROG1_CT_ENABLE="false"
+RDS_PROG2_CT_ENABLE="${RDS_PROG2_CT_ENABLE,,}"; [ "${RDS_PROG2_CT_ENABLE}" = "true" ] || RDS_PROG2_CT_ENABLE="false"
+RDS_PROG1_CT_MODE="${RDS_PROG1_CT_MODE,,}"; [ "${RDS_PROG1_CT_MODE}" = "utc" ] || RDS_PROG1_CT_MODE="local"
+RDS_PROG2_CT_MODE="${RDS_PROG2_CT_MODE,,}"; [ "${RDS_PROG2_CT_MODE}" = "utc" ] || RDS_PROG2_CT_MODE="local"
+
 if [ "${OMPX_STEREO_BACKEND}" != "stereotool" ]; then
   # When using the internal oMPX wrapper chain, Stereo Tool Enterprise must not auto-start.
   ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE="false"
@@ -765,6 +817,7 @@ configure_rds_dialog(){
   echo "=== RDS sync configuration ==="
   echo "  Syncs RadioText from a text URL OR from stream metadata"
   echo "  Program 1 output file: ${OMPX_HOME}/rds/prog1/rt.txt"
+  echo "  Program 1 sidecar: ${OMPX_HOME}/rds/prog1/rds-info.json"
   read -t 60 -p "Enable Program 1 RDS text sync? [y/N] (default N): " _rds_enable || _rds_enable="N"
   _rds_enable=${_rds_enable^^}
   if [ "${_rds_enable}" != "Y" ]; then
@@ -834,7 +887,36 @@ configure_rds_dialog(){
         RDS_PROG1_INTERVAL_SEC="${_rds_int}"
       fi
 
+      read -t 60 -p "Program 1 RDS PS (max 8 chars, default ${RDS_PROG1_PS}): " _rds1_ps || _rds1_ps=""
+      [ -n "${_rds1_ps}" ] && RDS_PROG1_PS="${_rds1_ps:0:8}"
+      read -t 60 -p "Program 1 RDS PI hex (4 chars, default ${RDS_PROG1_PI}): " _rds1_pi || _rds1_pi=""
+      if [ -n "${_rds1_pi}" ] && [[ "${_rds1_pi^^}" =~ ^[0-9A-F]{4}$ ]]; then
+        RDS_PROG1_PI="${_rds1_pi^^}"
+      fi
+      read -t 60 -p "Program 1 RDS PTY (0-31, default ${RDS_PROG1_PTY}): " _rds1_pty || _rds1_pty=""
+      if [ -n "${_rds1_pty}" ] && [[ "${_rds1_pty}" =~ ^[0-9]+$ ]] && [ "${_rds1_pty}" -ge 0 ] && [ "${_rds1_pty}" -le 31 ]; then
+        RDS_PROG1_PTY="${_rds1_pty}"
+      fi
+      read -t 60 -p "Program 1 TP flag [y/N] (default $( [ "${RDS_PROG1_TP}" = "true" ] && echo Y || echo N )): " _rds1_tp || _rds1_tp=""
+      [ "${_rds1_tp^^}" = "Y" ] && RDS_PROG1_TP="true"
+      [ "${_rds1_tp^^}" = "N" ] && RDS_PROG1_TP="false"
+      read -t 60 -p "Program 1 TA flag [y/N] (default $( [ "${RDS_PROG1_TA}" = "true" ] && echo Y || echo N )): " _rds1_ta || _rds1_ta=""
+      [ "${_rds1_ta^^}" = "Y" ] && RDS_PROG1_TA="true"
+      [ "${_rds1_ta^^}" = "N" ] && RDS_PROG1_TA="false"
+      read -t 60 -p "Program 1 MS flag [y/N] (default $( [ "${RDS_PROG1_MS}" = "true" ] && echo Y || echo N )): " _rds1_ms || _rds1_ms=""
+      [ "${_rds1_ms^^}" = "Y" ] && RDS_PROG1_MS="true"
+      [ "${_rds1_ms^^}" = "N" ] && RDS_PROG1_MS="false"
+      read -t 60 -p "Program 1 include clock-time (CT) in sidecar output? [Y/n] (default $( [ "${RDS_PROG1_CT_ENABLE}" = "true" ] && echo Y || echo N )): " _rds1_ct || _rds1_ct=""
+      [ "${_rds1_ct^^}" = "Y" ] && RDS_PROG1_CT_ENABLE="true"
+      [ "${_rds1_ct^^}" = "N" ] && RDS_PROG1_CT_ENABLE="false"
+      if [ "${RDS_PROG1_CT_ENABLE}" = "true" ]; then
+        read -t 60 -p "Program 1 CT mode [L=local/U=UTC] (default $( [ "${RDS_PROG1_CT_MODE}" = "utc" ] && echo U || echo L )): " _rds1_ct_mode || _rds1_ct_mode=""
+        [ "${_rds1_ct_mode^^}" = "U" ] && RDS_PROG1_CT_MODE="utc"
+        [ "${_rds1_ct_mode^^}" = "L" ] && RDS_PROG1_CT_MODE="local"
+      fi
+
       RDS_PROG1_RT_PATH="${OMPX_HOME}/rds/prog1/rt.txt"
+      RDS_PROG1_INFO_PATH="${OMPX_HOME}/rds/prog1/rds-info.json"
       if [ "${RDS_PROG1_SOURCE}" = "metadata" ]; then
         echo "[INFO] Program 1 RDS sync enabled (metadata): RADIO1_URL -> ${RDS_PROG1_RT_PATH} every ${RDS_PROG1_INTERVAL_SEC}s"
       elif [ "${RDS_PROG1_SOURCE}" = "icecast" ]; then
@@ -842,11 +924,13 @@ configure_rds_dialog(){
       else
         echo "[INFO] Program 1 RDS sync enabled (url): ${RDS_PROG1_RT_URL} -> ${RDS_PROG1_RT_PATH} every ${RDS_PROG1_INTERVAL_SEC}s"
       fi
+      echo "[INFO] Program 1 RDS sidecar JSON: ${RDS_PROG1_INFO_PATH}"
     fi
   fi
 
   echo ""
   echo "  Program 2 output file: ${OMPX_HOME}/rds/prog2/rt.txt"
+  echo "  Program 2 sidecar: ${OMPX_HOME}/rds/prog2/rds-info.json"
   read -t 60 -p "Enable Program 2 RDS text sync? [y/N] (default N): " _rds2_enable || _rds2_enable="N"
   _rds2_enable=${_rds2_enable^^}
   if [ "${_rds2_enable}" != "Y" ]; then
@@ -916,7 +1000,36 @@ configure_rds_dialog(){
         RDS_PROG2_INTERVAL_SEC="${_rds2_int}"
       fi
 
+      read -t 60 -p "Program 2 RDS PS (max 8 chars, default ${RDS_PROG2_PS}): " _rds2_ps || _rds2_ps=""
+      [ -n "${_rds2_ps}" ] && RDS_PROG2_PS="${_rds2_ps:0:8}"
+      read -t 60 -p "Program 2 RDS PI hex (4 chars, default ${RDS_PROG2_PI}): " _rds2_pi || _rds2_pi=""
+      if [ -n "${_rds2_pi}" ] && [[ "${_rds2_pi^^}" =~ ^[0-9A-F]{4}$ ]]; then
+        RDS_PROG2_PI="${_rds2_pi^^}"
+      fi
+      read -t 60 -p "Program 2 RDS PTY (0-31, default ${RDS_PROG2_PTY}): " _rds2_pty || _rds2_pty=""
+      if [ -n "${_rds2_pty}" ] && [[ "${_rds2_pty}" =~ ^[0-9]+$ ]] && [ "${_rds2_pty}" -ge 0 ] && [ "${_rds2_pty}" -le 31 ]; then
+        RDS_PROG2_PTY="${_rds2_pty}"
+      fi
+      read -t 60 -p "Program 2 TP flag [y/N] (default $( [ "${RDS_PROG2_TP}" = "true" ] && echo Y || echo N )): " _rds2_tp || _rds2_tp=""
+      [ "${_rds2_tp^^}" = "Y" ] && RDS_PROG2_TP="true"
+      [ "${_rds2_tp^^}" = "N" ] && RDS_PROG2_TP="false"
+      read -t 60 -p "Program 2 TA flag [y/N] (default $( [ "${RDS_PROG2_TA}" = "true" ] && echo Y || echo N )): " _rds2_ta || _rds2_ta=""
+      [ "${_rds2_ta^^}" = "Y" ] && RDS_PROG2_TA="true"
+      [ "${_rds2_ta^^}" = "N" ] && RDS_PROG2_TA="false"
+      read -t 60 -p "Program 2 MS flag [y/N] (default $( [ "${RDS_PROG2_MS}" = "true" ] && echo Y || echo N )): " _rds2_ms || _rds2_ms=""
+      [ "${_rds2_ms^^}" = "Y" ] && RDS_PROG2_MS="true"
+      [ "${_rds2_ms^^}" = "N" ] && RDS_PROG2_MS="false"
+      read -t 60 -p "Program 2 include clock-time (CT) in sidecar output? [Y/n] (default $( [ "${RDS_PROG2_CT_ENABLE}" = "true" ] && echo Y || echo N )): " _rds2_ct || _rds2_ct=""
+      [ "${_rds2_ct^^}" = "Y" ] && RDS_PROG2_CT_ENABLE="true"
+      [ "${_rds2_ct^^}" = "N" ] && RDS_PROG2_CT_ENABLE="false"
+      if [ "${RDS_PROG2_CT_ENABLE}" = "true" ]; then
+        read -t 60 -p "Program 2 CT mode [L=local/U=UTC] (default $( [ "${RDS_PROG2_CT_MODE}" = "utc" ] && echo U || echo L )): " _rds2_ct_mode || _rds2_ct_mode=""
+        [ "${_rds2_ct_mode^^}" = "U" ] && RDS_PROG2_CT_MODE="utc"
+        [ "${_rds2_ct_mode^^}" = "L" ] && RDS_PROG2_CT_MODE="local"
+      fi
+
       RDS_PROG2_RT_PATH="${OMPX_HOME}/rds/prog2/rt.txt"
+      RDS_PROG2_INFO_PATH="${OMPX_HOME}/rds/prog2/rds-info.json"
       if [ "${RDS_PROG2_SOURCE}" = "metadata" ]; then
         echo "[INFO] Program 2 RDS sync enabled (metadata): RADIO2_URL -> ${RDS_PROG2_RT_PATH} every ${RDS_PROG2_INTERVAL_SEC}s"
       elif [ "${RDS_PROG2_SOURCE}" = "icecast" ]; then
@@ -924,6 +1037,7 @@ configure_rds_dialog(){
       else
         echo "[INFO] Program 2 RDS sync enabled (url): ${RDS_PROG2_RT_URL} -> ${RDS_PROG2_RT_PATH} every ${RDS_PROG2_INTERVAL_SEC}s"
       fi
+      echo "[INFO] Program 2 RDS sidecar JSON: ${RDS_PROG2_INFO_PATH}"
     fi
   fi
 }
@@ -1643,6 +1757,16 @@ RDS_PROG1_ICECAST_STATS_URL="${RDS_PROG1_ICECAST_STATS_URL}"
 RDS_PROG1_ICECAST_MOUNT="${RDS_PROG1_ICECAST_MOUNT}"
 RDS_PROG1_INTERVAL_SEC="${RDS_PROG1_INTERVAL_SEC}"
 RDS_PROG1_RT_PATH="${RDS_PROG1_RT_PATH}"
+RDS_PROG1_PS="${RDS_PROG1_PS}"
+RDS_PROG1_PI="${RDS_PROG1_PI}"
+RDS_PROG1_PTY="${RDS_PROG1_PTY}"
+RDS_PROG1_TP="${RDS_PROG1_TP}"
+RDS_PROG1_TA="${RDS_PROG1_TA}"
+RDS_PROG1_MS="${RDS_PROG1_MS}"
+RDS_PROG1_CT_ENABLE="${RDS_PROG1_CT_ENABLE}"
+RDS_PROG1_CT_MODE="${RDS_PROG1_CT_MODE}"
+RDS_PROG1_INFO_PATH="${RDS_PROG1_INFO_PATH}"
+RDS_PROG1_OVERRIDE_PATH="${RDS_PROG1_OVERRIDE_PATH}"
 RDS_PROG2_ENABLE="${RDS_PROG2_ENABLE}"
 RDS_PROG2_SOURCE="${RDS_PROG2_SOURCE}"
 RDS_PROG2_RT_URL="${RDS_PROG2_RT_URL}"
@@ -1650,6 +1774,16 @@ RDS_PROG2_ICECAST_STATS_URL="${RDS_PROG2_ICECAST_STATS_URL}"
 RDS_PROG2_ICECAST_MOUNT="${RDS_PROG2_ICECAST_MOUNT}"
 RDS_PROG2_INTERVAL_SEC="${RDS_PROG2_INTERVAL_SEC}"
 RDS_PROG2_RT_PATH="${RDS_PROG2_RT_PATH}"
+RDS_PROG2_PS="${RDS_PROG2_PS}"
+RDS_PROG2_PI="${RDS_PROG2_PI}"
+RDS_PROG2_PTY="${RDS_PROG2_PTY}"
+RDS_PROG2_TP="${RDS_PROG2_TP}"
+RDS_PROG2_TA="${RDS_PROG2_TA}"
+RDS_PROG2_MS="${RDS_PROG2_MS}"
+RDS_PROG2_CT_ENABLE="${RDS_PROG2_CT_ENABLE}"
+RDS_PROG2_CT_MODE="${RDS_PROG2_CT_MODE}"
+RDS_PROG2_INFO_PATH="${RDS_PROG2_INFO_PATH}"
+RDS_PROG2_OVERRIDE_PATH="${RDS_PROG2_OVERRIDE_PATH}"
 PROFILE_WRITTEN
   chown "${OMPX_USER}:${OMPX_USER}" "$PROFILE"
   chmod 644 "$PROFILE"
@@ -3821,6 +3955,12 @@ WHITELIST_RAW = ENV.get("OMPX_WEB_WHITELIST", "127.0.0.1/32")
 AUTH_ENABLE = ENV.get("OMPX_WEB_AUTH_ENABLE", "false").lower() == "true"
 AUTH_USER = ENV.get("OMPX_WEB_AUTH_USER", "ompx")
 AUTH_PASSWORD = ENV.get("OMPX_WEB_AUTH_PASSWORD", "")
+RDS_PROG1_RT_PATH = ENV.get("RDS_PROG1_RT_PATH", "/home/ompx/rds/prog1/rt.txt")
+RDS_PROG2_RT_PATH = ENV.get("RDS_PROG2_RT_PATH", "/home/ompx/rds/prog2/rt.txt")
+RDS_PROG1_INFO_PATH = ENV.get("RDS_PROG1_INFO_PATH", "/home/ompx/rds/prog1/rds-info.json")
+RDS_PROG2_INFO_PATH = ENV.get("RDS_PROG2_INFO_PATH", "/home/ompx/rds/prog2/rds-info.json")
+RDS_PROG1_OVERRIDE_PATH = ENV.get("RDS_PROG1_OVERRIDE_PATH", "/home/ompx/rds/prog1/rds-override.json")
+RDS_PROG2_OVERRIDE_PATH = ENV.get("RDS_PROG2_OVERRIDE_PATH", "/home/ompx/rds/prog2/rds-override.json")
 
 ALLOWED_NETWORKS = []
 for token in WHITELIST_RAW.split(","):
@@ -3834,6 +3974,7 @@ for token in WHITELIST_RAW.split(","):
 
 DEFAULT_STATE = {
   "input_device": "ompx_prg1in_cap",
+  "preview_mode": "auto",
   "sample_rate": 48000,
   "pre_gain_db": 0.0,
   "post_gain_db": 0.0,
@@ -3872,6 +4013,131 @@ def save_state(state):
   os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
   with open(STATE_PATH, "w", encoding="utf-8") as f:
     json.dump(state, f, indent=2)
+
+
+def _parse_bool(value, default=False):
+  if isinstance(value, bool):
+    return value
+  if isinstance(value, str):
+    v = value.strip().lower()
+    if v in ("1", "true", "yes", "on", "y"):
+      return True
+    if v in ("0", "false", "no", "off", "n"):
+      return False
+  return default
+
+
+def _safe_int(value, default, min_value=0, max_value=31):
+  try:
+    iv = int(value)
+  except Exception:
+    return default
+  return max(min_value, min(max_value, iv))
+
+
+def _normalize_pi(value, default):
+  s = str(value or "").strip().upper()
+  if len(s) == 4 and all(c in "0123456789ABCDEF" for c in s):
+    return s
+  return default
+
+
+def _load_json(path):
+  if not os.path.exists(path):
+    return {}
+  try:
+    with open(path, "r", encoding="utf-8") as f:
+      return json.load(f)
+  except Exception:
+    return {}
+
+
+def _write_json(path, payload):
+  os.makedirs(os.path.dirname(path), exist_ok=True)
+  tmp = f"{path}.tmp"
+  with open(tmp, "w", encoding="utf-8") as f:
+    json.dump(payload, f, indent=2)
+  os.replace(tmp, path)
+
+
+def _read_first_line(path):
+  if not os.path.exists(path):
+    return ""
+  try:
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+      return f.readline().strip()
+  except Exception:
+    return ""
+
+
+def load_rds_state():
+  p1_override = _load_json(RDS_PROG1_OVERRIDE_PATH)
+  p2_override = _load_json(RDS_PROG2_OVERRIDE_PATH)
+  p1_info = _load_json(RDS_PROG1_INFO_PATH)
+  p2_info = _load_json(RDS_PROG2_INFO_PATH)
+  return {
+    "rds_prog1_ps": str(p1_override.get("ps", ENV.get("RDS_PROG1_PS", p1_info.get("ps", "OMPXFM1"))))[:8],
+    "rds_prog1_pi": _normalize_pi(p1_override.get("pi", ENV.get("RDS_PROG1_PI", p1_info.get("pi", "1A01"))), "1A01"),
+    "rds_prog1_pty": _safe_int(p1_override.get("pty", ENV.get("RDS_PROG1_PTY", p1_info.get("pty", 10))), 10),
+    "rds_prog1_tp": _parse_bool(p1_override.get("tp", ENV.get("RDS_PROG1_TP", p1_info.get("tp", True))), True),
+    "rds_prog1_ta": _parse_bool(p1_override.get("ta", ENV.get("RDS_PROG1_TA", p1_info.get("ta", False))), False),
+    "rds_prog1_ms": _parse_bool(p1_override.get("ms", ENV.get("RDS_PROG1_MS", p1_info.get("ms", True))), True),
+    "rds_prog1_ct_enable": _parse_bool(p1_override.get("ct_enable", ENV.get("RDS_PROG1_CT_ENABLE", True)), True),
+    "rds_prog1_ct_mode": str(p1_override.get("ct_mode", ENV.get("RDS_PROG1_CT_MODE", "local"))).lower() if str(p1_override.get("ct_mode", ENV.get("RDS_PROG1_CT_MODE", "local"))).lower() in ("local", "utc") else "local",
+    "rds_prog1_rt": str(p1_override.get("rt", _read_first_line(RDS_PROG1_RT_PATH) or p1_info.get("rt", ""))),
+    "rds_prog2_ps": str(p2_override.get("ps", ENV.get("RDS_PROG2_PS", p2_info.get("ps", "OMPXFM2"))))[:8],
+    "rds_prog2_pi": _normalize_pi(p2_override.get("pi", ENV.get("RDS_PROG2_PI", p2_info.get("pi", "1A02"))), "1A02"),
+    "rds_prog2_pty": _safe_int(p2_override.get("pty", ENV.get("RDS_PROG2_PTY", p2_info.get("pty", 10))), 10),
+    "rds_prog2_tp": _parse_bool(p2_override.get("tp", ENV.get("RDS_PROG2_TP", p2_info.get("tp", True))), True),
+    "rds_prog2_ta": _parse_bool(p2_override.get("ta", ENV.get("RDS_PROG2_TA", p2_info.get("ta", False))), False),
+    "rds_prog2_ms": _parse_bool(p2_override.get("ms", ENV.get("RDS_PROG2_MS", p2_info.get("ms", True))), True),
+    "rds_prog2_ct_enable": _parse_bool(p2_override.get("ct_enable", ENV.get("RDS_PROG2_CT_ENABLE", True)), True),
+    "rds_prog2_ct_mode": str(p2_override.get("ct_mode", ENV.get("RDS_PROG2_CT_MODE", "local"))).lower() if str(p2_override.get("ct_mode", ENV.get("RDS_PROG2_CT_MODE", "local"))).lower() in ("local", "utc") else "local",
+    "rds_prog2_rt": str(p2_override.get("rt", _read_first_line(RDS_PROG2_RT_PATH) or p2_info.get("rt", ""))),
+  }
+
+
+def save_rds_state(payload):
+  current = load_rds_state()
+  merged = dict(current)
+  for key in merged:
+    if key in payload:
+      merged[key] = payload[key]
+
+  p1 = {
+    "ps": str(merged.get("rds_prog1_ps", "OMPXFM1"))[:8],
+    "pi": _normalize_pi(merged.get("rds_prog1_pi", "1A01"), "1A01"),
+    "pty": _safe_int(merged.get("rds_prog1_pty", 10), 10),
+    "tp": _parse_bool(merged.get("rds_prog1_tp", True), True),
+    "ta": _parse_bool(merged.get("rds_prog1_ta", False), False),
+    "ms": _parse_bool(merged.get("rds_prog1_ms", True), True),
+    "ct_enable": _parse_bool(merged.get("rds_prog1_ct_enable", True), True),
+    "ct_mode": "utc" if str(merged.get("rds_prog1_ct_mode", "local")).lower() == "utc" else "local",
+    "rt": str(merged.get("rds_prog1_rt", "")),
+  }
+  p2 = {
+    "ps": str(merged.get("rds_prog2_ps", "OMPXFM2"))[:8],
+    "pi": _normalize_pi(merged.get("rds_prog2_pi", "1A02"), "1A02"),
+    "pty": _safe_int(merged.get("rds_prog2_pty", 10), 10),
+    "tp": _parse_bool(merged.get("rds_prog2_tp", True), True),
+    "ta": _parse_bool(merged.get("rds_prog2_ta", False), False),
+    "ms": _parse_bool(merged.get("rds_prog2_ms", True), True),
+    "ct_enable": _parse_bool(merged.get("rds_prog2_ct_enable", True), True),
+    "ct_mode": "utc" if str(merged.get("rds_prog2_ct_mode", "local")).lower() == "utc" else "local",
+    "rt": str(merged.get("rds_prog2_rt", "")),
+  }
+
+  _write_json(RDS_PROG1_OVERRIDE_PATH, p1)
+  _write_json(RDS_PROG2_OVERRIDE_PATH, p2)
+
+  os.makedirs(os.path.dirname(RDS_PROG1_RT_PATH), exist_ok=True)
+  os.makedirs(os.path.dirname(RDS_PROG2_RT_PATH), exist_ok=True)
+  with open(RDS_PROG1_RT_PATH, "w", encoding="utf-8") as f:
+    f.write((p1["rt"] or "") + "\n")
+  with open(RDS_PROG2_RT_PATH, "w", encoding="utf-8") as f:
+    f.write((p2["rt"] or "") + "\n")
+
+  return load_rds_state()
 
 
 def client_allowed(ip):
@@ -4006,36 +4272,86 @@ class Handler(BaseHTTPRequestHandler):
       with STATE_LOCK:
         self._send_json(load_state())
       return
+    if parsed.path == "/api/rds_state":
+      self._send_json(load_rds_state())
+      return
     if parsed.path == "/api/preview.mp3":
       with STATE_LOCK:
         state = load_state()
       input_device = str(state.get("input_device", "ompx_prg1in_cap"))
+      preview_mode = str(state.get("preview_mode", "auto"))
       sample_rate = int(float(state.get("sample_rate", 48000)))
       filt = build_preview_filter(state)
-      cmd = [
-        "ffmpeg",
-        "-hide_banner",
-        "-loglevel",
-        "warning",
-        "-nostdin",
-        "-f",
-        "alsa",
-        "-ac",
-        "2",
-        "-ar",
-        str(sample_rate),
-        "-i",
-        input_device,
-        "-filter:a",
-        filt,
-        "-c:a",
-        "libmp3lame",
-        "-b:a",
-        "192k",
-        "-f",
-        "mp3",
-        "-",
-      ]
+      is_mpx_input = "mpx" in input_device
+      decode_mpx = (preview_mode == "mpx-decode") or (preview_mode == "auto" and is_mpx_input)
+      if decode_mpx:
+        mpx_decode_graph = (
+          "[0:a]pan=mono|c0=c0[m];"
+          "[m]lowpass=f=15000[lpr];"
+          "[m]bandpass=f=19000:w=1200[p];"
+          "[p][p]amultiply,highpass=f=30000,lowpass=f=42000,volume=35[car];"
+          "[m]highpass=f=23000,lowpass=f=53000[dsb];"
+          "[dsb][car]amultiply,lowpass=f=15000,volume=8[lmr];"
+          "[lpr][lmr]amix=inputs=2:weights='1 1'[left];"
+          "[lpr][lmr]amix=inputs=2:weights='1 -1'[right];"
+          "[left][right]join=inputs=2:channel_layout=stereo,"
+          f"{filt}[out]"
+        )
+        cmd = [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "warning",
+          "-nostdin",
+          "-f",
+          "alsa",
+          "-ac",
+          "2",
+          "-ar",
+          "192000",
+          "-i",
+          input_device,
+          "-filter_complex",
+          mpx_decode_graph,
+          "-map",
+          "[out]",
+          "-ar",
+          str(sample_rate),
+          "-ac",
+          "2",
+          "-c:a",
+          "libmp3lame",
+          "-b:a",
+          "192k",
+          "-f",
+          "mp3",
+          "-",
+        ]
+      else:
+        cmd = [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "warning",
+          "-nostdin",
+          "-f",
+          "alsa",
+          "-ac",
+          "2",
+          "-ar",
+          str(sample_rate),
+          "-i",
+          input_device,
+          "-filter:a",
+          filt,
+          "-c:a",
+          "libmp3lame",
+          "-b:a",
+          "192k",
+          "-f",
+          "mp3",
+          "-",
+        ]
       proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
       self.send_response(HTTPStatus.OK)
       self.send_header("Content-Type", "audio/mpeg")
@@ -4084,7 +4400,7 @@ class Handler(BaseHTTPRequestHandler):
         "-t",
         "0.35",
         "-filter_complex",
-        f"[0:a]pan=mono|c0=0.5*c0+0.5*c1,showspectrumpic=s=1280x360:legend=disabled:gain=2:drange=100:fscale=lin:start=0:stop={stop_hz}",
+        f"[0:a]pan=mono|c0=c0,showspectrumpic=s=1280x360:legend=1:gain=2:drange=100:fscale=lin:start=0:stop={stop_hz}",
         "-frames:v",
         "1",
         "-f",
@@ -4131,6 +4447,10 @@ class Handler(BaseHTTPRequestHandler):
           if key in payload:
             state[key] = payload[key]
         save_state(state)
+      self._send_json({"ok": True, "state": state})
+      return
+    if self.path == "/api/rds_state":
+      state = save_rds_state(payload)
       self._send_json({"ok": True, "state": state})
       return
     if self.path == "/api/patch/start":
@@ -4193,6 +4513,17 @@ PAGE_HTML = """<!doctype html>
       </div>
     </div>
     <div class=\"row\">
+      <div>
+      <label>Preview Decode Mode</label>
+      <select id=\"preview_mode\">
+        <option value=\"auto\">Auto (decode MPX inputs)</option>
+        <option value=\"audio\">Audio chain only</option>
+        <option value=\"mpx-decode\">Force MPX stereo decode</option>
+      </select>
+      </div>
+      <div></div>
+    </div>
+    <div class=\"row\">
       <div><label>Pre Gain (dB)</label><input id=\"pre_gain_db\" type=\"number\" step=\"0.1\" /></div>
       <div><label>Post Gain (dB)</label><input id=\"post_gain_db\" type=\"number\" step=\"0.1\" /></div>
     </div>
@@ -4248,6 +4579,54 @@ PAGE_HTML = """<!doctype html>
       <div><label>FFT Sample Rate</label><input id=\"fft_sample_rate\" type=\"number\" min=\"32000\" max=\"384000\" step=\"1000\" /></div>
       <div><label>&nbsp;</label><button id=\"fft_refresh\">Refresh FFT Now</button></div>
     </div>
+    <label style=\"margin-top:12px\">RDS Live Overrides</label>
+    <div class=\"row\">
+      <div><label>P1 PS</label><input id=\"rds_prog1_ps\" type=\"text\" maxlength=\"8\" /></div>
+      <div><label>P2 PS</label><input id=\"rds_prog2_ps\" type=\"text\" maxlength=\"8\" /></div>
+    </div>
+    <div class=\"row\">
+      <div><label>P1 PI (hex)</label><input id=\"rds_prog1_pi\" type=\"text\" maxlength=\"4\" /></div>
+      <div><label>P2 PI (hex)</label><input id=\"rds_prog2_pi\" type=\"text\" maxlength=\"4\" /></div>
+    </div>
+    <div class=\"row\">
+      <div><label>P1 PTY (0-31)</label><input id=\"rds_prog1_pty\" type=\"number\" min=\"0\" max=\"31\" step=\"1\" /></div>
+      <div><label>P2 PTY (0-31)</label><input id=\"rds_prog2_pty\" type=\"number\" min=\"0\" max=\"31\" step=\"1\" /></div>
+    </div>
+    <div class=\"row\">
+      <div><label>P1 RT Text</label><input id=\"rds_prog1_rt\" type=\"text\" /></div>
+      <div><label>P2 RT Text</label><input id=\"rds_prog2_rt\" type=\"text\" /></div>
+    </div>
+    <div class=\"row\">
+      <div>
+        <label>P1 CT Mode</label>
+        <select id=\"rds_prog1_ct_mode\"><option value=\"local\">Local</option><option value=\"utc\">UTC</option></select>
+      </div>
+      <div>
+        <label>P2 CT Mode</label>
+        <select id=\"rds_prog2_ct_mode\"><option value=\"local\">Local</option><option value=\"utc\">UTC</option></select>
+      </div>
+    </div>
+    <div class=\"row\">
+      <div>
+        <label>P1 Flags</label>
+        <div style=\"display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px;\">
+          <label><input id=\"rds_prog1_tp\" type=\"checkbox\" /> TP</label>
+          <label><input id=\"rds_prog1_ta\" type=\"checkbox\" /> TA</label>
+          <label><input id=\"rds_prog1_ms\" type=\"checkbox\" /> MS</label>
+          <label><input id=\"rds_prog1_ct_enable\" type=\"checkbox\" /> CT</label>
+        </div>
+      </div>
+      <div>
+        <label>P2 Flags</label>
+        <div style=\"display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px;\">
+          <label><input id=\"rds_prog2_tp\" type=\"checkbox\" /> TP</label>
+          <label><input id=\"rds_prog2_ta\" type=\"checkbox\" /> TA</label>
+          <label><input id=\"rds_prog2_ms\" type=\"checkbox\" /> MS</label>
+          <label><input id=\"rds_prog2_ct_enable\" type=\"checkbox\" /> CT</label>
+        </div>
+      </div>
+    </div>
+    <button id=\"rds_apply\" style=\"margin-top:8px;\">Apply RDS Overrides</button>
     <audio id=\"audio\" controls autoplay style=\"width:100%; margin-top:10px\"></audio>
     <div class=\"status\" id=\"status\">Ready.</div>
     </div>
@@ -4268,7 +4647,9 @@ PAGE_HTML = """<!doctype html>
   </div>
   </div>
   <script>
-  const ids = ["input_device","sample_rate","pre_gain_db","post_gain_db","stereo_width","output_limit","hf_tame_db","hf_tame_freq","patch_output_device","fft_input_device","fft_sample_rate","fft_max_hz","ui_theme","ui_custom_css"];
+  const ids = ["input_device","preview_mode","sample_rate","pre_gain_db","post_gain_db","stereo_width","output_limit","hf_tame_db","hf_tame_freq","patch_output_device","fft_input_device","fft_sample_rate","fft_max_hz","ui_theme","ui_custom_css"];
+  const rdsIds = ["rds_prog1_ps","rds_prog1_pi","rds_prog1_pty","rds_prog1_rt","rds_prog1_ct_mode","rds_prog2_ps","rds_prog2_pi","rds_prog2_pty","rds_prog2_rt","rds_prog2_ct_mode"];
+  const rdsBoolIds = ["rds_prog1_tp","rds_prog1_ta","rds_prog1_ms","rds_prog1_ct_enable","rds_prog2_tp","rds_prog2_ta","rds_prog2_ms","rds_prog2_ct_enable"];
   const st = document.getElementById("status");
   const audio = document.getElementById("audio");
   const fftImg = document.getElementById("fft_img");
@@ -4292,7 +4673,15 @@ PAGE_HTML = """<!doctype html>
     ids.forEach((id)=>{ if(data[id] !== undefined){ document.getElementById(id).value = data[id]; }});
     applyTheme(data.ui_theme || 'forest');
     applyCustomCss(data.ui_custom_css || '');
+    await loadRdsState();
     refreshPreview();
+  }
+
+  async function loadRdsState(){
+    const res = await fetch('/api/rds_state');
+    const data = await res.json();
+    rdsIds.forEach((id)=>{ if(data[id] !== undefined){ document.getElementById(id).value = data[id]; }});
+    rdsBoolIds.forEach((id)=>{ if(data[id] !== undefined){ document.getElementById(id).checked = !!data[id]; }});
   }
 
   function collect(){
@@ -4303,6 +4692,17 @@ PAGE_HTML = """<!doctype html>
 
   async function saveState(){
     await fetch('/api/state', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(collect())});
+  }
+
+  function collectRds(){
+    const payload = {};
+    rdsIds.forEach((id)=> payload[id] = document.getElementById(id).value);
+    rdsBoolIds.forEach((id)=> payload[id] = document.getElementById(id).checked);
+    return payload;
+  }
+
+  async function saveRdsState(){
+    await fetch('/api/rds_state', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(collectRds())});
   }
 
   function applyTheme(themeName){
@@ -4370,6 +4770,10 @@ PAGE_HTML = """<!doctype html>
     applyCustomCss(cssText);
     await saveState();
     setStatus('Custom CSS applied.');
+  };
+  document.getElementById('rds_apply').onclick = async () => {
+    await saveRdsState();
+    setStatus('RDS overrides applied. rds-sync services will use them on next sync cycle.');
   };
 
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -4574,9 +4978,108 @@ RDS_PROG1_ICECAST_STATS_URL="${RDS_PROG1_ICECAST_STATS_URL:-}"
 RDS_PROG1_ICECAST_MOUNT="${RDS_PROG1_ICECAST_MOUNT:-}"
 RDS_PROG1_INTERVAL_SEC="${RDS_PROG1_INTERVAL_SEC:-5}"
 RDS_PROG1_RT_PATH="${RDS_PROG1_RT_PATH:-/home/ompx/rds/prog1/rt.txt}"
+RDS_PROG1_PS="${RDS_PROG1_PS:-OMPXFM1}"
+RDS_PROG1_PI="${RDS_PROG1_PI:-1A01}"
+RDS_PROG1_PTY="${RDS_PROG1_PTY:-10}"
+RDS_PROG1_TP="${RDS_PROG1_TP:-true}"
+RDS_PROG1_TA="${RDS_PROG1_TA:-false}"
+RDS_PROG1_MS="${RDS_PROG1_MS:-true}"
+RDS_PROG1_CT_ENABLE="${RDS_PROG1_CT_ENABLE:-true}"
+RDS_PROG1_CT_MODE="${RDS_PROG1_CT_MODE:-local}"
+RDS_PROG1_INFO_PATH="${RDS_PROG1_INFO_PATH:-/home/ompx/rds/prog1/rds-info.json}"
+RDS_PROG1_OVERRIDE_PATH="${RDS_PROG1_OVERRIDE_PATH:-/home/ompx/rds/prog1/rds-override.json}"
 RADIO1_URL="${RADIO1_URL:-}"
 
 _log(){ logger -t rds-sync-prog1 "$*"; echo "$(date +'%F %T') [rds-sync-prog1] $*"; }
+
+json_escape(){
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/ }"
+  s="${s//$'\r'/ }"
+  s="${s//$'\t'/ }"
+  printf '%s' "$s"
+}
+
+write_rds_info(){
+  local rt_text="$1"
+  local ct_text=""
+  local ps pi pty tp ta ms
+  local info_tmp
+
+  ps="${RDS_PROG1_PS:0:8}"
+  pi="${RDS_PROG1_PI^^}"
+  pty="${RDS_PROG1_PTY}"
+  tp="${RDS_PROG1_TP,,}"
+  ta="${RDS_PROG1_TA,,}"
+  ms="${RDS_PROG1_MS,,}"
+
+  [ "${tp}" = "true" ] || tp="false"
+  [ "${ta}" = "true" ] || ta="false"
+  [ "${ms}" = "true" ] || ms="false"
+  if ! [[ "${pi}" =~ ^[0-9A-F]{4}$ ]]; then pi="1A01"; fi
+  if ! [[ "${pty}" =~ ^[0-9]+$ ]] || [ "${pty}" -lt 0 ] || [ "${pty}" -gt 31 ]; then pty="10"; fi
+
+  if [ "${RDS_PROG1_CT_ENABLE,,}" = "true" ]; then
+    if [ "${RDS_PROG1_CT_MODE,,}" = "utc" ]; then
+      ct_text="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+    else
+      ct_text="$(date +'%Y-%m-%dT%H:%M:%S%z')"
+    fi
+  fi
+
+  mkdir -p "$(dirname "${RDS_PROG1_INFO_PATH}")"
+  info_tmp="${RDS_PROG1_INFO_PATH}.tmp"
+  cat > "${info_tmp}" <<INFO
+{
+  "program": 1,
+  "ps": "$(json_escape "${ps}")",
+  "pi": "${pi}",
+  "pty": ${pty},
+  "tp": ${tp},
+  "ta": ${ta},
+  "ms": ${ms},
+  "ct": "$(json_escape "${ct_text}")",
+  "rt": "$(json_escape "${rt_text}")",
+  "updated_at": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+}
+INFO
+  mv -f "${info_tmp}" "${RDS_PROG1_INFO_PATH}"
+}
+
+load_override(){
+  OV_PS=""; OV_PI=""; OV_PTY=""; OV_TP=""; OV_TA=""; OV_MS=""; OV_CT_ENABLE=""; OV_CT_MODE=""; OV_RT=""
+  [ -s "${RDS_PROG1_OVERRIDE_PATH}" ] || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+  eval "$(python3 - "${RDS_PROG1_OVERRIDE_PATH}" <<'PY'
+import json
+import shlex
+import sys
+
+try:
+    with open(sys.argv[1], "r", encoding="utf-8") as f:
+        data = json.load(f)
+except Exception:
+    data = {}
+
+def emit(key, value):
+    if value is None:
+        return
+    print(f"{key}={shlex.quote(str(value))}")
+
+emit("OV_PS", str(data.get("ps", ""))[:8])
+emit("OV_PI", str(data.get("pi", "")).upper())
+emit("OV_PTY", data.get("pty", ""))
+emit("OV_TP", str(data.get("tp", "")).lower())
+emit("OV_TA", str(data.get("ta", "")).lower())
+emit("OV_MS", str(data.get("ms", "")).lower())
+emit("OV_CT_ENABLE", str(data.get("ct_enable", "")).lower())
+emit("OV_CT_MODE", str(data.get("ct_mode", "")).lower())
+emit("OV_RT", data.get("rt", ""))
+PY
+)" || true
+}
 
 _fetch_stream_title(){
   local stream_url="$1"
@@ -4640,6 +5143,7 @@ fi
 mkdir -p "$(dirname "${RDS_PROG1_RT_PATH}")"
 touch "${RDS_PROG1_RT_PATH}" 2>/dev/null || true
 tmp_path="${RDS_PROG1_RT_PATH}.tmp"
+current_rt=""
 
 while true; do
   if [ "${RDS_PROG1_SOURCE}" = "metadata" ]; then
@@ -4649,6 +5153,7 @@ while true; do
       mv -f "${tmp_path}" "${RDS_PROG1_RT_PATH}"
     else
       _log "No StreamTitle metadata found from RADIO1_URL"
+      rt_text=""
     fi
   elif [ "${RDS_PROG1_SOURCE}" = "icecast" ]; then
     rt_text="$(_fetch_icecast_title "${RDS_PROG1_ICECAST_STATS_URL}" "${RDS_PROG1_ICECAST_MOUNT}")"
@@ -4657,19 +5162,52 @@ while true; do
       mv -f "${tmp_path}" "${RDS_PROG1_RT_PATH}"
     else
       _log "No title from Icecast stats at ${RDS_PROG1_ICECAST_STATS_URL} mount ${RDS_PROG1_ICECAST_MOUNT}"
+      rt_text=""
     fi
   else
     if wget -q -T 20 -O "${tmp_path}" "${RDS_PROG1_RT_URL}"; then
       if [ -s "${tmp_path}" ] && grep -q '[^[:space:]]' "${tmp_path}" 2>/dev/null; then
         mv -f "${tmp_path}" "${RDS_PROG1_RT_PATH}"
+        rt_text="$(head -n1 "${RDS_PROG1_RT_PATH}" 2>/dev/null || true)"
       else
         rm -f "${tmp_path}" || true
         _log "Fetched empty RT from ${RDS_PROG1_RT_URL}; keeping previous file contents"
+        rt_text=""
       fi
     else
       _log "Failed to fetch ${RDS_PROG1_RT_URL}"
+      rt_text=""
     fi
   fi
+
+  if [ -n "${rt_text}" ]; then
+    current_rt="${rt_text}"
+  elif [ -z "${current_rt}" ] && [ -s "${RDS_PROG1_RT_PATH}" ]; then
+    current_rt="$(head -n1 "${RDS_PROG1_RT_PATH}" 2>/dev/null || true)"
+  fi
+
+  load_override
+  [ -n "${OV_PS}" ] && RDS_PROG1_PS="${OV_PS:0:8}"
+  if [ -n "${OV_PI}" ] && [[ "${OV_PI}" =~ ^[0-9A-F]{4}$ ]]; then RDS_PROG1_PI="${OV_PI}"; fi
+  if [ -n "${OV_PTY}" ] && [[ "${OV_PTY}" =~ ^[0-9]+$ ]] && [ "${OV_PTY}" -ge 0 ] && [ "${OV_PTY}" -le 31 ]; then RDS_PROG1_PTY="${OV_PTY}"; fi
+  [ "${OV_TP}" = "true" ] && RDS_PROG1_TP="true"
+  [ "${OV_TP}" = "false" ] && RDS_PROG1_TP="false"
+  [ "${OV_TA}" = "true" ] && RDS_PROG1_TA="true"
+  [ "${OV_TA}" = "false" ] && RDS_PROG1_TA="false"
+  [ "${OV_MS}" = "true" ] && RDS_PROG1_MS="true"
+  [ "${OV_MS}" = "false" ] && RDS_PROG1_MS="false"
+  [ "${OV_CT_ENABLE}" = "true" ] && RDS_PROG1_CT_ENABLE="true"
+  [ "${OV_CT_ENABLE}" = "false" ] && RDS_PROG1_CT_ENABLE="false"
+  [ "${OV_CT_MODE}" = "utc" ] && RDS_PROG1_CT_MODE="utc"
+  [ "${OV_CT_MODE}" = "local" ] && RDS_PROG1_CT_MODE="local"
+  if [ -n "${OV_RT}" ]; then
+    current_rt="${OV_RT}"
+    printf '%s\n' "${current_rt}" > "${tmp_path}"
+    mv -f "${tmp_path}" "${RDS_PROG1_RT_PATH}"
+  fi
+
+  write_rds_info "${current_rt}"
+
   sleep "${RDS_PROG1_INTERVAL_SEC}"
 done
 RDS1
@@ -4718,9 +5256,108 @@ RDS_PROG2_ICECAST_STATS_URL="${RDS_PROG2_ICECAST_STATS_URL:-}"
 RDS_PROG2_ICECAST_MOUNT="${RDS_PROG2_ICECAST_MOUNT:-}"
 RDS_PROG2_INTERVAL_SEC="${RDS_PROG2_INTERVAL_SEC:-5}"
 RDS_PROG2_RT_PATH="${RDS_PROG2_RT_PATH:-/home/ompx/rds/prog2/rt.txt}"
+RDS_PROG2_PS="${RDS_PROG2_PS:-OMPXFM2}"
+RDS_PROG2_PI="${RDS_PROG2_PI:-1A02}"
+RDS_PROG2_PTY="${RDS_PROG2_PTY:-10}"
+RDS_PROG2_TP="${RDS_PROG2_TP:-true}"
+RDS_PROG2_TA="${RDS_PROG2_TA:-false}"
+RDS_PROG2_MS="${RDS_PROG2_MS:-true}"
+RDS_PROG2_CT_ENABLE="${RDS_PROG2_CT_ENABLE:-true}"
+RDS_PROG2_CT_MODE="${RDS_PROG2_CT_MODE:-local}"
+RDS_PROG2_INFO_PATH="${RDS_PROG2_INFO_PATH:-/home/ompx/rds/prog2/rds-info.json}"
+RDS_PROG2_OVERRIDE_PATH="${RDS_PROG2_OVERRIDE_PATH:-/home/ompx/rds/prog2/rds-override.json}"
 RADIO2_URL="${RADIO2_URL:-}"
 
 _log(){ logger -t rds-sync-prog2 "$*"; echo "$(date +'%F %T') [rds-sync-prog2] $*"; }
+
+json_escape(){
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/ }"
+  s="${s//$'\r'/ }"
+  s="${s//$'\t'/ }"
+  printf '%s' "$s"
+}
+
+write_rds_info(){
+  local rt_text="$1"
+  local ct_text=""
+  local ps pi pty tp ta ms
+  local info_tmp
+
+  ps="${RDS_PROG2_PS:0:8}"
+  pi="${RDS_PROG2_PI^^}"
+  pty="${RDS_PROG2_PTY}"
+  tp="${RDS_PROG2_TP,,}"
+  ta="${RDS_PROG2_TA,,}"
+  ms="${RDS_PROG2_MS,,}"
+
+  [ "${tp}" = "true" ] || tp="false"
+  [ "${ta}" = "true" ] || ta="false"
+  [ "${ms}" = "true" ] || ms="false"
+  if ! [[ "${pi}" =~ ^[0-9A-F]{4}$ ]]; then pi="1A02"; fi
+  if ! [[ "${pty}" =~ ^[0-9]+$ ]] || [ "${pty}" -lt 0 ] || [ "${pty}" -gt 31 ]; then pty="10"; fi
+
+  if [ "${RDS_PROG2_CT_ENABLE,,}" = "true" ]; then
+    if [ "${RDS_PROG2_CT_MODE,,}" = "utc" ]; then
+      ct_text="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+    else
+      ct_text="$(date +'%Y-%m-%dT%H:%M:%S%z')"
+    fi
+  fi
+
+  mkdir -p "$(dirname "${RDS_PROG2_INFO_PATH}")"
+  info_tmp="${RDS_PROG2_INFO_PATH}.tmp"
+  cat > "${info_tmp}" <<INFO
+{
+  "program": 2,
+  "ps": "$(json_escape "${ps}")",
+  "pi": "${pi}",
+  "pty": ${pty},
+  "tp": ${tp},
+  "ta": ${ta},
+  "ms": ${ms},
+  "ct": "$(json_escape "${ct_text}")",
+  "rt": "$(json_escape "${rt_text}")",
+  "updated_at": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+}
+INFO
+  mv -f "${info_tmp}" "${RDS_PROG2_INFO_PATH}"
+}
+
+load_override(){
+  OV_PS=""; OV_PI=""; OV_PTY=""; OV_TP=""; OV_TA=""; OV_MS=""; OV_CT_ENABLE=""; OV_CT_MODE=""; OV_RT=""
+  [ -s "${RDS_PROG2_OVERRIDE_PATH}" ] || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+  eval "$(python3 - "${RDS_PROG2_OVERRIDE_PATH}" <<'PY'
+import json
+import shlex
+import sys
+
+try:
+    with open(sys.argv[1], "r", encoding="utf-8") as f:
+        data = json.load(f)
+except Exception:
+    data = {}
+
+def emit(key, value):
+    if value is None:
+        return
+    print(f"{key}={shlex.quote(str(value))}")
+
+emit("OV_PS", str(data.get("ps", ""))[:8])
+emit("OV_PI", str(data.get("pi", "")).upper())
+emit("OV_PTY", data.get("pty", ""))
+emit("OV_TP", str(data.get("tp", "")).lower())
+emit("OV_TA", str(data.get("ta", "")).lower())
+emit("OV_MS", str(data.get("ms", "")).lower())
+emit("OV_CT_ENABLE", str(data.get("ct_enable", "")).lower())
+emit("OV_CT_MODE", str(data.get("ct_mode", "")).lower())
+emit("OV_RT", data.get("rt", ""))
+PY
+)" || true
+}
 
 _fetch_stream_title(){
   local stream_url="$1"
@@ -4784,6 +5421,7 @@ fi
 mkdir -p "$(dirname "${RDS_PROG2_RT_PATH}")"
 touch "${RDS_PROG2_RT_PATH}" 2>/dev/null || true
 tmp_path="${RDS_PROG2_RT_PATH}.tmp"
+current_rt=""
 
 while true; do
   if [ "${RDS_PROG2_SOURCE}" = "metadata" ]; then
@@ -4793,6 +5431,7 @@ while true; do
       mv -f "${tmp_path}" "${RDS_PROG2_RT_PATH}"
     else
       _log "No StreamTitle metadata found from RADIO2_URL"
+      rt_text=""
     fi
   elif [ "${RDS_PROG2_SOURCE}" = "icecast" ]; then
     rt_text="$(_fetch_icecast_title "${RDS_PROG2_ICECAST_STATS_URL}" "${RDS_PROG2_ICECAST_MOUNT}")"
@@ -4801,19 +5440,52 @@ while true; do
       mv -f "${tmp_path}" "${RDS_PROG2_RT_PATH}"
     else
       _log "No title from Icecast stats at ${RDS_PROG2_ICECAST_STATS_URL} mount ${RDS_PROG2_ICECAST_MOUNT}"
+      rt_text=""
     fi
   else
     if wget -q -T 20 -O "${tmp_path}" "${RDS_PROG2_RT_URL}"; then
       if [ -s "${tmp_path}" ] && grep -q '[^[:space:]]' "${tmp_path}" 2>/dev/null; then
         mv -f "${tmp_path}" "${RDS_PROG2_RT_PATH}"
+        rt_text="$(head -n1 "${RDS_PROG2_RT_PATH}" 2>/dev/null || true)"
       else
         rm -f "${tmp_path}" || true
         _log "Fetched empty RT from ${RDS_PROG2_RT_URL}; keeping previous file contents"
+        rt_text=""
       fi
     else
       _log "Failed to fetch ${RDS_PROG2_RT_URL}"
+      rt_text=""
     fi
   fi
+
+  if [ -n "${rt_text}" ]; then
+    current_rt="${rt_text}"
+  elif [ -z "${current_rt}" ] && [ -s "${RDS_PROG2_RT_PATH}" ]; then
+    current_rt="$(head -n1 "${RDS_PROG2_RT_PATH}" 2>/dev/null || true)"
+  fi
+
+  load_override
+  [ -n "${OV_PS}" ] && RDS_PROG2_PS="${OV_PS:0:8}"
+  if [ -n "${OV_PI}" ] && [[ "${OV_PI}" =~ ^[0-9A-F]{4}$ ]]; then RDS_PROG2_PI="${OV_PI}"; fi
+  if [ -n "${OV_PTY}" ] && [[ "${OV_PTY}" =~ ^[0-9]+$ ]] && [ "${OV_PTY}" -ge 0 ] && [ "${OV_PTY}" -le 31 ]; then RDS_PROG2_PTY="${OV_PTY}"; fi
+  [ "${OV_TP}" = "true" ] && RDS_PROG2_TP="true"
+  [ "${OV_TP}" = "false" ] && RDS_PROG2_TP="false"
+  [ "${OV_TA}" = "true" ] && RDS_PROG2_TA="true"
+  [ "${OV_TA}" = "false" ] && RDS_PROG2_TA="false"
+  [ "${OV_MS}" = "true" ] && RDS_PROG2_MS="true"
+  [ "${OV_MS}" = "false" ] && RDS_PROG2_MS="false"
+  [ "${OV_CT_ENABLE}" = "true" ] && RDS_PROG2_CT_ENABLE="true"
+  [ "${OV_CT_ENABLE}" = "false" ] && RDS_PROG2_CT_ENABLE="false"
+  [ "${OV_CT_MODE}" = "utc" ] && RDS_PROG2_CT_MODE="utc"
+  [ "${OV_CT_MODE}" = "local" ] && RDS_PROG2_CT_MODE="local"
+  if [ -n "${OV_RT}" ]; then
+    current_rt="${OV_RT}"
+    printf '%s\n' "${current_rt}" > "${tmp_path}"
+    mv -f "${tmp_path}" "${RDS_PROG2_RT_PATH}"
+  fi
+
+  write_rds_info "${current_rt}"
+
   sleep "${RDS_PROG2_INTERVAL_SEC}"
 done
 RDS2
@@ -5020,6 +5692,9 @@ echo ""
 echo "  9. RDS/RadioText file paths for your processor:"
 echo "     Program 1 RT file: /home/ompx/rds/prog1/rt.txt"
 echo "     Program 2 RT file: /home/ompx/rds/prog2/rt.txt"
+echo "     Program 1 RDS sidecar JSON: /home/ompx/rds/prog1/rds-info.json"
+echo "     Program 2 RDS sidecar JSON: /home/ompx/rds/prog2/rds-info.json"
+echo "     Sidecar fields: ps, pi, pty, tp, ta, ms, ct, rt"
 echo "     RDS source modes per program:"
 echo "       U (url)      - wget a plain-text URL each interval"
 echo "       M (metadata) - extract StreamTitle from stream audio (ICY; works with MP3/AAC)"
