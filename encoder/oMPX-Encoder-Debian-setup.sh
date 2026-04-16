@@ -3257,10 +3257,10 @@ fi
 _log "Using capture endpoints: PROG1_ALSA_IN=${PROG1_ALSA_IN}, PROG2_ALSA_IN=${PROG2_ALSA_IN}"
 
 for p in "$MPX_LEFT_MONO" "$MPX_RIGHT_MONO" "$MPX_LEFT_OUT" "$MPX_RIGHT_OUT" "$MPX_STEREO_FIFO"; do rm -f "$p" || true; mkfifo "$p"; done
-ffmpeg -hide_banner -loglevel warning -f alsa -thread_queue_size 10240 -i "${PROG1_ALSA_IN}" -filter_complex "[0:a]pan=mono|c0=c0[out]" -map "[out]" -f s16le -ac 1 -ar ${SAMPLE_RATE} - > "${MPX_LEFT_MONO}" &
+ffmpeg -hide_banner -loglevel warning -f alsa -thread_queue_size 10240 -i "${PROG1_ALSA_IN}" -filter_complex "[0:a]pan=mono|c0=0.5*c0+0.5*c1[out]" -map "[out]" -f s16le -ac 1 -ar ${SAMPLE_RATE} - > "${MPX_LEFT_MONO}" &
 FF_PROG1_MONO_PID=$!; _log "Spawned PROG1 mono extractor pid $FF_PROG1_MONO_PID"
 if [ "${PROGRAM2_ENABLED}" = "true" ] && (arecord -L 2>/dev/null | grep -q "^${PROG2_ALSA_IN}$" || [[ "${PROG2_ALSA_IN}" == hw:Loopback,* ]]); then
-ffmpeg -hide_banner -loglevel warning -f alsa -thread_queue_size 10240 -i "${PROG2_ALSA_IN}" -filter_complex "[0:a]pan=mono|c0=c0[out]" -map "[out]" -f s16le -ac 1 -ar ${SAMPLE_RATE} - > "${MPX_RIGHT_MONO}" &
+ffmpeg -hide_banner -loglevel warning -f alsa -thread_queue_size 10240 -i "${PROG2_ALSA_IN}" -filter_complex "[0:a]pan=mono|c0=0.5*c0+0.5*c1[out]" -map "[out]" -f s16le -ac 1 -ar ${SAMPLE_RATE} - > "${MPX_RIGHT_MONO}" &
 FF_PROG2_MONO_PID=$!; _log "Spawned PROG2 mono extractor pid ${FF_PROG2_MONO_PID:-0}"
 else
 ( while :; do dd if=/dev/zero bs=4096 count=256 status=none; sleep 0.1; done ) > "${MPX_RIGHT_MONO}" &
@@ -4085,6 +4085,8 @@ def load_rds_state():
     "rds_prog1_ct_enable": _parse_bool(p1_override.get("ct_enable", ENV.get("RDS_PROG1_CT_ENABLE", True)), True),
     "rds_prog1_ct_mode": str(p1_override.get("ct_mode", ENV.get("RDS_PROG1_CT_MODE", "local"))).lower() if str(p1_override.get("ct_mode", ENV.get("RDS_PROG1_CT_MODE", "local"))).lower() in ("local", "utc") else "local",
     "rds_prog1_rt": str(p1_override.get("rt", _read_first_line(RDS_PROG1_RT_PATH) or p1_info.get("rt", ""))),
+    "rds_prog1_ct_current": str(p1_info.get("ct", "")),
+    "rds_prog1_updated_at": str(p1_info.get("updated_at", "")),
     "rds_prog2_ps": str(p2_override.get("ps", ENV.get("RDS_PROG2_PS", p2_info.get("ps", "OMPXFM2"))))[:8],
     "rds_prog2_pi": _normalize_pi(p2_override.get("pi", ENV.get("RDS_PROG2_PI", p2_info.get("pi", "1A02"))), "1A02"),
     "rds_prog2_pty": _safe_int(p2_override.get("pty", ENV.get("RDS_PROG2_PTY", p2_info.get("pty", 10))), 10),
@@ -4094,6 +4096,8 @@ def load_rds_state():
     "rds_prog2_ct_enable": _parse_bool(p2_override.get("ct_enable", ENV.get("RDS_PROG2_CT_ENABLE", True)), True),
     "rds_prog2_ct_mode": str(p2_override.get("ct_mode", ENV.get("RDS_PROG2_CT_MODE", "local"))).lower() if str(p2_override.get("ct_mode", ENV.get("RDS_PROG2_CT_MODE", "local"))).lower() in ("local", "utc") else "local",
     "rds_prog2_rt": str(p2_override.get("rt", _read_first_line(RDS_PROG2_RT_PATH) or p2_info.get("rt", ""))),
+    "rds_prog2_ct_current": str(p2_info.get("ct", "")),
+    "rds_prog2_updated_at": str(p2_info.get("updated_at", "")),
   }
 
 
@@ -4633,6 +4637,10 @@ PAGE_HTML = """<!doctype html>
       </div>
     </div>
     <button id=\"rds_apply\" style=\"margin-top:8px;\">Apply RDS Overrides</button>
+    <div class=\"row\" style=\"margin-top:8px\">
+      <div class=\"status\">P1 CT: <span id=\"rds_prog1_ct_current\">-</span> | Updated: <span id=\"rds_prog1_updated_at\">-</span></div>
+      <div class=\"status\">P2 CT: <span id=\"rds_prog2_ct_current\">-</span> | Updated: <span id=\"rds_prog2_updated_at\">-</span></div>
+    </div>
     <audio id=\"audio\" controls autoplay style=\"width:100%; margin-top:10px\"></audio>
     <div class=\"status\" id=\"status\">Ready.</div>
     </div>
@@ -4656,6 +4664,7 @@ PAGE_HTML = """<!doctype html>
   const ids = ["input_device","preview_mode","sample_rate","pre_gain_db","post_gain_db","stereo_width","output_limit","hf_tame_db","hf_tame_freq","patch_output_device","fft_input_device","fft_sample_rate","fft_max_hz","ui_theme","ui_custom_css"];
   const rdsIds = ["rds_prog1_ps","rds_prog1_pi","rds_prog1_pty","rds_prog1_rt","rds_prog1_ct_mode","rds_prog2_ps","rds_prog2_pi","rds_prog2_pty","rds_prog2_rt","rds_prog2_ct_mode"];
   const rdsBoolIds = ["rds_prog1_tp","rds_prog1_ta","rds_prog1_ms","rds_prog1_ct_enable","rds_prog2_tp","rds_prog2_ta","rds_prog2_ms","rds_prog2_ct_enable"];
+  const rdsLiveTextIds = ["rds_prog1_ct_current","rds_prog1_updated_at","rds_prog2_ct_current","rds_prog2_updated_at"];
   const st = document.getElementById("status");
   const audio = document.getElementById("audio");
   const fftImg = document.getElementById("fft_img");
@@ -4686,8 +4695,22 @@ PAGE_HTML = """<!doctype html>
   async function loadRdsState(){
     const res = await fetch('/api/rds_state');
     const data = await res.json();
-    rdsIds.forEach((id)=>{ if(data[id] !== undefined){ document.getElementById(id).value = data[id]; }});
-    rdsBoolIds.forEach((id)=>{ if(data[id] !== undefined){ document.getElementById(id).checked = !!data[id]; }});
+    const activeId = document.activeElement ? document.activeElement.id : '';
+    rdsIds.forEach((id)=>{
+      if(data[id] !== undefined && activeId !== id){
+        document.getElementById(id).value = data[id];
+      }
+    });
+    rdsBoolIds.forEach((id)=>{
+      if(data[id] !== undefined && activeId !== id){
+        document.getElementById(id).checked = !!data[id];
+      }
+    });
+    rdsLiveTextIds.forEach((id)=>{
+      if(data[id] !== undefined){
+        document.getElementById(id).textContent = data[id] || '-';
+      }
+    });
   }
 
   function collect(){
@@ -4736,6 +4759,12 @@ PAGE_HTML = """<!doctype html>
   function startFftLoop(){
     if (fftTimer) clearInterval(fftTimer);
     fftTimer = setInterval(refreshFft, 1200);
+  }
+
+  function startRdsLoop(){
+    setInterval(() => {
+      loadRdsState().catch(()=>{});
+    }, 2000);
   }
 
   function refreshPreview(){
@@ -4833,6 +4862,7 @@ PAGE_HTML = """<!doctype html>
     draw();
     refreshFft();
     startFftLoop();
+    startRdsLoop();
   });
   </script>
 </body>
