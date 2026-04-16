@@ -6,6 +6,8 @@ set -euo pipefail
 # Date: 2026-04-07
 
 echo "[$(date +'%F %T')] oMPX installer starting..."
+INSTALLER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${INSTALLER_DIR}/.." && pwd)"
 # --- Configurable variables ---
 ENV_RADIO1_SET="${RADIO1_URL+x}"
 ENV_RADIO1_VAL="${RADIO1_URL-}"
@@ -29,6 +31,26 @@ ENV_P2_INGEST_DELAY_SET="${P2_INGEST_DELAY_SEC+x}"
 ENV_P2_INGEST_DELAY_VAL="${P2_INGEST_DELAY_SEC-}"
 ENV_OMPX_PASSWORD_SET="${OMPX_USER_PASSWORD+x}"
 ENV_OMPX_PASSWORD_VAL="${OMPX_USER_PASSWORD-}"
+ENV_MULTIBAND_PROFILE_SET="${MULTIBAND_PROFILE+x}"
+ENV_MULTIBAND_PROFILE_VAL="${MULTIBAND_PROFILE-}"
+ENV_MODULES_DIR_SET="${MODULES_DIR+x}"
+ENV_MODULES_DIR_VAL="${MODULES_DIR-}"
+ENV_OMPX_STEREO_BACKEND_SET="${OMPX_STEREO_BACKEND+x}"
+ENV_OMPX_STEREO_BACKEND_VAL="${OMPX_STEREO_BACKEND-}"
+ENV_OMPX_WRAPPER_RDS_ENABLE_SET="${OMPX_WRAPPER_RDS_ENABLE+x}"
+ENV_OMPX_WRAPPER_RDS_ENABLE_VAL="${OMPX_WRAPPER_RDS_ENABLE-}"
+ENV_OMPX_WRAPPER_RDS_ENCODER_CMD_SET="${OMPX_WRAPPER_RDS_ENCODER_CMD+x}"
+ENV_OMPX_WRAPPER_RDS_ENCODER_CMD_VAL="${OMPX_WRAPPER_RDS_ENCODER_CMD-}"
+ENV_OMPX_WRAPPER_SAMPLE_RATE_SET="${OMPX_WRAPPER_SAMPLE_RATE+x}"
+ENV_OMPX_WRAPPER_SAMPLE_RATE_VAL="${OMPX_WRAPPER_SAMPLE_RATE-}"
+ENV_OMPX_WRAPPER_PILOT_LEVEL_SET="${OMPX_WRAPPER_PILOT_LEVEL+x}"
+ENV_OMPX_WRAPPER_PILOT_LEVEL_VAL="${OMPX_WRAPPER_PILOT_LEVEL-}"
+ENV_OMPX_WRAPPER_RDS_LEVEL_SET="${OMPX_WRAPPER_RDS_LEVEL+x}"
+ENV_OMPX_WRAPPER_RDS_LEVEL_VAL="${OMPX_WRAPPER_RDS_LEVEL-}"
+ENV_OMPX_WRAPPER_PRESET_SET="${OMPX_WRAPPER_PRESET+x}"
+ENV_OMPX_WRAPPER_PRESET_VAL="${OMPX_WRAPPER_PRESET-}"
+ENV_OMPX_FM_PREEMPHASIS_SET="${OMPX_FM_PREEMPHASIS+x}"
+ENV_OMPX_FM_PREEMPHASIS_VAL="${OMPX_FM_PREEMPHASIS-}"
 
 OMPX_USER="ompx"
 OMPX_HOME="/home/ompx"
@@ -86,6 +108,16 @@ ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE="${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE:-
 AUTO_ENABLE_STEREO_TOOL_IF_PRESENT="${AUTO_ENABLE_STEREO_TOOL_IF_PRESENT:-true}"
 START_STEREO_TOOL_AFTER_INSTALL="${START_STEREO_TOOL_AFTER_INSTALL:-true}"
 OMPX_USER_PASSWORD="${OMPX_USER_PASSWORD:-}"
+MODULES_DIR="${MODULES_DIR:-${REPO_ROOT}/modules}"
+MULTIBAND_PROFILE="${MULTIBAND_PROFILE:-waxdreams2-5band}"
+OMPX_STEREO_BACKEND="${OMPX_STEREO_BACKEND:-ompx-mpx}"
+OMPX_WRAPPER_RDS_ENABLE="${OMPX_WRAPPER_RDS_ENABLE:-false}"
+OMPX_WRAPPER_RDS_ENCODER_CMD="${OMPX_WRAPPER_RDS_ENCODER_CMD:-}"
+OMPX_WRAPPER_SAMPLE_RATE="${OMPX_WRAPPER_SAMPLE_RATE:-192000}"
+OMPX_WRAPPER_PILOT_LEVEL="${OMPX_WRAPPER_PILOT_LEVEL:-0.09}"
+OMPX_WRAPPER_RDS_LEVEL="${OMPX_WRAPPER_RDS_LEVEL:-0.03}"
+OMPX_WRAPPER_PRESET="${OMPX_WRAPPER_PRESET:-balanced}"
+OMPX_FM_PREEMPHASIS="${OMPX_FM_PREEMPHASIS:-75}"
 
 # Icecast output (MPX mix → Icecast)
 ICECAST_HOST="${ICECAST_HOST:-127.0.0.1}"
@@ -143,6 +175,16 @@ if [ "${ENV_PROGRAM2_ENABLED_SET}" = "x" ]; then PROGRAM2_ENABLED="${ENV_PROGRAM
 if [ "${ENV_P1_INGEST_DELAY_SET}" = "x" ]; then P1_INGEST_DELAY_SEC="${ENV_P1_INGEST_DELAY_VAL}"; fi
 if [ "${ENV_P2_INGEST_DELAY_SET}" = "x" ]; then P2_INGEST_DELAY_SEC="${ENV_P2_INGEST_DELAY_VAL}"; fi
 if [ "${ENV_OMPX_PASSWORD_SET}" = "x" ]; then OMPX_USER_PASSWORD="${ENV_OMPX_PASSWORD_VAL}"; fi
+if [ "${ENV_MULTIBAND_PROFILE_SET}" = "x" ]; then MULTIBAND_PROFILE="${ENV_MULTIBAND_PROFILE_VAL}"; fi
+if [ "${ENV_MODULES_DIR_SET}" = "x" ]; then MODULES_DIR="${ENV_MODULES_DIR_VAL}"; fi
+if [ "${ENV_OMPX_STEREO_BACKEND_SET}" = "x" ]; then OMPX_STEREO_BACKEND="${ENV_OMPX_STEREO_BACKEND_VAL}"; fi
+if [ "${ENV_OMPX_WRAPPER_RDS_ENABLE_SET}" = "x" ]; then OMPX_WRAPPER_RDS_ENABLE="${ENV_OMPX_WRAPPER_RDS_ENABLE_VAL}"; fi
+if [ "${ENV_OMPX_WRAPPER_RDS_ENCODER_CMD_SET}" = "x" ]; then OMPX_WRAPPER_RDS_ENCODER_CMD="${ENV_OMPX_WRAPPER_RDS_ENCODER_CMD_VAL}"; fi
+if [ "${ENV_OMPX_WRAPPER_SAMPLE_RATE_SET}" = "x" ]; then OMPX_WRAPPER_SAMPLE_RATE="${ENV_OMPX_WRAPPER_SAMPLE_RATE_VAL}"; fi
+if [ "${ENV_OMPX_WRAPPER_PILOT_LEVEL_SET}" = "x" ]; then OMPX_WRAPPER_PILOT_LEVEL="${ENV_OMPX_WRAPPER_PILOT_LEVEL_VAL}"; fi
+if [ "${ENV_OMPX_WRAPPER_RDS_LEVEL_SET}" = "x" ]; then OMPX_WRAPPER_RDS_LEVEL="${ENV_OMPX_WRAPPER_RDS_LEVEL_VAL}"; fi
+if [ "${ENV_OMPX_WRAPPER_PRESET_SET}" = "x" ]; then OMPX_WRAPPER_PRESET="${ENV_OMPX_WRAPPER_PRESET_VAL}"; fi
+if [ "${ENV_OMPX_FM_PREEMPHASIS_SET}" = "x" ]; then OMPX_FM_PREEMPHASIS="${ENV_OMPX_FM_PREEMPHASIS_VAL}"; fi
 ENABLE_DSCA_SINKS="${ENABLE_DSCA_SINKS,,}"
 ENABLE_PREVIEW_SINKS="${ENABLE_PREVIEW_SINKS,,}"
 PROGRAM2_ENABLED="${PROGRAM2_ENABLED,,}"
@@ -177,6 +219,48 @@ fi
 if [ -n "${P2_INGEST_DELAY_SEC}" ] && ! [[ "${P2_INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
   echo "[WARNING] Invalid P2_INGEST_DELAY_SEC='${P2_INGEST_DELAY_SEC}'; using INGEST_DELAY_SEC (${INGEST_DELAY_SEC})"
   P2_INGEST_DELAY_SEC=""
+fi
+case "${MULTIBAND_PROFILE}" in
+  waxdreams2-5band|waxdreams2-safe|fm-loud|voice-safe|classic-3band|decoder-clean|talk-heavy|music-heavy)
+    ;;
+  *)
+    echo "[WARNING] Invalid MULTIBAND_PROFILE='${MULTIBAND_PROFILE}'; defaulting to waxdreams2-5band"
+    MULTIBAND_PROFILE="waxdreams2-5band"
+    ;;
+esac
+OMPX_STEREO_BACKEND="${OMPX_STEREO_BACKEND,,}"
+OMPX_WRAPPER_RDS_ENABLE="${OMPX_WRAPPER_RDS_ENABLE,,}"
+if [ "${OMPX_STEREO_BACKEND}" != "stereotool" ] && [ "${OMPX_STEREO_BACKEND}" != "ompx-mpx" ] && [ "${OMPX_STEREO_BACKEND}" != "passthrough" ]; then
+  echo "[WARNING] Invalid OMPX_STEREO_BACKEND='${OMPX_STEREO_BACKEND}'; defaulting to ompx-mpx"
+  OMPX_STEREO_BACKEND="ompx-mpx"
+fi
+if [ "${OMPX_WRAPPER_RDS_ENABLE}" != "true" ] && [ "${OMPX_WRAPPER_RDS_ENABLE}" != "false" ]; then
+  echo "[WARNING] Invalid OMPX_WRAPPER_RDS_ENABLE='${OMPX_WRAPPER_RDS_ENABLE}'; defaulting to false"
+  OMPX_WRAPPER_RDS_ENABLE="false"
+fi
+if ! [[ "${OMPX_WRAPPER_SAMPLE_RATE}" =~ ^[0-9]+$ ]] || [ "${OMPX_WRAPPER_SAMPLE_RATE}" -lt 32000 ] || [ "${OMPX_WRAPPER_SAMPLE_RATE}" -gt 384000 ]; then
+  echo "[WARNING] Invalid OMPX_WRAPPER_SAMPLE_RATE='${OMPX_WRAPPER_SAMPLE_RATE}'; defaulting to 192000"
+  OMPX_WRAPPER_SAMPLE_RATE="192000"
+fi
+if ! awk -v v="${OMPX_WRAPPER_PILOT_LEVEL}" 'BEGIN{exit !(v>=0 && v<=0.2)}'; then
+  echo "[WARNING] Invalid OMPX_WRAPPER_PILOT_LEVEL='${OMPX_WRAPPER_PILOT_LEVEL}'; defaulting to 0.09"
+  OMPX_WRAPPER_PILOT_LEVEL="0.09"
+fi
+if ! awk -v v="${OMPX_WRAPPER_RDS_LEVEL}" 'BEGIN{exit !(v>=0 && v<=0.1)}'; then
+  echo "[WARNING] Invalid OMPX_WRAPPER_RDS_LEVEL='${OMPX_WRAPPER_RDS_LEVEL}'; defaulting to 0.03"
+  OMPX_WRAPPER_RDS_LEVEL="0.03"
+fi
+OMPX_WRAPPER_PRESET="${OMPX_WRAPPER_PRESET,,}"
+if [ "${OMPX_WRAPPER_PRESET}" != "conservative" ] && [ "${OMPX_WRAPPER_PRESET}" != "balanced" ] && [ "${OMPX_WRAPPER_PRESET}" != "hot" ] && [ "${OMPX_WRAPPER_PRESET}" != "speech" ]; then
+  echo "[WARNING] Invalid OMPX_WRAPPER_PRESET='${OMPX_WRAPPER_PRESET}'; defaulting to balanced"
+  OMPX_WRAPPER_PRESET="balanced"
+fi
+OMPX_FM_PREEMPHASIS="${OMPX_FM_PREEMPHASIS,,}"
+if [ "${OMPX_FM_PREEMPHASIS}" = "75us" ]; then OMPX_FM_PREEMPHASIS="75"; fi
+if [ "${OMPX_FM_PREEMPHASIS}" = "50us" ]; then OMPX_FM_PREEMPHASIS="50"; fi
+if [ "${OMPX_FM_PREEMPHASIS}" != "75" ] && [ "${OMPX_FM_PREEMPHASIS}" != "50" ] && [ "${OMPX_FM_PREEMPHASIS}" != "off" ]; then
+  echo "[WARNING] Invalid OMPX_FM_PREEMPHASIS='${OMPX_FM_PREEMPHASIS}'; defaulting to 75"
+  OMPX_FM_PREEMPHASIS="75"
 fi
 STREAM_ENGINE="ffmpeg"
 
@@ -1268,6 +1352,16 @@ ICECAST_CODEC="${ICECAST_CODEC}"
 ENABLE_DSCA_SINKS="${ENABLE_DSCA_SINKS}"
 ENABLE_PREVIEW_SINKS="${ENABLE_PREVIEW_SINKS}"
 NON_MPX_SAMPLE_RATE="${NON_MPX_SAMPLE_RATE}"
+MODULES_DIR="${MODULES_DIR}"
+MULTIBAND_PROFILE="${MULTIBAND_PROFILE}"
+OMPX_STEREO_BACKEND="${OMPX_STEREO_BACKEND}"
+OMPX_WRAPPER_RDS_ENABLE="${OMPX_WRAPPER_RDS_ENABLE}"
+OMPX_WRAPPER_RDS_ENCODER_CMD="${OMPX_WRAPPER_RDS_ENCODER_CMD}"
+OMPX_WRAPPER_SAMPLE_RATE="${OMPX_WRAPPER_SAMPLE_RATE}"
+OMPX_WRAPPER_PILOT_LEVEL="${OMPX_WRAPPER_PILOT_LEVEL}"
+OMPX_WRAPPER_RDS_LEVEL="${OMPX_WRAPPER_RDS_LEVEL}"
+OMPX_WRAPPER_PRESET="${OMPX_WRAPPER_PRESET}"
+OMPX_FM_PREEMPHASIS="${OMPX_FM_PREEMPHASIS}"
 PROGRAM2_ENABLED="${PROGRAM2_ENABLED}"
 ST_OUT_P1="${ST_OUT_P1}"
 ST_OUT_P2="${ST_OUT_P2}"
@@ -1809,6 +1903,87 @@ if [ -t 0 ]; then
   echo "[INFO] ENABLE_DSCA_SINKS=${ENABLE_DSCA_SINKS}"
   echo "[INFO] ENABLE_PREVIEW_SINKS=${ENABLE_PREVIEW_SINKS}"
   echo "[INFO] NON_MPX_SAMPLE_RATE=${NON_MPX_SAMPLE_RATE}"
+
+  echo ""
+  echo "Optional multiband module profile (for modules/multiband_agc.sh):"
+  echo "  1) waxdreams2-5band (default)"
+  echo "  2) waxdreams2-safe"
+  echo "  3) fm-loud"
+  echo "  4) voice-safe"
+  echo "  5) classic-3band"
+  echo "  6) decoder-clean"
+  echo "  7) talk-heavy"
+  echo "  8) music-heavy"
+  read -t 45 -p "Select default multiband profile [1-8] (default 1): " cfg_mb_profile || cfg_mb_profile="1"
+  case "${cfg_mb_profile}" in
+    2) MULTIBAND_PROFILE="waxdreams2-safe" ;;
+    3) MULTIBAND_PROFILE="fm-loud" ;;
+    4) MULTIBAND_PROFILE="voice-safe" ;;
+    5) MULTIBAND_PROFILE="classic-3band" ;;
+    6) MULTIBAND_PROFILE="decoder-clean" ;;
+    7) MULTIBAND_PROFILE="talk-heavy" ;;
+    8) MULTIBAND_PROFILE="music-heavy" ;;
+    *) MULTIBAND_PROFILE="waxdreams2-5band" ;;
+  esac
+  echo "[INFO] Default multiband module profile: ${MULTIBAND_PROFILE}"
+
+  echo ""
+  echo "Stereo processing backend for FIFO chain wrappers:"
+  echo "  1) ompx-mpx    (default)  - wrapper does stereo coding and optional RDS subcarrier injection"
+  echo "  2) stereotool             - prefer native Stereo Tool binary if present"
+  echo "  3) passthrough            - raw left/right pass-through"
+  read -t 45 -p "Select wrapper backend [1-3] (default 1): " cfg_st_backend || cfg_st_backend="1"
+  case "${cfg_st_backend}" in
+    2) OMPX_STEREO_BACKEND="stereotool" ;;
+    3) OMPX_STEREO_BACKEND="passthrough" ;;
+    *) OMPX_STEREO_BACKEND="ompx-mpx" ;;
+  esac
+  read -t 30 -p "Enable RDS subcarrier coding hook in ompx-mpx wrapper? [y/N] (default N): " cfg_rds_wrap || cfg_rds_wrap="N"
+  cfg_rds_wrap=${cfg_rds_wrap^^}
+  if [ "${cfg_rds_wrap}" = "Y" ]; then
+    OMPX_WRAPPER_RDS_ENABLE="true"
+    read -t 120 -p "Optional external RDS encoder command (leave empty to use silence): " cfg_rds_cmd || cfg_rds_cmd=""
+    OMPX_WRAPPER_RDS_ENCODER_CMD="${cfg_rds_cmd}"
+  else
+    OMPX_WRAPPER_RDS_ENABLE="false"
+    OMPX_WRAPPER_RDS_ENCODER_CMD=""
+  fi
+  echo "  Wrapper preset options:"
+  echo "    C) conservative  B) balanced (default)  H) hot  S) speech"
+  read -t 45 -p "Wrapper preset [C/B/H/S] (default B): " cfg_wrap_preset || cfg_wrap_preset="B"
+  cfg_wrap_preset=${cfg_wrap_preset^^}
+  case "${cfg_wrap_preset}" in
+    C) OMPX_WRAPPER_PRESET="conservative" ;;
+    H) OMPX_WRAPPER_PRESET="hot" ;;
+    S) OMPX_WRAPPER_PRESET="speech" ;;
+    *) OMPX_WRAPPER_PRESET="balanced" ;;
+  esac
+  echo "  FM preemphasis standard:"
+  echo "    U) 75 us (US default)"
+  echo "    W) 50 us (most of world)"
+  echo "    O) Off"
+  read -t 45 -p "Select preemphasis [U/W/O] (default U): " cfg_preemph || cfg_preemph="U"
+  cfg_preemph=${cfg_preemph^^}
+  case "${cfg_preemph}" in
+    W) OMPX_FM_PREEMPHASIS="50" ;;
+    O) OMPX_FM_PREEMPHASIS="off" ;;
+    *) OMPX_FM_PREEMPHASIS="75" ;;
+  esac
+  read -t 45 -p "Wrapper MPX sample rate Hz (default ${OMPX_WRAPPER_SAMPLE_RATE}): " cfg_wrap_sr || cfg_wrap_sr=""
+  if [ -n "${cfg_wrap_sr}" ] && [[ "${cfg_wrap_sr}" =~ ^[0-9]+$ ]] && [ "${cfg_wrap_sr}" -ge 32000 ] && [ "${cfg_wrap_sr}" -le 384000 ]; then
+    OMPX_WRAPPER_SAMPLE_RATE="${cfg_wrap_sr}"
+  fi
+  read -t 45 -p "Wrapper pilot level (0.00-0.20, default ${OMPX_WRAPPER_PILOT_LEVEL}): " cfg_pilot_lvl || cfg_pilot_lvl=""
+  if [ -n "${cfg_pilot_lvl}" ] && awk -v v="${cfg_pilot_lvl}" 'BEGIN{exit !(v>=0 && v<=0.2)}'; then
+    OMPX_WRAPPER_PILOT_LEVEL="${cfg_pilot_lvl}"
+  fi
+  read -t 45 -p "Wrapper RDS level (0.00-0.10, default ${OMPX_WRAPPER_RDS_LEVEL}): " cfg_rds_lvl || cfg_rds_lvl=""
+  if [ -n "${cfg_rds_lvl}" ] && awk -v v="${cfg_rds_lvl}" 'BEGIN{exit !(v>=0 && v<=0.1)}'; then
+    OMPX_WRAPPER_RDS_LEVEL="${cfg_rds_lvl}"
+  fi
+  echo "[INFO] Wrapper backend: ${OMPX_STEREO_BACKEND} (RDS hook: ${OMPX_WRAPPER_RDS_ENABLE})"
+  echo "[INFO] Wrapper preset=${OMPX_WRAPPER_PRESET} preemphasis=${OMPX_FM_PREEMPHASIS}us"
+  echo "[INFO] Wrapper levels: sample_rate=${OMPX_WRAPPER_SAMPLE_RATE}, pilot=${OMPX_WRAPPER_PILOT_LEVEL}, rds=${OMPX_WRAPPER_RDS_LEVEL}"
 
   read -t 30 -p "Set a login password for user ${OMPX_USER}? [y/N] (default N): " cfg_set_pwd || cfg_set_pwd="N"
   cfg_set_pwd=${cfg_set_pwd^^}
@@ -2956,6 +3131,112 @@ echo "[SUCCESS] Systemd service files created"
 # --- stereo-tool wrapper & checker ---
 echo "[INFO] Creating stereo-tool wrapper..."
 
+cat > /usr/local/bin/ompx-stereo-rds-wrapper <<'OMPXWRAP'
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROFILE="/home/ompx/.profile"
+[ -f "${PROFILE}" ] && . "${PROFILE}"
+
+LEFT_IN=""; RIGHT_IN=""; LEFT_OUT=""; RIGHT_OUT=""
+SAMPLE_RATE="${OMPX_WRAPPER_SAMPLE_RATE:-192000}"
+PILOT_LEVEL="${OMPX_WRAPPER_PILOT_LEVEL:-0.09}"
+RDS_LEVEL="${OMPX_WRAPPER_RDS_LEVEL:-0.03}"
+WRAPPER_PRESET="${OMPX_WRAPPER_PRESET:-balanced}"
+FM_PREEMPHASIS="${OMPX_FM_PREEMPHASIS:-75}"
+LMR_GAIN="1.0"
+ENABLE_RDS="${OMPX_WRAPPER_RDS_ENABLE:-false}"
+RDS_ENCODER_CMD="${OMPX_WRAPPER_RDS_ENCODER_CMD:-}"
+
+case "${WRAPPER_PRESET,,}" in
+  conservative)
+    PILOT_LEVEL="0.085"
+    RDS_LEVEL="0.020"
+    LMR_GAIN="0.92"
+    ;;
+  hot)
+    PILOT_LEVEL="0.100"
+    RDS_LEVEL="0.040"
+    LMR_GAIN="1.10"
+    ;;
+  speech)
+    PILOT_LEVEL="0.090"
+    RDS_LEVEL="0.025"
+    LMR_GAIN="0.88"
+    ;;
+  *)
+    ;;
+esac
+
+PREEMPH_FILTER_L="anull"
+PREEMPH_FILTER_R="anull"
+case "${FM_PREEMPHASIS,,}" in
+  75|75us)
+    # 75 us preemphasis approximation for FM chains using a high-shelf tilt.
+    PREEMPH_FILTER_L="highshelf=f=2122:g=13"
+    PREEMPH_FILTER_R="highshelf=f=2122:g=13"
+    ;;
+  50|50us)
+    # 50 us preemphasis approximation for FM chains using a high-shelf tilt.
+    PREEMPH_FILTER_L="highshelf=f=3183:g=10"
+    PREEMPH_FILTER_R="highshelf=f=3183:g=10"
+    ;;
+  *)
+    ;;
+esac
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --left-fifo) LEFT_IN="$2"; shift 2 ;;
+    --right-fifo) RIGHT_IN="$2"; shift 2 ;;
+    --out-left-fifo) LEFT_OUT="$2"; shift 2 ;;
+    --out-right-fifo) RIGHT_OUT="$2"; shift 2 ;;
+    --mode) shift 2 ;;
+    *) shift ;;
+  esac
+done
+
+if [ -z "${LEFT_IN}" ] || [ -z "${RIGHT_IN}" ] || [ -z "${LEFT_OUT}" ] || [ -z "${RIGHT_OUT}" ]; then
+  echo "ompx-stereo-rds-wrapper: missing fifo arguments" >&2
+  exit 2
+fi
+
+RDS_INPUT_SPEC=(-f lavfi -i "anullsrc=r=${SAMPLE_RATE}:cl=mono")
+RDS_FILTER_CHAIN="[4:a]anull[rds]"
+if [ "${ENABLE_RDS,,}" = "true" ] && [ -n "${RDS_ENCODER_CMD}" ]; then
+  RDS_FIFO="/tmp/ompx_rds_subcarrier.pcm"
+  rm -f "${RDS_FIFO}" || true
+  mkfifo "${RDS_FIFO}"
+  sh -c "${RDS_ENCODER_CMD}" > "${RDS_FIFO}" 2>/tmp/ompx_rds_encoder.log &
+  RDS_ENCODER_PID=$!
+  trap 'kill ${RDS_ENCODER_PID:-0} 2>/dev/null || true; rm -f "${RDS_FIFO}"' EXIT
+  RDS_INPUT_SPEC=(-f s16le -ar "${SAMPLE_RATE}" -ac 1 -i "${RDS_FIFO}")
+  RDS_FILTER_CHAIN="[4:a]aformat=sample_fmts=fltp:sample_rates=${SAMPLE_RATE}:channel_layouts=mono[rds]"
+fi
+
+exec ffmpeg -hide_banner -loglevel warning -nostdin \
+  -f s16le -ar "${SAMPLE_RATE}" -ac 1 -i "${LEFT_IN}" \
+  -f s16le -ar "${SAMPLE_RATE}" -ac 1 -i "${RIGHT_IN}" \
+  -f lavfi -i "aevalsrc=${PILOT_LEVEL}*sin(2*PI*19000*t):s=${SAMPLE_RATE}" \
+  -f lavfi -i "aevalsrc=sin(2*PI*38000*t):s=${SAMPLE_RATE}" \
+  "${RDS_INPUT_SPEC[@]}" \
+  -filter_complex "[0:a]${PREEMPH_FILTER_L}[lin]; \
+    [1:a]${PREEMPH_FILTER_R}[rin]; \
+    [lin][rin]join=inputs=2:channel_layout=stereo[st]; \
+    [st]pan=mono|c0=0.5*c0+0.5*c1[lpr]; \
+    [st]pan=mono|c0=0.5*c0-0.5*c1[lmr]; \
+    [lmr]volume=${LMR_GAIN}[lmrv]; \
+    [lmrv][3:a]amultiply[dsb]; \
+    ${RDS_FILTER_CHAIN}; \
+    [rds]volume=${RDS_LEVEL}[rdsv]; \
+    [lpr][dsb][2:a][rdsv]amix=inputs=4:normalize=0[mpx]; \
+    [mpx]asplit=2[outl][outr]" \
+  -map "[outl]" -f s16le "${LEFT_OUT}" \
+  -map "[outr]" -f s16le "${RIGHT_OUT}"
+OMPXWRAP
+chmod 755 /usr/local/bin/ompx-stereo-rds-wrapper
+chown root:root /usr/local/bin/ompx-stereo-rds-wrapper
+
 cat > "${STEREO_TOOL_WRAPPER}.real-check" <<'CHECK'
 #!/usr/bin/env bash
 path=$(command -v stereo-tool 2>/dev/null || true)
@@ -2968,12 +3249,30 @@ chmod +x "${STEREO_TOOL_WRAPPER}.real-check"
 cat > "${STEREO_TOOL_WRAPPER}" <<'WRAPST'
 #!/usr/bin/env bash
 set -euo pipefail
-if /usr/local/bin/stereo-tool.real-check >/dev/null 2>&1; then exec stereo-tool "$@"; fi
-LEFT_IN=""; RIGHT_IN=""; LEFT_OUT=""; RIGHT_OUT=""
-while [ $# -gt 0 ]; do case "$1" in --left-fifo) LEFT_IN="$2"; shift 2;; --right-fifo) RIGHT_IN="$2"; shift 2;; --out-left-fifo) LEFT_OUT="$2"; shift 2;; --out-right-fifo) RIGHT_OUT="$2"; shift 2;; *) shift;; esac; done
-if [ -n "$LEFT_IN" ] && [ -n "$LEFT_OUT" ]; then ( while :; do dd if="$LEFT_IN" of="$LEFT_OUT" bs=4096 status=none || sleep 1; done ) & fi
-if [ -n "$RIGHT_IN" ] && [ -n "$RIGHT_OUT" ]; then ( while :; do dd if="$RIGHT_IN" of="$RIGHT_OUT" bs=4096 status=none || sleep 1; done ) & fi
-wait
+PROFILE="/home/ompx/.profile"
+[ -f "${PROFILE}" ] && . "${PROFILE}"
+BACKEND="${OMPX_STEREO_BACKEND:-ompx-mpx}"
+BACKEND="${BACKEND,,}"
+if [ "${BACKEND}" = "stereotool" ]; then
+  if /usr/local/bin/stereo-tool.real-check >/dev/null 2>&1; then
+    exec stereo-tool "$@"
+  fi
+  echo "stereo-tool wrapper: backend=stereotool requested, but binary unavailable; falling back to ompx-mpx" >&2
+  BACKEND="ompx-mpx"
+fi
+if [ "${BACKEND}" = "ompx-mpx" ]; then
+  exec /usr/local/bin/ompx-stereo-rds-wrapper "$@"
+fi
+if [ "${BACKEND}" = "passthrough" ]; then
+  LEFT_IN=""; RIGHT_IN=""; LEFT_OUT=""; RIGHT_OUT=""
+  while [ $# -gt 0 ]; do case "$1" in --left-fifo) LEFT_IN="$2"; shift 2;; --right-fifo) RIGHT_IN="$2"; shift 2;; --out-left-fifo) LEFT_OUT="$2"; shift 2;; --out-right-fifo) RIGHT_OUT="$2"; shift 2;; *) shift;; esac; done
+  if [ -n "$LEFT_IN" ] && [ -n "$LEFT_OUT" ]; then ( while :; do dd if="$LEFT_IN" of="$LEFT_OUT" bs=4096 status=none || sleep 1; done ) & fi
+  if [ -n "$RIGHT_IN" ] && [ -n "$RIGHT_OUT" ]; then ( while :; do dd if="$RIGHT_IN" of="$RIGHT_OUT" bs=4096 status=none || sleep 1; done ) & fi
+  wait
+  exit 0
+fi
+echo "stereo-tool wrapper: invalid OMPX_STEREO_BACKEND='${BACKEND}'" >&2
+exit 2
 WRAPST
 chmod 755 "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check"
 chown root:root "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check"
@@ -3613,6 +3912,27 @@ echo "     Stereo Tool example strings:"
 echo "       Program 1: \\r\"/home/ompx/rds/prog1/rt.txt\""
 echo "       Program 2: \\r\"/home/ompx/rds/prog2/rt.txt\""
 echo "     Note: this installer uses 'prog1' and 'prog2' in the directory names."
+echo ""
+echo "  10. Multiband module profile selection (optional processing path):"
+echo "      MODULES_DIR=${MODULES_DIR}"
+echo "      MULTIBAND_PROFILE=${MULTIBAND_PROFILE}"
+echo "      Example command:"
+echo "      \"${MODULES_DIR}/multiband_agc.sh\" --profile \"${MULTIBAND_PROFILE}\" --input-url ompx_prg1in_cap --output-url ompx_prg1in --sample-rate ${SAMPLE_RATE}"
+echo ""
+echo "  11. Stereo Tool replacement wrapper backend:"
+echo "      OMPX_STEREO_BACKEND=${OMPX_STEREO_BACKEND}"
+echo "      OMPX_WRAPPER_RDS_ENABLE=${OMPX_WRAPPER_RDS_ENABLE}"
+echo "      OMPX_WRAPPER_SAMPLE_RATE=${OMPX_WRAPPER_SAMPLE_RATE}"
+echo "      OMPX_WRAPPER_PILOT_LEVEL=${OMPX_WRAPPER_PILOT_LEVEL}"
+echo "      OMPX_WRAPPER_RDS_LEVEL=${OMPX_WRAPPER_RDS_LEVEL}"
+echo "      OMPX_WRAPPER_PRESET=${OMPX_WRAPPER_PRESET}"
+echo "      OMPX_FM_PREEMPHASIS=${OMPX_FM_PREEMPHASIS}"
+if [ -n "${OMPX_WRAPPER_RDS_ENCODER_CMD}" ]; then
+  echo "      OMPX_WRAPPER_RDS_ENCODER_CMD is set"
+else
+  echo "      OMPX_WRAPPER_RDS_ENCODER_CMD is empty (RDS hook uses silence)"
+fi
+echo "      Backends: stereotool | ompx-mpx | passthrough"
 echo ""
 
 if [ "$CONFIG_SKIP" = false ]; then
