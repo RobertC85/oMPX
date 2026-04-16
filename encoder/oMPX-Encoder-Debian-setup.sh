@@ -4076,30 +4076,55 @@ DEFAULT_STATE = {
   "band1_attack_ms": 10.0,
   "band1_release_ms": 120.0,
   "band1_mix": 1.0,
+  "band1_drive_db_l": 0.0,
+  "band1_drive_db_r": 0.0,
+  "band1_mix_l": 1.0,
+  "band1_mix_r": 1.0,
   "band2_drive_db": 0.0,
   "band2_enabled": True,
   "band2_ratio": 2.0,
   "band2_attack_ms": 10.0,
   "band2_release_ms": 120.0,
   "band2_mix": 1.0,
+  "band2_drive_db_l": 0.0,
+  "band2_drive_db_r": 0.0,
+  "band2_mix_l": 1.0,
+  "band2_mix_r": 1.0,
   "band3_drive_db": 0.0,
   "band3_enabled": True,
   "band3_ratio": 2.0,
   "band3_attack_ms": 10.0,
   "band3_release_ms": 120.0,
   "band3_mix": 1.0,
+  "band3_drive_db_l": 0.0,
+  "band3_drive_db_r": 0.0,
+  "band3_mix_l": 1.0,
+  "band3_mix_r": 1.0,
   "band4_drive_db": 0.0,
   "band4_enabled": True,
   "band4_ratio": 2.0,
   "band4_attack_ms": 10.0,
   "band4_release_ms": 120.0,
   "band4_mix": 1.0,
+  "band4_drive_db_l": 0.0,
+  "band4_drive_db_r": 0.0,
+  "band4_mix_l": 1.0,
+  "band4_mix_r": 1.0,
   "band5_drive_db": 0.0,
   "band5_enabled": True,
   "band5_ratio": 2.0,
   "band5_attack_ms": 10.0,
   "band5_release_ms": 120.0,
   "band5_mix": 1.0,
+  "band5_drive_db_l": 0.0,
+  "band5_drive_db_r": 0.0,
+  "band5_mix_l": 1.0,
+  "band5_mix_r": 1.0,
+  "multiband_stereo_independent": False,
+  "azimuth_correction_enabled": False,
+  "azimuth_delay_ms": 0.0,
+  "auto_balance_enabled": False,
+  "auto_balance_strength": 0.2,
   "fft_input_device": "ompx_prg1mpx_cap",
   "fft_input_device_prog1": "ompx_prg1mpx_cap",
   "fft_input_device_prog2": "ompx_prg2mpx_cap",
@@ -4310,6 +4335,11 @@ def build_preview_filter(state):
   pre = float(state.get("pre_gain_db", 0.0))
   post = float(state.get("post_gain_db", 0.0))
   width = _safe_float(state.get("stereo_width", 1.0), 1.0, 0.0, 2.0)
+  stereo_independent = _parse_bool(state.get("multiband_stereo_independent", False), False)
+  azimuth_enabled = _parse_bool(state.get("azimuth_correction_enabled", False), False)
+  azimuth_delay_ms = _safe_float(state.get("azimuth_delay_ms", 0.0), 0.0, -5.0, 5.0)
+  auto_balance_enabled = _parse_bool(state.get("auto_balance_enabled", False), False)
+  auto_balance_strength = _safe_float(state.get("auto_balance_strength", 0.2), 0.2, 0.0, 1.0)
   hf_tame_db = _safe_float(state.get("hf_tame_db", 0.0), 0.0, -18.0, 18.0)
   hf_tame_freq = int(_safe_float(state.get("hf_tame_freq", 7000), 7000, 1000, 18000))
   limit = _safe_float(state.get("output_limit", 0.96), 0.96, 0.1, 1.0)
@@ -4367,12 +4397,46 @@ def build_preview_filter(state):
   avg_release = sum(r * w for r, w in zip(releases, weighted)) / total_weight
 
   # Band drive+mix are approximated as per-band EQ emphasis before compression.
-  band_gains = []
-  for d, m, en in zip(drives, mixes, enabled):
-    if not en:
-      band_gains.append(0.0)
-    else:
-      band_gains.append(d + ((m - 1.0) * 6.0))
+  def _compute_band_gains(drive_values, mix_values):
+    out = []
+    for d, m, en in zip(drive_values, mix_values, enabled):
+      if not en:
+        out.append(0.0)
+      else:
+        out.append(d + ((m - 1.0) * 6.0))
+    return out
+
+  band_gains = _compute_band_gains(drives, mixes)
+  drives_l = [
+    _safe_float(state.get("band1_drive_db_l", drives[0]), drives[0], -18.0, 18.0),
+    _safe_float(state.get("band2_drive_db_l", drives[1]), drives[1], -18.0, 18.0),
+    _safe_float(state.get("band3_drive_db_l", drives[2]), drives[2], -18.0, 18.0),
+    _safe_float(state.get("band4_drive_db_l", drives[3]), drives[3], -18.0, 18.0),
+    _safe_float(state.get("band5_drive_db_l", drives[4]), drives[4], -18.0, 18.0),
+  ]
+  drives_r = [
+    _safe_float(state.get("band1_drive_db_r", drives[0]), drives[0], -18.0, 18.0),
+    _safe_float(state.get("band2_drive_db_r", drives[1]), drives[1], -18.0, 18.0),
+    _safe_float(state.get("band3_drive_db_r", drives[2]), drives[2], -18.0, 18.0),
+    _safe_float(state.get("band4_drive_db_r", drives[3]), drives[3], -18.0, 18.0),
+    _safe_float(state.get("band5_drive_db_r", drives[4]), drives[4], -18.0, 18.0),
+  ]
+  mixes_l = [
+    _safe_float(state.get("band1_mix_l", mixes[0]), mixes[0], 0.0, 2.0),
+    _safe_float(state.get("band2_mix_l", mixes[1]), mixes[1], 0.0, 2.0),
+    _safe_float(state.get("band3_mix_l", mixes[2]), mixes[2], 0.0, 2.0),
+    _safe_float(state.get("band4_mix_l", mixes[3]), mixes[3], 0.0, 2.0),
+    _safe_float(state.get("band5_mix_l", mixes[4]), mixes[4], 0.0, 2.0),
+  ]
+  mixes_r = [
+    _safe_float(state.get("band1_mix_r", mixes[0]), mixes[0], 0.0, 2.0),
+    _safe_float(state.get("band2_mix_r", mixes[1]), mixes[1], 0.0, 2.0),
+    _safe_float(state.get("band3_mix_r", mixes[2]), mixes[2], 0.0, 2.0),
+    _safe_float(state.get("band4_mix_r", mixes[3]), mixes[3], 0.0, 2.0),
+    _safe_float(state.get("band5_mix_r", mixes[4]), mixes[4], 0.0, 2.0),
+  ]
+  band_gains_l = _compute_band_gains(drives_l, mixes_l)
+  band_gains_r = _compute_band_gains(drives_r, mixes_r)
 
   if _parse_bool(state.get("processing_bypass", False), False):
     bypass_trim = _safe_float(state.get("bypass_level_match_db", 0.0), 0.0, -24.0, 24.0)
@@ -4390,21 +4454,52 @@ def build_preview_filter(state):
   hf_tame_filter = "anull"
   if hf_tame_db != 0.0:
     hf_tame_filter = f"highshelf=f={hf_tame_freq}:g={hf_tame_db}"
-  return (
+  core = (
     f"aformat=sample_fmts=fltp,"
     f"volume={processor_in}dB,"
-    f"equalizer=f=80:t=o:w=1.8:g={band_gains[0]},"
-    f"equalizer=f=250:t=o:w=1.6:g={band_gains[1]},"
-    f"equalizer=f=1000:t=o:w=1.4:g={band_gains[2]},"
-    f"equalizer=f=3500:t=o:w=1.2:g={band_gains[3]},"
-    f"equalizer=f=11000:t=o:w=1.1:g={band_gains[4]},"
+  )
+  if stereo_independent:
+    core += (
+      f"equalizer=f=80:t=o:w=1.8:g={band_gains_l[0]}:c=FL,"
+      f"equalizer=f=80:t=o:w=1.8:g={band_gains_r[0]}:c=FR,"
+      f"equalizer=f=250:t=o:w=1.6:g={band_gains_l[1]}:c=FL,"
+      f"equalizer=f=250:t=o:w=1.6:g={band_gains_r[1]}:c=FR,"
+      f"equalizer=f=1000:t=o:w=1.4:g={band_gains_l[2]}:c=FL,"
+      f"equalizer=f=1000:t=o:w=1.4:g={band_gains_r[2]}:c=FR,"
+      f"equalizer=f=3500:t=o:w=1.2:g={band_gains_l[3]}:c=FL,"
+      f"equalizer=f=3500:t=o:w=1.2:g={band_gains_r[3]}:c=FR,"
+      f"equalizer=f=11000:t=o:w=1.1:g={band_gains_l[4]}:c=FL,"
+      f"equalizer=f=11000:t=o:w=1.1:g={band_gains_r[4]}:c=FR,"
+    )
+  else:
+    core += (
+      f"equalizer=f=80:t=o:w=1.8:g={band_gains[0]},"
+      f"equalizer=f=250:t=o:w=1.6:g={band_gains[1]},"
+      f"equalizer=f=1000:t=o:w=1.4:g={band_gains[2]},"
+      f"equalizer=f=3500:t=o:w=1.2:g={band_gains[3]},"
+      f"equalizer=f=11000:t=o:w=1.1:g={band_gains[4]},"
+    )
+  core += (
     f"acompressor=threshold=0.125:ratio={avg_ratio}:attack={avg_attack}:release={avg_release}:makeup=1,"
     f"volume={pre}dB,"
     f"{hf_tame_filter},"
     f"alimiter=limit={limit},"
+  )
+  if azimuth_enabled and abs(azimuth_delay_ms) >= 0.01:
+    if azimuth_delay_ms > 0:
+      core += f"adelay=0|{azimuth_delay_ms},"
+    else:
+      core += f"adelay={abs(azimuth_delay_ms)}|0,"
+  if auto_balance_enabled and auto_balance_strength > 0.0:
+    cross = max(0.0, min(1.0, auto_balance_strength))
+    keep = 1.0 - (cross * 0.5)
+    side = cross * 0.5
+    core += f"pan=stereo|c0={keep}*c0+{side}*c1|c1={side}*c0+{keep}*c1,"
+  core += (
     f"extrastereo=m={width},"
     f"volume={post}dB"
   )
+  return core
 
 
 def resolve_input_source(input_device):
@@ -4489,6 +4584,7 @@ class Handler(BaseHTTPRequestHandler):
     payload = json.dumps(obj).encode("utf-8")
     self.send_response(status)
     self.send_header("Content-Type", "application/json")
+    self.send_header("Cache-Control", "no-store")
     self.send_header("Content-Length", str(len(payload)))
     self.end_headers()
     self.wfile.write(payload)
@@ -4654,10 +4750,145 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
           pass
       return
+    if parsed.path == "/api/preview_input.mp3":
+      with STATE_LOCK:
+        state = load_state()
+      qs = urllib.parse.parse_qs(parsed.query or "")
+      req_program = str((qs.get("program") or [""])[0]).strip()
+      if req_program in ("1", "2"):
+        input_device = str(state.get(f"input_device_prog{req_program}", state.get("input_device", "ompx_prg1in_cap")))
+      else:
+        input_device = str(state.get("input_device", "ompx_prg1in_cap"))
+      resolved_input, input_is_url = resolve_input_source(input_device)
+      if not resolved_input:
+        self.send_error(HTTPStatus.BAD_REQUEST, "Input source is not configured")
+        return
+      preview_mode = str(state.get("preview_mode", "auto"))
+      sample_rate = int(float(state.get("sample_rate", 48000)))
+      filt = "anull"
+      is_mpx_input = (not input_is_url) and ("mpx" in resolved_input)
+      decode_mpx = (preview_mode == "mpx-decode") or (preview_mode == "auto" and is_mpx_input)
+      if input_is_url and decode_mpx:
+        decode_mpx = False
+      if decode_mpx:
+        mpx_decode_graph = (
+          "[0:a]pan=mono|c0=c0[m];"
+          "[m]lowpass=f=15000[lpr];"
+          "[m]bandpass=f=19000:w=1200[p];"
+          "[p][p]amultiply,highpass=f=30000,lowpass=f=42000,volume=35[car];"
+          "[m]highpass=f=23000,lowpass=f=53000[dsb];"
+          "[dsb][car]amultiply,lowpass=f=15000,volume=8[lmr];"
+          "[lpr][lmr]amix=inputs=2:weights='1 1'[left];"
+          "[lpr][lmr]amix=inputs=2:weights='1 -1'[right];"
+          "[left][right]join=inputs=2:channel_layout=stereo,"
+          f"{filt}[out]"
+        )
+        cmd = [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "warning",
+          "-nostdin",
+          "-f",
+          "alsa",
+          "-ac",
+          "2",
+          "-ar",
+          "192000",
+          "-i",
+          resolved_input,
+          "-filter_complex",
+          mpx_decode_graph,
+          "-map",
+          "[out]",
+          "-ar",
+          str(sample_rate),
+          "-ac",
+          "2",
+          "-c:a",
+          "libmp3lame",
+          "-b:a",
+          "192k",
+          "-f",
+          "mp3",
+          "-",
+        ]
+      else:
+        cmd = [
+          "ffmpeg",
+          "-hide_banner",
+          "-loglevel",
+          "warning",
+          "-nostdin",
+        ]
+        if input_is_url:
+          cmd += [
+            "-thread_queue_size",
+            "10240",
+            "-i",
+            resolved_input,
+            "-filter:a",
+            filt,
+            "-ar",
+            str(sample_rate),
+            "-ac",
+            "2",
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "192k",
+            "-f",
+            "mp3",
+            "-",
+          ]
+        else:
+          cmd += [
+            "-f",
+            "alsa",
+            "-ac",
+            "2",
+            "-ar",
+            str(sample_rate),
+            "-i",
+            resolved_input,
+            "-filter:a",
+            filt,
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "192k",
+            "-f",
+            "mp3",
+            "-",
+          ]
+      proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+      self.send_response(HTTPStatus.OK)
+      self.send_header("Content-Type", "audio/mpeg")
+      self.send_header("Cache-Control", "no-cache")
+      self.end_headers()
+      try:
+        while True:
+          chunk = proc.stdout.read(8192)
+          if not chunk:
+            break
+          self.wfile.write(chunk)
+      except (BrokenPipeError, ConnectionResetError):
+        pass
+      finally:
+        try:
+          proc.terminate()
+        except Exception:
+          pass
+      return
     if parsed.path == "/api/mpx_fft.png":
       with STATE_LOCK:
         state = load_state()
-      fft_input_device = str(state.get("fft_input_device", "ompx_prg1mpx_cap"))
+      qs = urllib.parse.parse_qs(parsed.query or "")
+      req_program = str((qs.get("program") or [""])[0]).strip()
+      if req_program in ("1", "2"):
+        fft_input_device = str(state.get(f"fft_input_device_prog{req_program}", state.get("fft_input_device", "ompx_prg1mpx_cap")))
+      else:
+        fft_input_device = str(state.get("fft_input_device", "ompx_prg1mpx_cap"))
       resolved_fft_input, fft_input_is_url = resolve_input_source(fft_input_device)
       if not resolved_fft_input:
         self.send_error(HTTPStatus.BAD_REQUEST, "FFT source is not configured")
@@ -5409,6 +5640,7 @@ PAGE_HTML = """<!doctype html>
   };
   document.getElementById('rds_apply').onclick = async () => {
     await saveRdsState();
+    await loadRdsState().catch(()=>{});
     setStatus('RDS overrides applied. rds-sync services will use them on next sync cycle.');
   };
 
