@@ -4055,12 +4055,49 @@ DEFAULT_STATE = {
   "input_device_prog2": DEFAULT_P2_INPUT,
   "preview_mode": "auto",
   "sample_rate": 48000,
+  "wave_window_sec": 3,
+  "processing_bypass": False,
+  "bypass_level_match_enabled": False,
+  "bypass_level_match_db": 0.0,
+  "peak_hold_enabled": True,
+  "peak_hold_decay": 0.94,
+  "processor_input_gain_db": 0.0,
   "pre_gain_db": 0.0,
   "post_gain_db": 0.0,
   "stereo_width": 1.0,
   "hf_tame_db": 0.0,
   "hf_tame_freq": 7000,
   "output_limit": 0.96,
+  "band1_drive_db": 0.0,
+  "band1_enabled": True,
+  "band1_ratio": 2.0,
+  "band1_attack_ms": 10.0,
+  "band1_release_ms": 120.0,
+  "band1_mix": 1.0,
+  "band2_drive_db": 0.0,
+  "band2_enabled": True,
+  "band2_ratio": 2.0,
+  "band2_attack_ms": 10.0,
+  "band2_release_ms": 120.0,
+  "band2_mix": 1.0,
+  "band3_drive_db": 0.0,
+  "band3_enabled": True,
+  "band3_ratio": 2.0,
+  "band3_attack_ms": 10.0,
+  "band3_release_ms": 120.0,
+  "band3_mix": 1.0,
+  "band4_drive_db": 0.0,
+  "band4_enabled": True,
+  "band4_ratio": 2.0,
+  "band4_attack_ms": 10.0,
+  "band4_release_ms": 120.0,
+  "band4_mix": 1.0,
+  "band5_drive_db": 0.0,
+  "band5_enabled": True,
+  "band5_ratio": 2.0,
+  "band5_attack_ms": 10.0,
+  "band5_release_ms": 120.0,
+  "band5_mix": 1.0,
   "fft_input_device": "ompx_prg1mpx_cap",
   "fft_input_device_prog1": "ompx_prg1mpx_cap",
   "fft_input_device_prog2": "ompx_prg2mpx_cap",
@@ -4254,18 +4291,112 @@ def is_authorized(headers):
   return user == AUTH_USER and password == AUTH_PASSWORD
 
 
+def _safe_float(value, default, min_value=None, max_value=None):
+  try:
+    fv = float(value)
+  except Exception:
+    fv = float(default)
+  if min_value is not None:
+    fv = max(min_value, fv)
+  if max_value is not None:
+    fv = min(max_value, fv)
+  return fv
+
+
 def build_preview_filter(state):
+  processor_in = _safe_float(state.get("processor_input_gain_db", 0.0), 0.0, -24.0, 24.0)
   pre = float(state.get("pre_gain_db", 0.0))
   post = float(state.get("post_gain_db", 0.0))
-  width = float(state.get("stereo_width", 1.0))
-  hf_tame_db = float(state.get("hf_tame_db", 0.0))
-  hf_tame_freq = int(float(state.get("hf_tame_freq", 7000)))
-  limit = float(state.get("output_limit", 0.96))
+  width = _safe_float(state.get("stereo_width", 1.0), 1.0, 0.0, 2.0)
+  hf_tame_db = _safe_float(state.get("hf_tame_db", 0.0), 0.0, -18.0, 18.0)
+  hf_tame_freq = int(_safe_float(state.get("hf_tame_freq", 7000), 7000, 1000, 18000))
+  limit = _safe_float(state.get("output_limit", 0.96), 0.96, 0.1, 1.0)
+
+  drives = [
+    _safe_float(state.get("band1_drive_db", 0.0), 0.0, -18.0, 18.0),
+    _safe_float(state.get("band2_drive_db", 0.0), 0.0, -18.0, 18.0),
+    _safe_float(state.get("band3_drive_db", 0.0), 0.0, -18.0, 18.0),
+    _safe_float(state.get("band4_drive_db", 0.0), 0.0, -18.0, 18.0),
+    _safe_float(state.get("band5_drive_db", 0.0), 0.0, -18.0, 18.0),
+  ]
+  ratios = [
+    _safe_float(state.get("band1_ratio", 2.0), 2.0, 1.0, 20.0),
+    _safe_float(state.get("band2_ratio", 2.0), 2.0, 1.0, 20.0),
+    _safe_float(state.get("band3_ratio", 2.0), 2.0, 1.0, 20.0),
+    _safe_float(state.get("band4_ratio", 2.0), 2.0, 1.0, 20.0),
+    _safe_float(state.get("band5_ratio", 2.0), 2.0, 1.0, 20.0),
+  ]
+  attacks = [
+    _safe_float(state.get("band1_attack_ms", 10.0), 10.0, 0.1, 200.0),
+    _safe_float(state.get("band2_attack_ms", 10.0), 10.0, 0.1, 200.0),
+    _safe_float(state.get("band3_attack_ms", 10.0), 10.0, 0.1, 200.0),
+    _safe_float(state.get("band4_attack_ms", 10.0), 10.0, 0.1, 200.0),
+    _safe_float(state.get("band5_attack_ms", 10.0), 10.0, 0.1, 200.0),
+  ]
+  releases = [
+    _safe_float(state.get("band1_release_ms", 120.0), 120.0, 5.0, 1500.0),
+    _safe_float(state.get("band2_release_ms", 120.0), 120.0, 5.0, 1500.0),
+    _safe_float(state.get("band3_release_ms", 120.0), 120.0, 5.0, 1500.0),
+    _safe_float(state.get("band4_release_ms", 120.0), 120.0, 5.0, 1500.0),
+    _safe_float(state.get("band5_release_ms", 120.0), 120.0, 5.0, 1500.0),
+  ]
+  mixes = [
+    _safe_float(state.get("band1_mix", 1.0), 1.0, 0.0, 2.0),
+    _safe_float(state.get("band2_mix", 1.0), 1.0, 0.0, 2.0),
+    _safe_float(state.get("band3_mix", 1.0), 1.0, 0.0, 2.0),
+    _safe_float(state.get("band4_mix", 1.0), 1.0, 0.0, 2.0),
+    _safe_float(state.get("band5_mix", 1.0), 1.0, 0.0, 2.0),
+  ]
+  enabled = [
+    _parse_bool(state.get("band1_enabled", True), True),
+    _parse_bool(state.get("band2_enabled", True), True),
+    _parse_bool(state.get("band3_enabled", True), True),
+    _parse_bool(state.get("band4_enabled", True), True),
+    _parse_bool(state.get("band5_enabled", True), True),
+  ]
+
+  weighted = [max(0.001, m) if en else 0.0 for m, en in zip(mixes, enabled)]
+  total_weight = sum(weighted)
+  if total_weight <= 0.0:
+    weighted = [1.0, 1.0, 1.0, 1.0, 1.0]
+    total_weight = 5.0
+  avg_ratio = sum(r * w for r, w in zip(ratios, weighted)) / total_weight
+  avg_attack = sum(a * w for a, w in zip(attacks, weighted)) / total_weight
+  avg_release = sum(r * w for r, w in zip(releases, weighted)) / total_weight
+
+  # Band drive+mix are approximated as per-band EQ emphasis before compression.
+  band_gains = []
+  for d, m, en in zip(drives, mixes, enabled):
+    if not en:
+      band_gains.append(0.0)
+    else:
+      band_gains.append(d + ((m - 1.0) * 6.0))
+
+  if _parse_bool(state.get("processing_bypass", False), False):
+    bypass_trim = _safe_float(state.get("bypass_level_match_db", 0.0), 0.0, -24.0, 24.0)
+    if _parse_bool(state.get("bypass_level_match_enabled", False), False):
+      enabled_band_gains = [g for g, en in zip(band_gains, enabled) if en]
+      band_avg = (sum(enabled_band_gains) / len(enabled_band_gains)) if enabled_band_gains else 0.0
+      ratio_push = max(0.0, avg_ratio - 1.0)
+      estimated = (processor_in + pre + post) + (band_avg * 0.55) + (ratio_push * 0.8)
+      bypass_trim += estimated
+    bypass_trim = max(-24.0, min(24.0, bypass_trim))
+    if abs(bypass_trim) < 0.01:
+      return "anull"
+    return f"aformat=sample_fmts=fltp,volume={bypass_trim}dB"
+
   hf_tame_filter = "anull"
   if hf_tame_db != 0.0:
     hf_tame_filter = f"highshelf=f={hf_tame_freq}:g={hf_tame_db}"
   return (
     f"aformat=sample_fmts=fltp,"
+    f"volume={processor_in}dB,"
+    f"equalizer=f=80:t=o:w=1.8:g={band_gains[0]},"
+    f"equalizer=f=250:t=o:w=1.6:g={band_gains[1]},"
+    f"equalizer=f=1000:t=o:w=1.4:g={band_gains[2]},"
+    f"equalizer=f=3500:t=o:w=1.2:g={band_gains[3]},"
+    f"equalizer=f=11000:t=o:w=1.1:g={band_gains[4]},"
+    f"acompressor=threshold=0.125:ratio={avg_ratio}:attack={avg_attack}:release={avg_release}:makeup=1,"
     f"volume={pre}dB,"
     f"{hf_tame_filter},"
     f"alimiter=limit={limit},"
@@ -4525,6 +4656,10 @@ class Handler(BaseHTTPRequestHandler):
       with STATE_LOCK:
         state = load_state()
       fft_input_device = str(state.get("fft_input_device", "ompx_prg1mpx_cap"))
+      resolved_fft_input, fft_input_is_url = resolve_input_source(fft_input_device)
+      if not resolved_fft_input:
+        self.send_error(HTTPStatus.BAD_REQUEST, "FFT source is not configured")
+        return
       fft_sample_rate = int(float(state.get("fft_sample_rate", 192000)))
       fft_max_hz = int(float(state.get("fft_max_hz", 60000)))
       if fft_sample_rate < 32000:
@@ -4540,14 +4675,26 @@ class Handler(BaseHTTPRequestHandler):
         "-loglevel",
         "error",
         "-nostdin",
-        "-f",
-        "alsa",
-        "-ac",
-        "2",
-        "-ar",
-        str(fft_sample_rate),
-        "-i",
-        fft_input_device,
+      ]
+      if fft_input_is_url:
+        cmd += [
+          "-thread_queue_size",
+          "10240",
+          "-i",
+          resolved_fft_input,
+        ]
+      else:
+        cmd += [
+          "-f",
+          "alsa",
+          "-ac",
+          "2",
+          "-ar",
+          str(fft_sample_rate),
+          "-i",
+          resolved_fft_input,
+        ]
+      cmd += [
         "-t",
         "0.8",
         "-filter_complex",
@@ -4692,6 +4839,20 @@ PAGE_HTML = """<!doctype html>
     </div>
     <div class=\"row\">
       <div>
+      <label>Waveform Window (seconds)</label>
+      <input id=\"wave_window_sec\" type=\"range\" min=\"0.25\" max=\"10\" step=\"0.25\" />
+      <div class=\"status\" id=\"wave_window_readout\">3.00 s</div>
+      </div>
+      <div>
+      <label>Scope Capture</label>
+      <div class=\"row\">
+        <div><button id=\"analysis_pause\" type=\"button\">Pause Scope</button></div>
+        <div><button id=\"analysis_step\" type=\"button\">Step Frame</button></div>
+      </div>
+      </div>
+    </div>
+    <div class=\"row\">
+      <div>
       <label>Preview Decode Mode</label>
       <select id=\"preview_mode\">
         <option value=\"auto\">Auto (decode MPX inputs)</option>
@@ -4705,6 +4866,32 @@ PAGE_HTML = """<!doctype html>
       <div><label>Pre Gain (dB)</label><input id=\"pre_gain_db\" type=\"number\" step=\"0.1\" /></div>
       <div><label>Post Gain (dB)</label><input id=\"post_gain_db\" type=\"number\" step=\"0.1\" /></div>
     </div>
+    <div class=\"row\">
+      <div><label>Processor Input Gain (dB)</label><input id=\"processor_input_gain_db\" type=\"number\" step=\"0.1\" min=\"-24\" max=\"24\" /></div>
+      <div>
+        <label>Peak Hold Overlay</label>
+        <div class=\"row\">
+          <div><label><input id=\"peak_hold_enabled\" type=\"checkbox\" /> Enable</label></div>
+          <div><input id=\"peak_hold_decay\" type=\"number\" step=\"0.01\" min=\"0.50\" max=\"0.999\" /></div>
+        </div>
+      </div>
+    </div>
+    <label style=\"margin-top:12px\">5-Band Processor (Drive / Ratio / Attack / Release / Mix)</label>
+    <div class=\"row\" style=\"margin-bottom:4px\">
+      <div>Band Bypass</div>
+      <div style=\"display:grid; grid-template-columns:repeat(5,1fr); gap:6px;\">
+        <label><input id=\"band1_enabled\" type=\"checkbox\" checked /> B1</label>
+        <label><input id=\"band2_enabled\" type=\"checkbox\" checked /> B2</label>
+        <label><input id=\"band3_enabled\" type=\"checkbox\" checked /> B3</label>
+        <label><input id=\"band4_enabled\" type=\"checkbox\" checked /> B4</label>
+        <label><input id=\"band5_enabled\" type=\"checkbox\" checked /> B5</label>
+      </div>
+    </div>
+    <div class=\"row\"><div>Sub 30-120</div><div style=\"display:grid; grid-template-columns:repeat(5,1fr); gap:6px;\"><input id=\"band1_drive_db\" type=\"number\" step=\"0.1\" placeholder=\"Drive dB\" /><input id=\"band1_ratio\" type=\"number\" step=\"0.1\" placeholder=\"Ratio\" /><input id=\"band1_attack_ms\" type=\"number\" step=\"0.1\" placeholder=\"Attack ms\" /><input id=\"band1_release_ms\" type=\"number\" step=\"1\" placeholder=\"Release ms\" /><input id=\"band1_mix\" type=\"number\" step=\"0.01\" placeholder=\"Mix\" /></div></div>
+    <div class=\"row\"><div>Low 120-400</div><div style=\"display:grid; grid-template-columns:repeat(5,1fr); gap:6px;\"><input id=\"band2_drive_db\" type=\"number\" step=\"0.1\" placeholder=\"Drive dB\" /><input id=\"band2_ratio\" type=\"number\" step=\"0.1\" placeholder=\"Ratio\" /><input id=\"band2_attack_ms\" type=\"number\" step=\"0.1\" placeholder=\"Attack ms\" /><input id=\"band2_release_ms\" type=\"number\" step=\"1\" placeholder=\"Release ms\" /><input id=\"band2_mix\" type=\"number\" step=\"0.01\" placeholder=\"Mix\" /></div></div>
+    <div class=\"row\"><div>Mid 400-2k</div><div style=\"display:grid; grid-template-columns:repeat(5,1fr); gap:6px;\"><input id=\"band3_drive_db\" type=\"number\" step=\"0.1\" placeholder=\"Drive dB\" /><input id=\"band3_ratio\" type=\"number\" step=\"0.1\" placeholder=\"Ratio\" /><input id=\"band3_attack_ms\" type=\"number\" step=\"0.1\" placeholder=\"Attack ms\" /><input id=\"band3_release_ms\" type=\"number\" step=\"1\" placeholder=\"Release ms\" /><input id=\"band3_mix\" type=\"number\" step=\"0.01\" placeholder=\"Mix\" /></div></div>
+    <div class=\"row\"><div>Presence 2k-6k</div><div style=\"display:grid; grid-template-columns:repeat(5,1fr); gap:6px;\"><input id=\"band4_drive_db\" type=\"number\" step=\"0.1\" placeholder=\"Drive dB\" /><input id=\"band4_ratio\" type=\"number\" step=\"0.1\" placeholder=\"Ratio\" /><input id=\"band4_attack_ms\" type=\"number\" step=\"0.1\" placeholder=\"Attack ms\" /><input id=\"band4_release_ms\" type=\"number\" step=\"1\" placeholder=\"Release ms\" /><input id=\"band4_mix\" type=\"number\" step=\"0.01\" placeholder=\"Mix\" /></div></div>
+    <div class=\"row\"><div>Air 6k-15k</div><div style=\"display:grid; grid-template-columns:repeat(5,1fr); gap:6px;\"><input id=\"band5_drive_db\" type=\"number\" step=\"0.1\" placeholder=\"Drive dB\" /><input id=\"band5_ratio\" type=\"number\" step=\"0.1\" placeholder=\"Ratio\" /><input id=\"band5_attack_ms\" type=\"number\" step=\"0.1\" placeholder=\"Attack ms\" /><input id=\"band5_release_ms\" type=\"number\" step=\"1\" placeholder=\"Release ms\" /><input id=\"band5_mix\" type=\"number\" step=\"0.01\" placeholder=\"Mix\" /></div></div>
     <div class=\"row\">
       <div><label>Stereo Width</label><input id=\"stereo_width\" type=\"number\" step=\"0.01\" min=\"0\" max=\"2\" /></div>
       <div><label>Limiter Ceiling (0..1)</label><input id=\"output_limit\" type=\"number\" step=\"0.01\" min=\"0.1\" max=\"1\" /></div>
@@ -4731,6 +4918,14 @@ PAGE_HTML = """<!doctype html>
     <label>Custom CSS (optional)</label>
     <textarea id=\"ui_custom_css\" rows=\"4\" style=\"width:100%; margin-top:4px; padding:8px; border-radius:8px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink);\"></textarea>
     <button id=\"css_apply\" style=\"margin-top:8px;\">Apply Custom CSS</button>
+    <div class=\"row\" style=\"margin-top:8px\">
+      <div><label><input id=\"processing_bypass\" type=\"checkbox\" /> Bypass All Processing</label></div>
+      <div><button id=\"processing_bypass_toggle\" type=\"button\">Toggle Processing Bypass</button></div>
+    </div>
+    <div class=\"row\">
+      <div><label><input id=\"bypass_level_match_enabled\" type=\"checkbox\" /> Auto Level Match In Bypass (optional)</label></div>
+      <div><label>Bypass Level Trim (dB)</label><input id=\"bypass_level_match_db\" type=\"number\" step=\"0.1\" min=\"-24\" max=\"24\" /></div>
+    </div>
     <button id=\"apply\">Apply and Refresh Preview</button>
     <div class=\"row\" style=\"margin-top:8px\">
       <div><button id=\"patch_start\">Start Hardware Patch</button></div>
@@ -4742,6 +4937,8 @@ PAGE_HTML = """<!doctype html>
       <div>
       <label>FFT Input Device (MPX)</label>
       <select id=\"fft_input_device\">
+        <option value=\"radio1_url\">Program 1 stream URL</option>
+        <option value=\"radio2_url\">Program 2 stream URL</option>
         <option value=\"ompx_prg1mpx_cap\">Program 1 MPX capture</option>
         <option value=\"ompx_prg2mpx_cap\">Program 2 MPX capture</option>
         <option value=\"ompx_prg1in_cap\">Program 1 audio input</option>
@@ -4837,7 +5034,8 @@ PAGE_HTML = """<!doctype html>
   </div>
   </div>
   <script>
-  const ids = ["input_device","preview_mode","sample_rate","pre_gain_db","post_gain_db","stereo_width","output_limit","hf_tame_db","hf_tame_freq","patch_output_device","fft_input_device","fft_sample_rate","fft_max_hz","ui_theme","ui_custom_css","tab_name_prog1","tab_name_prog2"];
+  const ids = ["input_device","preview_mode","sample_rate","wave_window_sec","processor_input_gain_db","bypass_level_match_db","peak_hold_decay","pre_gain_db","post_gain_db","stereo_width","output_limit","hf_tame_db","hf_tame_freq","patch_output_device","fft_input_device","fft_sample_rate","fft_max_hz","ui_theme","ui_custom_css","tab_name_prog1","tab_name_prog2","band1_drive_db","band1_ratio","band1_attack_ms","band1_release_ms","band1_mix","band2_drive_db","band2_ratio","band2_attack_ms","band2_release_ms","band2_mix","band3_drive_db","band3_ratio","band3_attack_ms","band3_release_ms","band3_mix","band4_drive_db","band4_ratio","band4_attack_ms","band4_release_ms","band4_mix","band5_drive_db","band5_ratio","band5_attack_ms","band5_release_ms","band5_mix"];
+  const boolStateIds = ["processing_bypass","bypass_level_match_enabled","peak_hold_enabled","band1_enabled","band2_enabled","band3_enabled","band4_enabled","band5_enabled"];
   const programScopedIds = ["input_device","fft_input_device"];
   const rdsIds = ["rds_prog1_ps","rds_prog1_pi","rds_prog1_pty","rds_prog1_rt","rds_prog1_ct_mode","rds_prog2_ps","rds_prog2_pi","rds_prog2_pty","rds_prog2_rt","rds_prog2_ct_mode"];
   const rdsBoolIds = ["rds_prog1_tp","rds_prog1_ta","rds_prog1_ms","rds_prog1_ct_enable","rds_prog2_tp","rds_prog2_ta","rds_prog2_ms","rds_prog2_ct_enable"];
@@ -4850,9 +5048,21 @@ PAGE_HTML = """<!doctype html>
   const customCssTag = document.getElementById("ui_custom_css_tag");
   const tabProg1 = document.getElementById("tab_prog1");
   const tabProg2 = document.getElementById("tab_prog2");
+  const waveWindowCtl = document.getElementById("wave_window_sec");
+  const waveWindowReadout = document.getElementById("wave_window_readout");
+  const processingBypassCtl = document.getElementById("processing_bypass");
+  const processingBypassToggleBtn = document.getElementById("processing_bypass_toggle");
+  const analysisPauseBtn = document.getElementById("analysis_pause");
+  const analysisStepBtn = document.getElementById("analysis_step");
   let activeProgram = 1;
   let currentState = {};
   let fftTimer = null;
+  let analysisPaused = false;
+  const waveHistory = [];
+  const WAVE_POINTS_PER_FRAME = 64;
+  const WAVE_HISTORY_MAX_SECONDS = 20;
+  const peakBars = new Array(64).fill(0);
+  let waveFrameCounter = 0;
 
   const themePalettes = {
     forest: {"--bg":"#0f1b1a","--card":"#132825","--accent":"#f2b642","--ink":"#f4f7f5","--muted":"#9fb8b0"},
@@ -4862,6 +5072,11 @@ PAGE_HTML = """<!doctype html>
   };
 
   function setStatus(msg){ st.textContent = msg; }
+
+  function updateWaveWindowReadout(){
+    const sec = Number(waveWindowCtl.value || 3);
+    waveWindowReadout.textContent = `${sec.toFixed(2)} s`;
+  }
 
   function programKey(base, program){ return `${base}_prog${program}`; }
 
@@ -4912,8 +5127,12 @@ PAGE_HTML = """<!doctype html>
       if(programScopedIds.includes(id)) return;
       if(data[id] !== undefined){ document.getElementById(id).value = data[id]; }
     });
+    boolStateIds.forEach((id)=>{
+      if(data[id] !== undefined){ document.getElementById(id).checked = !!data[id]; }
+    });
     updateTabTitles();
     setActiveProgram(Number(data.active_program || 1));
+    updateWaveWindowReadout();
     applyTheme(data.ui_theme || 'forest');
     applyCustomCss(data.ui_custom_css || '');
     await loadRdsState();
@@ -4946,6 +5165,9 @@ PAGE_HTML = """<!doctype html>
     ids.forEach((id)=>{
       if(programScopedIds.includes(id)) return;
       payload[id] = document.getElementById(id).value;
+    });
+    boolStateIds.forEach((id)=>{
+      payload[id] = document.getElementById(id).checked;
     });
     payload.active_program = activeProgram;
     programScopedIds.forEach((id) => {
@@ -4992,12 +5214,14 @@ PAGE_HTML = """<!doctype html>
 
   function refreshFft(){
     updateFftMarkers();
-    fftImg.src = '/api/mpx_fft.png?ts=' + Date.now();
+    fftImg.src = '/api/mpx_fft.png?program=' + activeProgram + '&ts=' + Date.now();
   }
 
   function startFftLoop(){
     if (fftTimer) clearInterval(fftTimer);
-    fftTimer = setInterval(refreshFft, 1200);
+    fftTimer = setInterval(() => {
+      if (!analysisPaused) refreshFft();
+    }, 1200);
   }
 
   function startRdsLoop(){
@@ -5012,10 +5236,73 @@ PAGE_HTML = """<!doctype html>
     setStatus('Preview refreshed.');
   }
 
+  fftImg.onerror = () => {
+    setStatus('FFT unavailable for current source. Try an input or stream source with active audio.');
+  };
+
+  function captureWaveHistory(){
+    waveFrameCounter += 1;
+    if (waveFrameCounter % 2 !== 0) return;
+    const stride = Math.max(1, Math.floor(timeData.length / WAVE_POINTS_PER_FRAME));
+    for(let i=0;i<timeData.length;i+=stride){
+      const v = (timeData[i] - 128) / 128;
+      waveHistory.push(v);
+    }
+    const approxFps = 30;
+    const maxLen = Math.floor(WAVE_HISTORY_MAX_SECONDS * approxFps * WAVE_POINTS_PER_FRAME);
+    if (waveHistory.length > maxLen) {
+      waveHistory.splice(0, waveHistory.length - maxLen);
+    }
+  }
+
+  function drawWaveFromHistory(){
+    const windowSec = Number(document.getElementById('wave_window_sec').value || 3);
+    const approxFps = 30;
+    const wanted = Math.max(120, Math.floor(windowSec * approxFps * WAVE_POINTS_PER_FRAME));
+    const start = Math.max(0, waveHistory.length - wanted);
+    const data = waveHistory.slice(start);
+    wctx.fillStyle = '#07110f';
+    wctx.fillRect(0,0,wave.width,wave.height);
+    if (data.length < 2) return;
+    wctx.strokeStyle = '#f2b642';
+    wctx.lineWidth = 2;
+    wctx.beginPath();
+    const step = wave.width / (data.length - 1);
+    for(let i=0;i<data.length;i++){
+      const y = (0.5 - (data[i] * 0.45)) * wave.height;
+      if(i===0) wctx.moveTo(0,y); else wctx.lineTo(i*step,y);
+    }
+    wctx.stroke();
+  }
+
   tabProg1.onclick = async () => { setActiveProgram(1); await saveState(); refreshPreview(); };
   tabProg2.onclick = async () => { setActiveProgram(2); await saveState(); refreshPreview(); };
   document.getElementById('tab_name_prog1').addEventListener('input', updateTabTitles);
   document.getElementById('tab_name_prog2').addEventListener('input', updateTabTitles);
+  waveWindowCtl.addEventListener('input', () => {
+    updateWaveWindowReadout();
+    saveState().catch(()=>{});
+  });
+  processingBypassToggleBtn.onclick = async () => {
+    processingBypassCtl.checked = !processingBypassCtl.checked;
+    await saveState();
+    refreshPreview();
+    setStatus(processingBypassCtl.checked ? 'Processing bypass enabled.' : 'Processing bypass disabled.');
+  };
+  analysisPauseBtn.onclick = () => {
+    analysisPaused = !analysisPaused;
+    analysisPauseBtn.textContent = analysisPaused ? 'Resume Scope' : 'Pause Scope';
+    setStatus(analysisPaused ? 'Scope paused.' : 'Scope resumed.');
+  };
+  analysisStepBtn.onclick = () => {
+    if (!analysisPaused) {
+      analysisPaused = true;
+      analysisPauseBtn.textContent = 'Resume Scope';
+    }
+    renderAnalysisFrame();
+    refreshFft();
+    setStatus('Stepped one analysis frame.');
+  };
 
   document.getElementById('apply').onclick = async () => {
     await saveState();
@@ -5100,27 +5387,18 @@ PAGE_HTML = """<!doctype html>
     });
   }
 
-  function draw(){
-    requestAnimationFrame(draw);
+  function renderAnalysisFrame(){
     analyser.getByteTimeDomainData(timeData);
-    wctx.fillStyle = '#07110f';
-    wctx.fillRect(0,0,wave.width,wave.height);
-    wctx.strokeStyle = '#f2b642';
-    wctx.lineWidth = 2;
-    wctx.beginPath();
-    const step = wave.width / timeData.length;
-    for(let i=0;i<timeData.length;i++){
-    const v = timeData[i] / 255.0;
-    const y = v * wave.height;
-    if(i===0) wctx.moveTo(0,y); else wctx.lineTo(i*step,y);
-    }
-    wctx.stroke();
+    captureWaveHistory();
+    drawWaveFromHistory();
 
     analyser.getByteFrequencyData(freqData);
     sctx.fillStyle = '#07110f';
     sctx.fillRect(0,0,spec.width,spec.height);
     const bars = 64;
     const bin = Math.floor(freqData.length / bars);
+    const peakHoldEnabled = !!document.getElementById('peak_hold_enabled').checked;
+    const peakDecay = Math.max(0.5, Math.min(0.999, Number(document.getElementById('peak_hold_decay').value || 0.94)));
     for(let i=0;i<bars;i++){
     let sum = 0;
     for(let j=0;j<bin;j++) sum += freqData[i*bin + j] || 0;
@@ -5129,8 +5407,21 @@ PAGE_HTML = """<!doctype html>
     sctx.fillStyle = `hsl(${45 + i*1.6}, 80%, ${35 + (avg/255)*35}%)`;
     const bw = spec.width / bars;
     sctx.fillRect(i*bw, spec.height - h, bw-2, h);
+    if (peakHoldEnabled) {
+      peakBars[i] = Math.max(h, peakBars[i] * peakDecay);
+      sctx.fillStyle = '#7ef2d0';
+      sctx.fillRect(i*bw, spec.height - peakBars[i], bw-2, 2);
+    } else {
+      peakBars[i] = h;
+    }
     }
     updateBandMeters();
+  }
+
+  function draw(){
+    requestAnimationFrame(draw);
+    if (analysisPaused) return;
+    renderAnalysisFrame();
   }
 
   document.body.addEventListener('click', () => ctx.resume(), {once:true});
