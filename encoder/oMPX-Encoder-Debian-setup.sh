@@ -5095,19 +5095,20 @@ PAGE_HTML = """<!doctype html>
   .meter-row .db { font-size:12px; color:var(--ink); text-align:right; }
   .meter-track { height:10px; border-radius:999px; border:1px solid #2a4f47; background:#0a1412; overflow:hidden; }
   .meter-fill { height:100%; width:0%; background:linear-gradient(90deg, #2fd38a, #f2b642); transition:width 120ms linear; }
-  .tabs { display:flex; gap:8px; margin-bottom:10px; align-items:center; }
-  .tab-btn { width:auto; padding:8px 12px; border-radius:999px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink); }
+  .tabs { display:flex; gap:4px; margin-bottom:6px; align-items:center; }
+  .tab-btn { width:auto; padding:4px 8px; border-radius:999px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink); font-size:13px; min-height:28px; }
   .tab-btn.active { background:linear-gradient(180deg, #f2b642, #d99424); color:#1b1406; border-color:#d99424; }
-  .tab-name { max-width:180px; }
+  .tab-name { max-width:120px; font-size:13px; }
   .program-field { display:none; }
   .global-field { display:none; }
   .program-field.active { display:block; }
   .global-field.active { display:block; }
   .stereo-adv { display:none; }
   .stereo-adv.active { display:block; }
-  .func-nav { display:flex; flex-direction:row; flex-wrap:wrap; gap:6px; margin:8px 0 12px; width:100%; }
-  .func-nav-btn { width:auto; padding:7px 10px; border-radius:8px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink); }
+  .func-nav { gap:4px; margin:6px 0 8px; }
+  .func-nav-btn { width:auto; padding:4px 8px; border-radius:8px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink); font-size:13px; min-height:28px; }
   .func-nav-btn.active { background:linear-gradient(180deg, #f2b642, #d99424); color:#1b1406; border-color:#d99424; }
+  button, input[type="button"], input[type="submit"] { padding:4px 8px; font-size:13px; min-height:28px; }
   .func-hidden { display:none !important; }
   .func-hint { font-size:12px; color:var(--muted); margin:-4px 0 8px; }
   body.layout-pro-rail .func-nav { flex-direction:column; width:180px; float:left; margin:8px 12px 12px 0; position:sticky; top:10px; }
