@@ -4062,6 +4062,7 @@ DEFAULT_STATE = {
   "active_program": 1,
   "active_tab": "program1",
   "ui_experience_mode": "hobbyist",
+  "ui_hobbyist_mode": true,
   "tab_name_prog1": "Program 1",
   "tab_name_prog2": "Program 2",
   "multiband_preset": DEFAULT_MULTIBAND_PRESET,
@@ -4073,6 +4074,8 @@ DEFAULT_STATE = {
   "wave_window_sec": 3,
   "processing_bypass": False,
   "enable_momentary_ab": False,
+  "ui_pro_left_rail": False,
+  "ui_hobbyist_mode": True,
   "bypass_level_match_enabled": False,
   "bypass_level_match_db": 0.0,
   "peak_hold_enabled": True,
@@ -4232,6 +4235,36 @@ def _read_first_line(path):
       return f.readline().strip()
   except Exception:
     return ""
+
+
+def get_system_stats():
+  load1 = load5 = load15 = 0.0
+  mem_total_kb = 0
+  mem_available_kb = 0
+  try:
+    load1, load5, load15 = os.getloadavg()
+  except Exception:
+    pass
+  try:
+    with open("/proc/meminfo", "r", encoding="utf-8", errors="ignore") as f:
+      for raw in f:
+        if raw.startswith("MemTotal:"):
+          mem_total_kb = int(raw.split()[1])
+        elif raw.startswith("MemAvailable:"):
+          mem_available_kb = int(raw.split()[1])
+  except Exception:
+    pass
+  used_pct = 0.0
+  if mem_total_kb > 0:
+    used_pct = max(0.0, min(100.0, ((mem_total_kb - mem_available_kb) / mem_total_kb) * 100.0))
+  return {
+    "load1": round(load1, 2),
+    "load5": round(load5, 2),
+    "load15": round(load15, 2),
+    "mem_total_mb": int(mem_total_kb / 1024) if mem_total_kb > 0 else 0,
+    "mem_available_mb": int(mem_available_kb / 1024) if mem_available_kb > 0 else 0,
+    "mem_used_pct": round(used_pct, 1),
+  }
 
 
 def load_rds_state():
@@ -4647,6 +4680,9 @@ class Handler(BaseHTTPRequestHandler):
     if parsed.path == "/api/rds_state":
       self._send_json(load_rds_state())
       return
+    if parsed.path == "/api/system_stats":
+      self._send_json(get_system_stats())
+      return
     if parsed.path == "/api/preview.mp3":
       with STATE_LOCK:
         state = load_state()
@@ -5008,9 +5044,9 @@ class Handler(BaseHTTPRequestHandler):
     if self.path == "/api/state":
       with STATE_LOCK:
         state = load_state()
-        for key in DEFAULT_STATE:
-          if key in payload:
-            state[key] = payload[key]
+        for key, value in payload.items():
+          if key in DEFAULT_STATE or key.endswith("_prog1") or key.endswith("_prog2"):
+            state[key] = value
         save_state(state)
       self._send_json({"ok": True, "state": state})
       return
@@ -5069,11 +5105,13 @@ PAGE_HTML = """<!doctype html>
   .global-field.active { display:block; }
   .stereo-adv { display:none; }
   .stereo-adv.active { display:block; }
-  .func-nav { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:6px; margin:8px 0 12px; }
+  .func-nav { display:flex; flex-direction:row; flex-wrap:wrap; gap:6px; margin:8px 0 12px; width:100%; }
   .func-nav-btn { width:auto; padding:7px 10px; border-radius:8px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink); }
   .func-nav-btn.active { background:linear-gradient(180deg, #f2b642, #d99424); color:#1b1406; border-color:#d99424; }
   .func-hidden { display:none !important; }
   .func-hint { font-size:12px; color:var(--muted); margin:-4px 0 8px; }
+  body.layout-pro-rail .func-nav { flex-direction:column; width:180px; float:left; margin:8px 12px 12px 0; position:sticky; top:10px; }
+  body.layout-pro-rail .func-hint { margin-left:192px; }
   @media (max-width:900px) { .grid { grid-template-columns:1fr; } }
   </style>
   <style id="ui_custom_css_tag"></style>
@@ -5103,9 +5141,10 @@ PAGE_HTML = """<!doctype html>
     <div class=\"global-field\">
       <label style=\"margin-top:8px\">Global Settings</label>
       <label><input id=\"enable_momentary_ab\" type=\"checkbox\" /> Enable Momentary A/B Hold (optional)</label>
+      <label><input id=\"ui_pro_left_rail\" type=\"checkbox\" /> Enable Pro Left-Rail Layout (optional)</label>
+      <label><input id=\"ui_hobbyist_mode\" type=\"checkbox\" /> Hobbyist Simplified Controls (recommended)</label>
       <div class=\"status\">When enabled, hold the A/B button to temporarily bypass processing, then release to return.</div>
     </div>
-    <div class=\"row\">
       <div>
       <label>Input Channel</label>
       <select id=\"input_device\">
@@ -5343,6 +5382,8 @@ PAGE_HTML = """<!doctype html>
     <audio id=\"audio\" controls autoplay style=\"width:100%; margin-top:10px\"></audio>
     <audio id=\"audio_input\" autoplay muted style=\"display:none\"></audio>
     <div class=\"status\" id=\"status\">Ready.</div>
+    <div class=\"status\" id=\"rds_status\">RDS: waiting for first poll...</div>
+    <div style=\"clear:both\"></div>
     </div>
     <div class=\"card\">
     <label>Input Waveform</label>
@@ -5367,17 +5408,50 @@ PAGE_HTML = """<!doctype html>
       <div style=\"position:absolute; top:6px; left:8px; font-size:11px; color:#f2b642; background:#0008; padding:2px 6px; border-radius:4px;\">19 kHz pilot</div>
       <div style=\"position:absolute; top:6px; left:120px; font-size:11px; color:#52d3c7; background:#0008; padding:2px 6px; border-radius:4px;\">38 kHz L-R DSB</div>
     </div>
+    <label style=\"margin-top:12px\">System Monitor</label>
+    <div class=\"status\" id=\"cpu_status\">CPU: pending...</div>
+    <div class=\"status\" id=\"mem_status\">Memory: pending...</div>
     </div>
   </div>
   </div>
   <script>
   const ids = ["input_device","preview_mode","sample_rate","wave_window_sec","processor_input_gain_db","bypass_level_match_db","peak_hold_decay","pre_gain_db","post_gain_db","stereo_width","output_limit","hf_tame_db","hf_tame_freq","patch_output_device","fft_input_device","fft_sample_rate","fft_max_hz","ui_theme","ui_custom_css","tab_name_prog1","tab_name_prog2","multiband_preset","azimuth_delay_ms","auto_balance_strength","multiband_clipper_drive_db","multiband_clipper_ceiling","band1_drive_db","band1_ratio","band1_attack_ms","band1_release_ms","band1_mix","band1_drive_db_l","band1_drive_db_r","band1_mix_l","band1_mix_r","band2_drive_db","band2_ratio","band2_attack_ms","band2_release_ms","band2_mix","band2_drive_db_l","band2_drive_db_r","band2_mix_l","band2_mix_r","band3_drive_db","band3_ratio","band3_attack_ms","band3_release_ms","band3_mix","band3_drive_db_l","band3_drive_db_r","band3_mix_l","band3_mix_r","band4_drive_db","band4_ratio","band4_attack_ms","band4_release_ms","band4_mix","band4_drive_db_l","band4_drive_db_r","band4_mix_l","band4_mix_r","band5_drive_db","band5_ratio","band5_attack_ms","band5_release_ms","band5_mix","band5_drive_db_l","band5_drive_db_r","band5_mix_l","band5_mix_r"];
-  const boolStateIds = ["processing_bypass","enable_momentary_ab","bypass_level_match_enabled","peak_hold_enabled","multiband_stereo_independent","multiband_clipper_enabled","azimuth_correction_enabled","auto_balance_enabled","band1_enabled","band2_enabled","band3_enabled","band4_enabled","band5_enabled"];
-  const programScopedIds = ["input_device","fft_input_device"];
+  const boolStateIds = ["processing_bypass","enable_momentary_ab","ui_pro_left_rail","ui_hobbyist_mode","bypass_level_match_enabled","peak_hold_enabled","multiband_stereo_independent","multiband_clipper_enabled","azimuth_correction_enabled","auto_balance_enabled","band1_enabled","band2_enabled","band3_enabled","band4_enabled","band5_enabled"];
+  const globalOnlyIds = ["ui_theme","ui_custom_css","tab_name_prog1","tab_name_prog2","patch_output_device"];
+  const globalOnlyBoolIds = ["enable_momentary_ab","ui_pro_left_rail","ui_hobbyist_mode"];
+    // List of advanced field IDs to hide in hobbyist mode
+    const advancedFieldIds = [
+      "pre_gain_db","post_gain_db","hf_tame_db","hf_tame_freq","azimuth_correction_enabled","azimuth_delay_ms","auto_balance_enabled","auto_balance_strength","multiband_stereo_independent","band1_drive_db_l","band1_drive_db_r","band1_mix_l","band1_mix_r","band2_drive_db_l","band2_drive_db_r","band2_mix_l","band2_mix_r","band3_drive_db_l","band3_drive_db_r","band3_mix_l","band3_mix_r","band4_drive_db_l","band4_drive_db_r","band4_mix_l","band4_mix_r","band5_drive_db_l","band5_drive_db_r","band5_mix_l","band5_mix_r","multiband_clipper_enabled","multiband_clipper_drive_db","multiband_clipper_ceiling","bypass_level_match_enabled","bypass_level_match_db","peak_hold_decay"
+    ];
+
+    function updateHobbyistModeVisibility() {
+      const hobbyist = !!document.getElementById('ui_hobbyist_mode').checked;
+      advancedFieldIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const block = el.closest('.row') || el.closest('.stereo-adv') || el;
+        if (block) block.style.display = hobbyist ? 'none' : '';
+      });
+      // Hide stereo-adv block
+      const stereoAdvWrap = document.getElementById('stereo_adv_wrap');
+      if (stereoAdvWrap) stereoAdvWrap.style.display = hobbyist ? 'none' : '';
+    }
+    const hobbyistModeCtl = document.getElementById('ui_hobbyist_mode');
+    if (hobbyistModeCtl) {
+      hobbyistModeCtl.addEventListener('change', () => {
+        updateHobbyistModeVisibility();
+        queueSaveState();
+      });
+    }
+  const programScopedIds = ids.filter((id) => !globalOnlyIds.includes(id));
+  const programScopedBoolIds = boolStateIds.filter((id) => !globalOnlyBoolIds.includes(id));
   const rdsIds = ["rds_prog1_ps","rds_prog1_pi","rds_prog1_pty","rds_prog1_rt","rds_prog1_ct_mode","rds_prog2_ps","rds_prog2_pi","rds_prog2_pty","rds_prog2_rt","rds_prog2_ct_mode"];
   const rdsBoolIds = ["rds_prog1_tp","rds_prog1_ta","rds_prog1_ms","rds_prog1_ct_enable","rds_prog2_tp","rds_prog2_ta","rds_prog2_ms","rds_prog2_ct_enable"];
   const rdsLiveTextIds = ["rds_prog1_ct_current","rds_prog1_updated_at","rds_prog2_ct_current","rds_prog2_updated_at"];
   const st = document.getElementById("status");
+  const rdsStatus = document.getElementById("rds_status");
+  const cpuStatus = document.getElementById("cpu_status");
+  const memStatus = document.getElementById("mem_status");
   const audio = document.getElementById("audio");
   const audioInput = document.getElementById("audio_input");
   const fftImg = document.getElementById("fft_img");
@@ -5394,6 +5468,7 @@ PAGE_HTML = """<!doctype html>
   const processingBypassHoldBtn = document.getElementById("processing_bypass_hold");
   const momentaryWrap = document.getElementById("momentary_wrap");
   const enableMomentaryAbCtl = document.getElementById("enable_momentary_ab");
+  const proLeftRailCtl = document.getElementById("ui_pro_left_rail");
   const analysisPauseBtn = document.getElementById("analysis_pause");
   const analysisStepBtn = document.getElementById("analysis_step");
   const stereoIndependentCtl = document.getElementById("multiband_stereo_independent");
@@ -5407,6 +5482,7 @@ PAGE_HTML = """<!doctype html>
   let activeFunctionView = 'agc';
   let currentState = {};
   let fftTimer = null;
+  let statsTimer = null;
   let analysisPaused = false;
   let saveTimer = null;
   let bypassBeforeHold = null;
@@ -5501,6 +5577,11 @@ PAGE_HTML = """<!doctype html>
     momentaryWrap.style.display = enabled ? 'block' : 'none';
   }
 
+  function updateLayoutMode(){
+    const pro = !!proLeftRailCtl.checked;
+    document.body.classList.toggle('layout-pro-rail', pro);
+  }
+
   function updateStereoAdvancedVisibility(){
     const enabled = !!stereoIndependentCtl.checked;
     stereoAdvWrap.classList.toggle('active', enabled);
@@ -5529,6 +5610,15 @@ PAGE_HTML = """<!doctype html>
     });
   }
 
+  function persistProgramScopedBools(program){
+    programScopedBoolIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      currentState[programKey(id, program)] = !!el.checked;
+      currentState[id] = !!el.checked;
+    });
+  }
+
   function applyProgramScopedInputs(program){
     programScopedIds.forEach((id) => {
       const el = document.getElementById(id);
@@ -5538,12 +5628,26 @@ PAGE_HTML = """<!doctype html>
     });
   }
 
+  function applyProgramScopedBools(program){
+    programScopedBoolIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const fallback = !!el.checked;
+      const v = (currentState[programKey(id, program)] !== undefined)
+        ? !!currentState[programKey(id, program)]
+        : ((currentState[id] !== undefined) ? !!currentState[id] : fallback);
+      el.checked = !!v;
+    });
+  }
+
   function setActiveProgram(program){
     if (program !== 1 && program !== 2) program = 1;
     persistProgramScopedInputs(activeProgram);
+    persistProgramScopedBools(activeProgram);
     activeProgram = program;
     currentState.active_program = activeProgram;
     applyProgramScopedInputs(activeProgram);
+    applyProgramScopedBools(activeProgram);
     tabProg1.classList.toggle('active', activeProgram === 1);
     tabProg2.classList.toggle('active', activeProgram === 2);
     document.querySelectorAll('.program-field').forEach((el) => {
@@ -5563,7 +5667,7 @@ PAGE_HTML = """<!doctype html>
       el.classList.toggle('active', tab === 'global');
     });
     const funcNav = document.getElementById('func_nav');
-    if (funcNav) funcNav.style.display = (tab === 'global') ? 'none' : 'grid';
+    if (funcNav) funcNav.style.display = (tab === 'global') ? 'none' : 'flex';
     if (funcHint) funcHint.style.display = (tab === 'global') ? 'none' : 'block';
     if (tab === 'global') setFunctionView('all'); else setFunctionView(activeFunctionView || 'agc');
     setActiveProgram(activeProgram);
@@ -5578,6 +5682,7 @@ PAGE_HTML = """<!doctype html>
       if(data[id] !== undefined){ document.getElementById(id).value = data[id]; }
     });
     boolStateIds.forEach((id)=>{
+      if(programScopedBoolIds.includes(id)) return;
       if(data[id] !== undefined){ document.getElementById(id).checked = !!data[id]; }
     });
     if (data.multiband_preset !== undefined && presetSelect) {
@@ -5588,7 +5693,9 @@ PAGE_HTML = """<!doctype html>
     setActiveTab(String(data.active_tab || `program${Number(data.active_program || 1)}`));
     updateWaveWindowReadout();
     updateMomentaryControlVisibility();
+    updateLayoutMode();
     updateStereoAdvancedVisibility();
+    updateHobbyistModeVisibility();
     applyTheme(data.ui_theme || 'forest');
     applyCustomCss(data.ui_custom_css || '');
     await loadRdsState();
@@ -5597,6 +5704,7 @@ PAGE_HTML = """<!doctype html>
 
   async function loadRdsState(){
     const res = await fetch('/api/rds_state');
+    if (!res.ok) throw new Error('RDS API unavailable');
     const data = await res.json();
     const activeId = document.activeElement ? document.activeElement.id : '';
     rdsIds.forEach((id)=>{
@@ -5614,6 +5722,15 @@ PAGE_HTML = """<!doctype html>
         document.getElementById(id).textContent = data[id] || '-';
       }
     });
+    if (rdsStatus) rdsStatus.textContent = `RDS: OK (${new Date().toLocaleTimeString()})`;
+  }
+
+  async function loadSystemStats(){
+    const res = await fetch('/api/system_stats');
+    if (!res.ok) throw new Error('System API unavailable');
+    const data = await res.json();
+    if (cpuStatus) cpuStatus.textContent = `CPU load: ${data.load1} / ${data.load5} / ${data.load15}`;
+    if (memStatus) memStatus.textContent = `Memory: ${data.mem_used_pct}% used (${data.mem_available_mb} MB free of ${data.mem_total_mb} MB)`;
   }
 
   function collect(){
@@ -5623,12 +5740,20 @@ PAGE_HTML = """<!doctype html>
       payload[id] = document.getElementById(id).value;
     });
     boolStateIds.forEach((id)=>{
+      if(programScopedBoolIds.includes(id)) return;
       payload[id] = document.getElementById(id).checked;
     });
     payload.active_program = activeProgram;
     payload.active_tab = activeTab;
     programScopedIds.forEach((id) => {
       const v = document.getElementById(id).value;
+      payload[id] = v;
+      payload[programKey(id, activeProgram)] = v;
+      currentState[programKey(id, activeProgram)] = v;
+      currentState[id] = v;
+    });
+    programScopedBoolIds.forEach((id) => {
+      const v = !!document.getElementById(id).checked;
       payload[id] = v;
       payload[programKey(id, activeProgram)] = v;
       currentState[programKey(id, activeProgram)] = v;
@@ -5683,8 +5808,17 @@ PAGE_HTML = """<!doctype html>
 
   function startRdsLoop(){
     setInterval(() => {
-      loadRdsState().catch(()=>{});
+      loadRdsState().catch((e)=>{ if (rdsStatus) rdsStatus.textContent = `RDS: ${e.message}`; });
     }, 2000);
+  }
+
+  function startStatsLoop(){
+    if (statsTimer) clearInterval(statsTimer);
+    statsTimer = setInterval(() => {
+      loadSystemStats().catch((e) => {
+        if (cpuStatus) cpuStatus.textContent = `CPU: ${e.message}`;
+      });
+    }, 2500);
   }
 
   function refreshPreview(){
@@ -5746,6 +5880,10 @@ PAGE_HTML = """<!doctype html>
   document.getElementById('tab_name_prog2').addEventListener('input', updateTabTitles);
   enableMomentaryAbCtl.addEventListener('change', () => {
     updateMomentaryControlVisibility();
+    queueSaveState();
+  });
+  proLeftRailCtl.addEventListener('change', () => {
+    updateLayoutMode();
     queueSaveState();
   });
   stereoIndependentCtl.addEventListener('change', () => {
@@ -5878,6 +6016,10 @@ PAGE_HTML = """<!doctype html>
   const analyserIn = ctxIn.createAnalyser();
   analyserIn.fftSize = 2048;
   srcIn.connect(analyserIn);
+  const inSilentGain = ctxIn.createGain();
+  inSilentGain.gain.value = 0.0;
+  analyserIn.connect(inSilentGain);
+  inSilentGain.connect(ctxIn.destination);
 
   const waveIn = document.getElementById('wave_in');
   const waveOut = document.getElementById('wave_out');
@@ -5970,6 +6112,8 @@ PAGE_HTML = """<!doctype html>
     refreshFft();
     startFftLoop();
     startRdsLoop();
+    startStatsLoop();
+    loadSystemStats().catch(()=>{});
   });
   </script>
 </body>
