@@ -4048,6 +4048,7 @@ DEFAULT_P2_INPUT = "radio2_url" if not _is_placeholder_url(RADIO2_URL) else "omp
 
 DEFAULT_STATE = {
   "active_program": 1,
+  "active_tab": "program1",
   "tab_name_prog1": "Program 1",
   "tab_name_prog2": "Program 2",
   "input_device": DEFAULT_P1_INPUT,
@@ -4057,6 +4058,7 @@ DEFAULT_STATE = {
   "sample_rate": 48000,
   "wave_window_sec": 3,
   "processing_bypass": False,
+  "enable_momentary_ab": False,
   "bypass_level_match_enabled": False,
   "bypass_level_match_db": 0.0,
   "peak_hold_enabled": True,
@@ -4802,7 +4804,9 @@ PAGE_HTML = """<!doctype html>
   .tab-btn.active { background:linear-gradient(180deg, #f2b642, #d99424); color:#1b1406; border-color:#d99424; }
   .tab-name { max-width:180px; }
   .program-field { display:none; }
+  .global-field { display:none; }
   .program-field.active { display:block; }
+  .global-field.active { display:block; }
   @media (max-width:900px) { .grid { grid-template-columns:1fr; } }
   </style>
   <style id="ui_custom_css_tag"></style>
@@ -4815,10 +4819,16 @@ PAGE_HTML = """<!doctype html>
     <div class=\"tabs\">
       <button type=\"button\" id=\"tab_prog1\" class=\"tab-btn active\">Program 1</button>
       <button type=\"button\" id=\"tab_prog2\" class=\"tab-btn\">Program 2</button>
+      <button type=\"button\" id=\"tab_global\" class=\"tab-btn\">Global Settings</button>
     </div>
     <div class=\"row\">
       <div><label>Program 1 Tab Name</label><input id=\"tab_name_prog1\" class=\"tab-name\" type=\"text\" maxlength=\"24\" /></div>
       <div><label>Program 2 Tab Name</label><input id=\"tab_name_prog2\" class=\"tab-name\" type=\"text\" maxlength=\"24\" /></div>
+    </div>
+    <div class=\"global-field\">
+      <label style=\"margin-top:8px\">Global Settings</label>
+      <label><input id=\"enable_momentary_ab\" type=\"checkbox\" /> Enable Momentary A/B Hold (optional)</label>
+      <div class=\"status\">When enabled, hold the A/B button to temporarily bypass processing, then release to return.</div>
     </div>
     <div class=\"row\">
       <div>
@@ -4900,7 +4910,7 @@ PAGE_HTML = """<!doctype html>
       <div><label>HF Tame (dB)</label><input id=\"hf_tame_db\" type=\"number\" step=\"0.1\" /></div>
       <div><label>HF Tame Freq (Hz)</label><input id=\"hf_tame_freq\" type=\"number\" step=\"100\" /></div>
     </div>
-    <div class=\"row\">
+    <div class=\"row global-field\">
       <div>
       <label>Color Theme</label>
       <select id=\"ui_theme\">
@@ -4915,13 +4925,14 @@ PAGE_HTML = """<!doctype html>
       <button id=\"theme_apply\">Apply Theme</button>
       </div>
     </div>
-    <label>Custom CSS (optional)</label>
-    <textarea id=\"ui_custom_css\" rows=\"4\" style=\"width:100%; margin-top:4px; padding:8px; border-radius:8px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink);\"></textarea>
-    <button id=\"css_apply\" style=\"margin-top:8px;\">Apply Custom CSS</button>
+    <label class=\"global-field\">Custom CSS (optional)</label>
+    <textarea class=\"global-field\" id=\"ui_custom_css\" rows=\"4\" style=\"width:100%; margin-top:4px; padding:8px; border-radius:8px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink);\"></textarea>
+    <button class=\"global-field\" id=\"css_apply\" style=\"margin-top:8px;\">Apply Custom CSS</button>
     <div class=\"row\" style=\"margin-top:8px\">
       <div><label><input id=\"processing_bypass\" type=\"checkbox\" /> Bypass All Processing</label></div>
       <div><button id=\"processing_bypass_toggle\" type=\"button\">Toggle Processing Bypass</button></div>
     </div>
+    <div id=\"momentary_wrap\" style=\"display:none; margin-top:8px\"><button id=\"processing_bypass_hold\" type=\"button\">Hold For Bypass A/B</button></div>
     <div class=\"row\">
       <div><label><input id=\"bypass_level_match_enabled\" type=\"checkbox\" /> Auto Level Match In Bypass (optional)</label></div>
       <div><label>Bypass Level Trim (dB)</label><input id=\"bypass_level_match_db\" type=\"number\" step=\"0.1\" min=\"-24\" max=\"24\" /></div>
@@ -5035,7 +5046,7 @@ PAGE_HTML = """<!doctype html>
   </div>
   <script>
   const ids = ["input_device","preview_mode","sample_rate","wave_window_sec","processor_input_gain_db","bypass_level_match_db","peak_hold_decay","pre_gain_db","post_gain_db","stereo_width","output_limit","hf_tame_db","hf_tame_freq","patch_output_device","fft_input_device","fft_sample_rate","fft_max_hz","ui_theme","ui_custom_css","tab_name_prog1","tab_name_prog2","band1_drive_db","band1_ratio","band1_attack_ms","band1_release_ms","band1_mix","band2_drive_db","band2_ratio","band2_attack_ms","band2_release_ms","band2_mix","band3_drive_db","band3_ratio","band3_attack_ms","band3_release_ms","band3_mix","band4_drive_db","band4_ratio","band4_attack_ms","band4_release_ms","band4_mix","band5_drive_db","band5_ratio","band5_attack_ms","band5_release_ms","band5_mix"];
-  const boolStateIds = ["processing_bypass","bypass_level_match_enabled","peak_hold_enabled","band1_enabled","band2_enabled","band3_enabled","band4_enabled","band5_enabled"];
+  const boolStateIds = ["processing_bypass","enable_momentary_ab","bypass_level_match_enabled","peak_hold_enabled","band1_enabled","band2_enabled","band3_enabled","band4_enabled","band5_enabled"];
   const programScopedIds = ["input_device","fft_input_device"];
   const rdsIds = ["rds_prog1_ps","rds_prog1_pi","rds_prog1_pty","rds_prog1_rt","rds_prog1_ct_mode","rds_prog2_ps","rds_prog2_pi","rds_prog2_pty","rds_prog2_rt","rds_prog2_ct_mode"];
   const rdsBoolIds = ["rds_prog1_tp","rds_prog1_ta","rds_prog1_ms","rds_prog1_ct_enable","rds_prog2_tp","rds_prog2_ta","rds_prog2_ms","rds_prog2_ct_enable"];
@@ -5048,16 +5059,22 @@ PAGE_HTML = """<!doctype html>
   const customCssTag = document.getElementById("ui_custom_css_tag");
   const tabProg1 = document.getElementById("tab_prog1");
   const tabProg2 = document.getElementById("tab_prog2");
+  const tabGlobal = document.getElementById("tab_global");
   const waveWindowCtl = document.getElementById("wave_window_sec");
   const waveWindowReadout = document.getElementById("wave_window_readout");
   const processingBypassCtl = document.getElementById("processing_bypass");
   const processingBypassToggleBtn = document.getElementById("processing_bypass_toggle");
+  const processingBypassHoldBtn = document.getElementById("processing_bypass_hold");
+  const momentaryWrap = document.getElementById("momentary_wrap");
+  const enableMomentaryAbCtl = document.getElementById("enable_momentary_ab");
   const analysisPauseBtn = document.getElementById("analysis_pause");
   const analysisStepBtn = document.getElementById("analysis_step");
   let activeProgram = 1;
+  let activeTab = 'program1';
   let currentState = {};
   let fftTimer = null;
   let analysisPaused = false;
+  let bypassBeforeHold = null;
   const waveHistory = [];
   const WAVE_POINTS_PER_FRAME = 64;
   const WAVE_HISTORY_MAX_SECONDS = 20;
@@ -5072,6 +5089,11 @@ PAGE_HTML = """<!doctype html>
   };
 
   function setStatus(msg){ st.textContent = msg; }
+
+  function updateMomentaryControlVisibility(){
+    const enabled = !!enableMomentaryAbCtl.checked;
+    momentaryWrap.style.display = enabled ? 'block' : 'none';
+  }
 
   function updateWaveWindowReadout(){
     const sec = Number(waveWindowCtl.value || 3);
@@ -5114,9 +5136,22 @@ PAGE_HTML = """<!doctype html>
     tabProg1.classList.toggle('active', activeProgram === 1);
     tabProg2.classList.toggle('active', activeProgram === 2);
     document.querySelectorAll('.program-field').forEach((el) => {
-      const show = el.classList.contains(`program-${activeProgram}`);
+      const show = (activeTab !== 'global') && el.classList.contains(`program-${activeProgram}`);
       el.classList.toggle('active', show);
     });
+  }
+
+  function setActiveTab(tab){
+    if (!['program1','program2','global'].includes(tab)) tab = 'program1';
+    activeTab = tab;
+    currentState.active_tab = activeTab;
+    tabProg1.classList.toggle('active', tab === 'program1');
+    tabProg2.classList.toggle('active', tab === 'program2');
+    tabGlobal.classList.toggle('active', tab === 'global');
+    document.querySelectorAll('.global-field').forEach((el) => {
+      el.classList.toggle('active', tab === 'global');
+    });
+    setActiveProgram(activeProgram);
   }
 
   async function loadState(){
@@ -5132,7 +5167,9 @@ PAGE_HTML = """<!doctype html>
     });
     updateTabTitles();
     setActiveProgram(Number(data.active_program || 1));
+    setActiveTab(String(data.active_tab || `program${Number(data.active_program || 1)}`));
     updateWaveWindowReadout();
+    updateMomentaryControlVisibility();
     applyTheme(data.ui_theme || 'forest');
     applyCustomCss(data.ui_custom_css || '');
     await loadRdsState();
@@ -5170,6 +5207,7 @@ PAGE_HTML = """<!doctype html>
       payload[id] = document.getElementById(id).checked;
     });
     payload.active_program = activeProgram;
+    payload.active_tab = activeTab;
     programScopedIds.forEach((id) => {
       const v = document.getElementById(id).value;
       payload[id] = v;
@@ -5275,10 +5313,15 @@ PAGE_HTML = """<!doctype html>
     wctx.stroke();
   }
 
-  tabProg1.onclick = async () => { setActiveProgram(1); await saveState(); refreshPreview(); };
-  tabProg2.onclick = async () => { setActiveProgram(2); await saveState(); refreshPreview(); };
+  tabProg1.onclick = async () => { setActiveProgram(1); setActiveTab('program1'); await saveState(); refreshPreview(); };
+  tabProg2.onclick = async () => { setActiveProgram(2); setActiveTab('program2'); await saveState(); refreshPreview(); };
+  tabGlobal.onclick = async () => { setActiveTab('global'); await saveState(); };
   document.getElementById('tab_name_prog1').addEventListener('input', updateTabTitles);
   document.getElementById('tab_name_prog2').addEventListener('input', updateTabTitles);
+  enableMomentaryAbCtl.addEventListener('change', () => {
+    updateMomentaryControlVisibility();
+    saveState().catch(()=>{});
+  });
   waveWindowCtl.addEventListener('input', () => {
     updateWaveWindowReadout();
     saveState().catch(()=>{});
@@ -5289,6 +5332,33 @@ PAGE_HTML = """<!doctype html>
     refreshPreview();
     setStatus(processingBypassCtl.checked ? 'Processing bypass enabled.' : 'Processing bypass disabled.');
   };
+  const holdStart = async () => {
+    if (!enableMomentaryAbCtl.checked) return;
+    bypassBeforeHold = processingBypassCtl.checked;
+    if (!processingBypassCtl.checked) {
+      processingBypassCtl.checked = true;
+      await saveState();
+      refreshPreview();
+      setStatus('Momentary bypass active.');
+    }
+  };
+  const holdEnd = async () => {
+    if (bypassBeforeHold === null) return;
+    const target = !!bypassBeforeHold;
+    bypassBeforeHold = null;
+    if (processingBypassCtl.checked !== target) {
+      processingBypassCtl.checked = target;
+      await saveState();
+      refreshPreview();
+    }
+    setStatus('Momentary bypass released.');
+  };
+  processingBypassHoldBtn.addEventListener('mousedown', () => { holdStart().catch(()=>{}); });
+  processingBypassHoldBtn.addEventListener('mouseup', () => { holdEnd().catch(()=>{}); });
+  processingBypassHoldBtn.addEventListener('mouseleave', () => { holdEnd().catch(()=>{}); });
+  processingBypassHoldBtn.addEventListener('touchstart', (e) => { e.preventDefault(); holdStart().catch(()=>{}); }, {passive:false});
+  processingBypassHoldBtn.addEventListener('touchend', (e) => { e.preventDefault(); holdEnd().catch(()=>{}); }, {passive:false});
+  processingBypassHoldBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); holdEnd().catch(()=>{}); }, {passive:false});
   analysisPauseBtn.onclick = () => {
     analysisPaused = !analysisPaused;
     analysisPauseBtn.textContent = analysisPaused ? 'Resume Scope' : 'Pause Scope';
