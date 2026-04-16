@@ -326,6 +326,15 @@ if [ ! -x "${bin_path}" ]; then
   exit 126
 fi
 
+# Prefer oMPX ALSA map when available, but fall back to default ALSA config
+# if that map is missing or invalid so device enumeration never disappears.
+if [ -r /etc/asound.conf ]; then
+  export ALSA_CONFIG_PATH=/etc/asound.conf
+fi
+if ! aplay -L >/dev/null 2>&1; then
+  unset ALSA_CONFIG_PATH || true
+fi
+
 # Debug: Check ALSA visibility
 {
   echo "stereo-tool-enterprise-launch: ALSA diagnostics"
@@ -405,7 +414,6 @@ SupplementaryGroups=audio
 PermissionsStartOnly=true
 WorkingDirectory=${OMPX_HOME}
 Environment=HOME=${OMPX_HOME}
-Environment=ALSA_CONFIG_PATH=/etc/asound.conf
 ExecStartPre=/bin/sh -c 'usermod -aG audio ${OMPX_USER} >/dev/null 2>&1 || true'
 ExecStartPre=/bin/sh -c 'if command -v udevadm >/dev/null 2>&1; then udevadm control --reload-rules >/dev/null 2>&1 || true; udevadm trigger --subsystem-match=sound >/dev/null 2>&1 || true; fi'
 ExecStartPre=/bin/sh -c 'if [ -d /dev/snd ]; then chgrp -R audio /dev/snd >/dev/null 2>&1 || true; chmod -R g+rw /dev/snd >/dev/null 2>&1 || true; fi'
