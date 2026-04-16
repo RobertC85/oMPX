@@ -1188,17 +1188,17 @@ EOF
 write_profile_file(){
   local old_radio1=""
   local old_radio2=""
+  local _tmp_old=""
   ICECAST_CODEC="flac"
   echo "[INFO] Creating user profile configuration..."
   mkdir -p "${OMPX_HOME}"
   PROFILE="${OMPX_HOME}/.profile"
 
   if [ -f "${PROFILE}" ]; then
-    set +u
-    . "${PROFILE}" || true
-    set -u
-    old_radio1="${RADIO1_URL:-}"
-    old_radio2="${RADIO2_URL:-}"
+    _tmp_old=$(sed -n 's/^RADIO1_URL="\(.*\)"$/\1/p' "${PROFILE}" | head -n1 || true)
+    old_radio1="${_tmp_old}"
+    _tmp_old=$(sed -n 's/^RADIO2_URL="\(.*\)"$/\1/p' "${PROFILE}" | head -n1 || true)
+    old_radio2="${_tmp_old}"
   fi
 
   if [ "${ALLOW_PLACEHOLDER_STREAM_OVERWRITE}" != "true" ]; then
@@ -1686,6 +1686,7 @@ if [ -t 0 ]; then
     ch_count_default="2"
   fi
   read -t 45 -p "How many channels do you want active now? [1/2] (default ${ch_count_default}): " cfg_channel_count || cfg_channel_count="${ch_count_default}"
+  cfg_channel_count="${cfg_channel_count:-${ch_count_default}}"
   case "${cfg_channel_count}" in
     2)
       PROGRAM2_ENABLED="true"
