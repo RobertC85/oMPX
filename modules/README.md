@@ -91,3 +91,13 @@ SAMPLE_RATE=192000 \
 Note:
 - This module is intentionally independent from Stereo Tool.
 - You can chain it anywhere in your plumbing path where FFmpeg can read and write.
+
+## Live Control Integration
+
+The installer (`encoder/oMPX-Encoder-Debian-setup.sh`) can deploy an optional web control UI that applies live preview adjustments while exposing:
+- waveform visualization (time-domain)
+- spectrum/band visualization (frequency-domain)
+- selected-channel patch preview in browser
+- optional hardware patch output for local auditioning
+
+The web UI can be restricted by bind address, port, and CIDR whitelist, with optional login authentication.

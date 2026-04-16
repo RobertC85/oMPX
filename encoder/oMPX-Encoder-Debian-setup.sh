@@ -51,6 +51,26 @@ ENV_OMPX_WRAPPER_PRESET_SET="${OMPX_WRAPPER_PRESET+x}"
 ENV_OMPX_WRAPPER_PRESET_VAL="${OMPX_WRAPPER_PRESET-}"
 ENV_OMPX_FM_PREEMPHASIS_SET="${OMPX_FM_PREEMPHASIS+x}"
 ENV_OMPX_FM_PREEMPHASIS_VAL="${OMPX_FM_PREEMPHASIS-}"
+ENV_OMPX_WEB_UI_ENABLE_SET="${OMPX_WEB_UI_ENABLE+x}"
+ENV_OMPX_WEB_UI_ENABLE_VAL="${OMPX_WEB_UI_ENABLE-}"
+ENV_OMPX_WEB_BIND_SET="${OMPX_WEB_BIND+x}"
+ENV_OMPX_WEB_BIND_VAL="${OMPX_WEB_BIND-}"
+ENV_OMPX_WEB_PORT_SET="${OMPX_WEB_PORT+x}"
+ENV_OMPX_WEB_PORT_VAL="${OMPX_WEB_PORT-}"
+ENV_OMPX_WEB_WHITELIST_SET="${OMPX_WEB_WHITELIST+x}"
+ENV_OMPX_WEB_WHITELIST_VAL="${OMPX_WEB_WHITELIST-}"
+ENV_OMPX_WEB_AUTH_ENABLE_SET="${OMPX_WEB_AUTH_ENABLE+x}"
+ENV_OMPX_WEB_AUTH_ENABLE_VAL="${OMPX_WEB_AUTH_ENABLE-}"
+ENV_OMPX_WEB_AUTH_USER_SET="${OMPX_WEB_AUTH_USER+x}"
+ENV_OMPX_WEB_AUTH_USER_VAL="${OMPX_WEB_AUTH_USER-}"
+ENV_OMPX_WEB_AUTH_PASSWORD_SET="${OMPX_WEB_AUTH_PASSWORD+x}"
+ENV_OMPX_WEB_AUTH_PASSWORD_VAL="${OMPX_WEB_AUTH_PASSWORD-}"
+ENV_OMPX_WEB_KIOSK_ENABLE_SET="${OMPX_WEB_KIOSK_ENABLE+x}"
+ENV_OMPX_WEB_KIOSK_ENABLE_VAL="${OMPX_WEB_KIOSK_ENABLE-}"
+ENV_OMPX_WEB_KIOSK_DISPLAY_SET="${OMPX_WEB_KIOSK_DISPLAY+x}"
+ENV_OMPX_WEB_KIOSK_DISPLAY_VAL="${OMPX_WEB_KIOSK_DISPLAY-}"
+ENV_OMPX_WEB_KIOSK_URL_SET="${OMPX_WEB_KIOSK_URL+x}"
+ENV_OMPX_WEB_KIOSK_URL_VAL="${OMPX_WEB_KIOSK_URL-}"
 
 OMPX_USER="ompx"
 OMPX_HOME="/home/ompx"
@@ -68,6 +88,8 @@ OMPX_SOURCE1_SERVICE="${SYSTEMD_DIR}/mpx-source1.service"
 OMPX_SOURCE2_SERVICE="${SYSTEMD_DIR}/mpx-source2.service"
 RDS_SYNC_PROG1_SERVICE="${SYSTEMD_DIR}/rds-sync-prog1.service"
 RDS_SYNC_PROG2_SERVICE="${SYSTEMD_DIR}/rds-sync-prog2.service"
+OMPX_WEB_UI_SERVICE="${SYSTEMD_DIR}/ompx-web-ui.service"
+OMPX_WEB_KIOSK_SERVICE="${SYSTEMD_DIR}/ompx-web-kiosk.service"
 OMPX_ADD="/usr/local/bin/ompx_add_source"
 ASOUND_CONF_PATH="/etc/asound.conf"
 OMPX_AUDIO_UDEV_RULE="/etc/udev/rules.d/70-ompx-audio.rules"
@@ -118,12 +140,23 @@ OMPX_WRAPPER_PILOT_LEVEL="${OMPX_WRAPPER_PILOT_LEVEL:-0.09}"
 OMPX_WRAPPER_RDS_LEVEL="${OMPX_WRAPPER_RDS_LEVEL:-0.03}"
 OMPX_WRAPPER_PRESET="${OMPX_WRAPPER_PRESET:-balanced}"
 OMPX_FM_PREEMPHASIS="${OMPX_FM_PREEMPHASIS:-75}"
+OMPX_WEB_UI_ENABLE="${OMPX_WEB_UI_ENABLE:-false}"
+OMPX_WEB_BIND="${OMPX_WEB_BIND:-0.0.0.0}"
+OMPX_WEB_PORT="${OMPX_WEB_PORT:-8082}"
+OMPX_WEB_WHITELIST="${OMPX_WEB_WHITELIST:-127.0.0.1/32,10.0.0.0/8,192.168.0.0/16}"
+OMPX_WEB_AUTH_ENABLE="${OMPX_WEB_AUTH_ENABLE:-false}"
+OMPX_WEB_AUTH_USER="${OMPX_WEB_AUTH_USER:-ompx}"
+OMPX_WEB_AUTH_PASSWORD="${OMPX_WEB_AUTH_PASSWORD:-}"
+OMPX_WEB_KIOSK_ENABLE="${OMPX_WEB_KIOSK_ENABLE:-false}"
+OMPX_WEB_KIOSK_DISPLAY="${OMPX_WEB_KIOSK_DISPLAY:-:0}"
+OMPX_WEB_KIOSK_URL="${OMPX_WEB_KIOSK_URL:-}"
+OMPX_WEB_KIOSK_INSTALL_MISSING="false"
 
 # Icecast output (MPX mix → Icecast)
 ICECAST_HOST="${ICECAST_HOST:-127.0.0.1}"
 ICECAST_PORT="${ICECAST_PORT:-8000}"
 ICECAST_SOURCE_USER="${ICECAST_SOURCE_USER:-source}"
-ICECAST_PASSWORD="${ICECAST_PASSWORD:-hackme}"
+ICECAST_PASSWORD="${ICECAST_PASSWORD:-}"
 ICECAST_ADMIN_USER="${ICECAST_ADMIN_USER:-admin}"
 ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
@@ -185,6 +218,16 @@ if [ "${ENV_OMPX_WRAPPER_PILOT_LEVEL_SET}" = "x" ]; then OMPX_WRAPPER_PILOT_LEVE
 if [ "${ENV_OMPX_WRAPPER_RDS_LEVEL_SET}" = "x" ]; then OMPX_WRAPPER_RDS_LEVEL="${ENV_OMPX_WRAPPER_RDS_LEVEL_VAL}"; fi
 if [ "${ENV_OMPX_WRAPPER_PRESET_SET}" = "x" ]; then OMPX_WRAPPER_PRESET="${ENV_OMPX_WRAPPER_PRESET_VAL}"; fi
 if [ "${ENV_OMPX_FM_PREEMPHASIS_SET}" = "x" ]; then OMPX_FM_PREEMPHASIS="${ENV_OMPX_FM_PREEMPHASIS_VAL}"; fi
+if [ "${ENV_OMPX_WEB_UI_ENABLE_SET}" = "x" ]; then OMPX_WEB_UI_ENABLE="${ENV_OMPX_WEB_UI_ENABLE_VAL}"; fi
+if [ "${ENV_OMPX_WEB_BIND_SET}" = "x" ]; then OMPX_WEB_BIND="${ENV_OMPX_WEB_BIND_VAL}"; fi
+if [ "${ENV_OMPX_WEB_PORT_SET}" = "x" ]; then OMPX_WEB_PORT="${ENV_OMPX_WEB_PORT_VAL}"; fi
+if [ "${ENV_OMPX_WEB_WHITELIST_SET}" = "x" ]; then OMPX_WEB_WHITELIST="${ENV_OMPX_WEB_WHITELIST_VAL}"; fi
+if [ "${ENV_OMPX_WEB_AUTH_ENABLE_SET}" = "x" ]; then OMPX_WEB_AUTH_ENABLE="${ENV_OMPX_WEB_AUTH_ENABLE_VAL}"; fi
+if [ "${ENV_OMPX_WEB_AUTH_USER_SET}" = "x" ]; then OMPX_WEB_AUTH_USER="${ENV_OMPX_WEB_AUTH_USER_VAL}"; fi
+if [ "${ENV_OMPX_WEB_AUTH_PASSWORD_SET}" = "x" ]; then OMPX_WEB_AUTH_PASSWORD="${ENV_OMPX_WEB_AUTH_PASSWORD_VAL}"; fi
+if [ "${ENV_OMPX_WEB_KIOSK_ENABLE_SET}" = "x" ]; then OMPX_WEB_KIOSK_ENABLE="${ENV_OMPX_WEB_KIOSK_ENABLE_VAL}"; fi
+if [ "${ENV_OMPX_WEB_KIOSK_DISPLAY_SET}" = "x" ]; then OMPX_WEB_KIOSK_DISPLAY="${ENV_OMPX_WEB_KIOSK_DISPLAY_VAL}"; fi
+if [ "${ENV_OMPX_WEB_KIOSK_URL_SET}" = "x" ]; then OMPX_WEB_KIOSK_URL="${ENV_OMPX_WEB_KIOSK_URL_VAL}"; fi
 ENABLE_DSCA_SINKS="${ENABLE_DSCA_SINKS,,}"
 ENABLE_PREVIEW_SINKS="${ENABLE_PREVIEW_SINKS,,}"
 PROGRAM2_ENABLED="${PROGRAM2_ENABLED,,}"
@@ -255,12 +298,71 @@ if [ "${OMPX_WRAPPER_PRESET}" != "conservative" ] && [ "${OMPX_WRAPPER_PRESET}" 
   echo "[WARNING] Invalid OMPX_WRAPPER_PRESET='${OMPX_WRAPPER_PRESET}'; defaulting to balanced"
   OMPX_WRAPPER_PRESET="balanced"
 fi
+
+generate_secure_password(){
+  local length="${1:-24}"
+  local generated=""
+  if command -v openssl >/dev/null 2>&1; then
+    generated="$(openssl rand -base64 48 2>/dev/null | tr -dc 'A-Za-z0-9' | head -c "${length}" || true)"
+  fi
+  if [ -z "${generated}" ] && [ -r /dev/urandom ]; then
+    generated="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c "${length}" || true)"
+  fi
+  if [ -z "${generated}" ]; then
+    generated="$(date +%s%N | sha256sum | awk '{print $1}' | head -c "${length}" || true)"
+  fi
+  if [ -z "${generated}" ]; then
+    generated="ompx$(date +%s)"
+  fi
+  printf '%s' "${generated}"
+}
+
 OMPX_FM_PREEMPHASIS="${OMPX_FM_PREEMPHASIS,,}"
+OMPX_WEB_UI_ENABLE="${OMPX_WEB_UI_ENABLE,,}"
+OMPX_WEB_AUTH_ENABLE="${OMPX_WEB_AUTH_ENABLE,,}"
+OMPX_WEB_KIOSK_ENABLE="${OMPX_WEB_KIOSK_ENABLE,,}"
 if [ "${OMPX_FM_PREEMPHASIS}" = "75us" ]; then OMPX_FM_PREEMPHASIS="75"; fi
 if [ "${OMPX_FM_PREEMPHASIS}" = "50us" ]; then OMPX_FM_PREEMPHASIS="50"; fi
 if [ "${OMPX_FM_PREEMPHASIS}" != "75" ] && [ "${OMPX_FM_PREEMPHASIS}" != "50" ] && [ "${OMPX_FM_PREEMPHASIS}" != "off" ]; then
   echo "[WARNING] Invalid OMPX_FM_PREEMPHASIS='${OMPX_FM_PREEMPHASIS}'; defaulting to 75"
   OMPX_FM_PREEMPHASIS="75"
+fi
+if [ "${OMPX_WEB_UI_ENABLE}" != "true" ] && [ "${OMPX_WEB_UI_ENABLE}" != "false" ]; then
+  echo "[WARNING] Invalid OMPX_WEB_UI_ENABLE='${OMPX_WEB_UI_ENABLE}'; defaulting to false"
+  OMPX_WEB_UI_ENABLE="false"
+fi
+if [ "${OMPX_WEB_AUTH_ENABLE}" != "true" ] && [ "${OMPX_WEB_AUTH_ENABLE}" != "false" ]; then
+  echo "[WARNING] Invalid OMPX_WEB_AUTH_ENABLE='${OMPX_WEB_AUTH_ENABLE}'; defaulting to false"
+  OMPX_WEB_AUTH_ENABLE="false"
+fi
+if ! [[ "${OMPX_WEB_PORT}" =~ ^[0-9]+$ ]] || [ "${OMPX_WEB_PORT}" -lt 1 ] || [ "${OMPX_WEB_PORT}" -gt 65535 ]; then
+  echo "[WARNING] Invalid OMPX_WEB_PORT='${OMPX_WEB_PORT}'; defaulting to 8082"
+  OMPX_WEB_PORT="8082"
+fi
+if [ -z "${OMPX_WEB_AUTH_USER}" ]; then
+  OMPX_WEB_AUTH_USER="ompx"
+fi
+if [ "${OMPX_WEB_AUTH_ENABLE}" = "true" ] && [ -z "${OMPX_WEB_AUTH_PASSWORD}" ]; then
+  OMPX_WEB_AUTH_PASSWORD="$(generate_secure_password 24)"
+  echo "[INFO] OMPX web auth enabled with generated password for user ${OMPX_WEB_AUTH_USER}"
+fi
+if [ "${OMPX_WEB_KIOSK_ENABLE}" != "true" ] && [ "${OMPX_WEB_KIOSK_ENABLE}" != "false" ]; then
+  echo "[WARNING] Invalid OMPX_WEB_KIOSK_ENABLE='${OMPX_WEB_KIOSK_ENABLE}'; defaulting to false"
+  OMPX_WEB_KIOSK_ENABLE="false"
+fi
+if [ -z "${OMPX_WEB_KIOSK_DISPLAY}" ]; then
+  OMPX_WEB_KIOSK_DISPLAY=":0"
+fi
+if [ -z "${OMPX_WEB_KIOSK_URL}" ]; then
+  OMPX_WEB_KIOSK_URL="http://127.0.0.1:${OMPX_WEB_PORT}/"
+fi
+if [ "${OMPX_WEB_UI_ENABLE}" != "true" ] && [ "${OMPX_WEB_KIOSK_ENABLE}" = "true" ]; then
+  echo "[WARNING] OMPX_WEB_KIOSK_ENABLE=true requires OMPX_WEB_UI_ENABLE=true; disabling kiosk"
+  OMPX_WEB_KIOSK_ENABLE="false"
+fi
+if [ -z "${ICECAST_PASSWORD}" ]; then
+  ICECAST_PASSWORD="$(generate_secure_password 24)"
+  echo "[INFO] ICECAST_PASSWORD not provided; generated a secure random password"
 fi
 if [ "${OMPX_STEREO_BACKEND}" != "stereotool" ]; then
   # When using the internal oMPX wrapper chain, Stereo Tool Enterprise must not auto-start.
@@ -326,10 +428,14 @@ ensure_ompx_alsa_access(){
     chown -h "${OMPX_USER}:${OMPX_USER}" "${OMPX_HOME}/.asoundrc" || true
   fi
 
-  cat > "${OMPX_AUDIO_UDEV_RULE}" <<'UDEVRULE'
+  if mkdir -p "$(dirname "${OMPX_AUDIO_UDEV_RULE}")" 2>/dev/null; then
+    cat > "${OMPX_AUDIO_UDEV_RULE}" <<'UDEVRULE' || true
 SUBSYSTEM=="sound", GROUP="audio", MODE="0660"
 UDEVRULE
-  chmod 644 "${OMPX_AUDIO_UDEV_RULE}" || true
+    chmod 644 "${OMPX_AUDIO_UDEV_RULE}" || true
+  else
+    echo "[WARNING] Could not create udev rules directory for ${OMPX_AUDIO_UDEV_RULE}; continuing without custom sound udev rule"
+  fi
 
   if command -v udevadm >/dev/null 2>&1; then
     udevadm control --reload-rules >/dev/null 2>&1 || true
@@ -574,14 +680,24 @@ configure_icecast_dialog(){
       [[ "${_ice_port}" =~ ^[0-9]+$ ]] && ICECAST_PORT="${_ice_port}" || ICECAST_PORT=8000
       read -t 60 -p "Icecast source username (default source): " _ice_source_user || _ice_source_user=""
       ICECAST_SOURCE_USER="${_ice_source_user:-source}"
-      read -t 60 -p "Icecast source password (default hackme): " _ice_pass || _ice_pass=""
-      ICECAST_PASSWORD="${_ice_pass:-hackme}"
+      read -t 60 -p "Icecast source password (default auto-generated secure): " _ice_pass || _ice_pass=""
+      if [ -n "${_ice_pass}" ]; then
+        ICECAST_PASSWORD="${_ice_pass}"
+      else
+        ICECAST_PASSWORD="$(generate_secure_password 24)"
+        echo "[INFO] Generated Icecast source password: ${ICECAST_PASSWORD}"
+      fi
       read -t 60 -p "Mount point (default /mpx): " _ice_mount || _ice_mount=""
       _ice_mount="${_ice_mount:-mpx}"; ICECAST_MOUNT="/${_ice_mount#/}"
       read -t 60 -p "Icecast admin username (default admin): " _ice_admin_user || _ice_admin_user=""
       ICECAST_ADMIN_USER="${_ice_admin_user:-admin}"
-      read -t 60 -p "Icecast admin password (default admin): " _ice_admin || _ice_admin=""
-      _ICE_ADMIN_PASS="${_ice_admin:-admin}"
+      read -t 60 -p "Icecast admin password (default auto-generated secure): " _ice_admin || _ice_admin=""
+      if [ -n "${_ice_admin}" ]; then
+        _ICE_ADMIN_PASS="${_ice_admin}"
+      else
+        _ICE_ADMIN_PASS="$(generate_secure_password 24)"
+        echo "[INFO] Generated Icecast admin password: ${_ICE_ADMIN_PASS}"
+      fi
       read -t 60 -p "Max simultaneous listeners (default 25): " _ice_clients || _ice_clients=""
       [[ "${_ice_clients}" =~ ^[0-9]+$ ]] && _ICE_MAX_LISTENERS="${_ice_clients}" || _ICE_MAX_LISTENERS=25
       read -t 60 -p "Station name shown to listeners (default oMPX): " _ice_name || _ice_name=""
@@ -599,11 +715,13 @@ configure_icecast_dialog(){
       [[ "${_ice_port}" =~ ^[0-9]+$ ]] && ICECAST_PORT="${_ice_port}" || ICECAST_PORT=8000
       read -t 60 -p "Source username (default source): " _ice_source_user || _ice_source_user=""
       ICECAST_SOURCE_USER="${_ice_source_user:-source}"
-      read -t 60 -p "Source password: " _ice_pass || _ice_pass=""
-      if [ -z "${_ice_pass}" ]; then
-        echo "[WARNING] No password entered — Icecast mode set to disabled"; ICECAST_MODE="disabled"; return
+      read -t 60 -p "Source password (default auto-generated secure): " _ice_pass || _ice_pass=""
+      if [ -n "${_ice_pass}" ]; then
+        ICECAST_PASSWORD="${_ice_pass}"
+      else
+        ICECAST_PASSWORD="$(generate_secure_password 24)"
+        echo "[INFO] Generated remote Icecast source password: ${ICECAST_PASSWORD}"
       fi
-      ICECAST_PASSWORD="${_ice_pass}"
       read -t 60 -p "Mount point (default /mpx): " _ice_mount || _ice_mount=""
       _ice_mount="${_ice_mount:-mpx}"; ICECAST_MOUNT="/${_ice_mount#/}"
       echo "[INFO] Remote Icecast push → ${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
@@ -815,7 +933,12 @@ install_icecast_local(){
   DEBIAN_FRONTEND=noninteractive apt install -y icecast2 || { echo "[WARNING] icecast2 install failed"; return 1; }
   local admin_pass="${_ICE_ADMIN_PASS:-admin}"
   local source_user="${ICECAST_SOURCE_USER:-source}"
-  local source_pass="${ICECAST_PASSWORD:-hackme}"
+  local source_pass="${ICECAST_PASSWORD:-}"
+  if [ -z "${source_pass}" ]; then
+    source_pass="$(generate_secure_password 24)"
+    ICECAST_PASSWORD="${source_pass}"
+    echo "[INFO] Generated Icecast source password for local install"
+  fi
   local admin_user="${ICECAST_ADMIN_USER:-admin}"
   local port="${ICECAST_PORT:-8000}"
   local max_clients="${_ICE_MAX_LISTENERS:-25}"
@@ -937,6 +1060,131 @@ prompt_stereo_tool_web_binding(){
   fi
 
   echo "[INFO] Stereo Tool web endpoint configured: bind=${STEREO_TOOL_WEB_BIND}, port=${STEREO_TOOL_WEB_PORT}, whitelist=${STEREO_TOOL_WEB_WHITELIST}"
+}
+
+prompt_ompx_web_ui_binding(){
+  local cfg_web_enable=""
+  local cfg_web_bind=""
+  local cfg_web_port=""
+  local cfg_web_whitelist=""
+  local cfg_web_auth=""
+  local cfg_web_user=""
+  local cfg_web_pass=""
+
+  echo ""
+  echo "oMPX web control UI (live patch preview + waveform/spectrum):"
+  read -t 60 -p "Enable oMPX web UI? [Y/n] (default Y): " cfg_web_enable || cfg_web_enable="Y"
+  cfg_web_enable=${cfg_web_enable^^}
+  if [ "${cfg_web_enable}" = "N" ]; then
+    OMPX_WEB_UI_ENABLE="false"
+    echo "[INFO] oMPX web UI disabled"
+    return
+  fi
+  OMPX_WEB_UI_ENABLE="true"
+
+  echo "  Current bind address : ${OMPX_WEB_BIND}"
+  echo "  Current web port     : ${OMPX_WEB_PORT}"
+  echo "  Current whitelist    : ${OMPX_WEB_WHITELIST}"
+
+  read -t 60 -p "Bind address (IP/host, default ${OMPX_WEB_BIND}): " cfg_web_bind || cfg_web_bind=""
+  if [ -n "${cfg_web_bind}" ]; then
+    OMPX_WEB_BIND="${cfg_web_bind}"
+  fi
+
+  read -t 60 -p "Web port (1-65535, default ${OMPX_WEB_PORT}): " cfg_web_port || cfg_web_port=""
+  if [ -n "${cfg_web_port}" ]; then
+    if [[ "${cfg_web_port}" =~ ^[0-9]+$ ]] && [ "${cfg_web_port}" -ge 1 ] && [ "${cfg_web_port}" -le 65535 ]; then
+      OMPX_WEB_PORT="${cfg_web_port}"
+    else
+      echo "[WARNING] Invalid port '${cfg_web_port}', keeping ${OMPX_WEB_PORT}"
+    fi
+  fi
+
+  read -t 60 -p "CIDR whitelist (default ${OMPX_WEB_WHITELIST}): " cfg_web_whitelist || cfg_web_whitelist=""
+  if [ -n "${cfg_web_whitelist}" ]; then
+    OMPX_WEB_WHITELIST="${cfg_web_whitelist}"
+  fi
+
+  read -t 45 -p "Enable login authentication for web UI? [y/N] (default N): " cfg_web_auth || cfg_web_auth="N"
+  cfg_web_auth=${cfg_web_auth^^}
+  if [ "${cfg_web_auth}" = "Y" ]; then
+    OMPX_WEB_AUTH_ENABLE="true"
+    read -t 60 -p "Web UI username (default ${OMPX_WEB_AUTH_USER}): " cfg_web_user || cfg_web_user=""
+    if [ -n "${cfg_web_user}" ]; then
+      OMPX_WEB_AUTH_USER="${cfg_web_user}"
+    fi
+    read -t 60 -p "Web UI password (leave empty to auto-generate): " cfg_web_pass || cfg_web_pass=""
+    if [ -n "${cfg_web_pass}" ]; then
+      OMPX_WEB_AUTH_PASSWORD="${cfg_web_pass}"
+    else
+      OMPX_WEB_AUTH_PASSWORD="$(generate_secure_password 24)"
+      echo "[INFO] Generated web UI password for ${OMPX_WEB_AUTH_USER}: ${OMPX_WEB_AUTH_PASSWORD}"
+    fi
+  else
+    OMPX_WEB_AUTH_ENABLE="false"
+    OMPX_WEB_AUTH_PASSWORD=""
+  fi
+
+  echo "[INFO] oMPX web UI configured: bind=${OMPX_WEB_BIND}, port=${OMPX_WEB_PORT}, whitelist=${OMPX_WEB_WHITELIST}, auth=${OMPX_WEB_AUTH_ENABLE}"
+}
+
+has_chromium_binary(){
+  command -v chromium >/dev/null 2>&1 || command -v chromium-browser >/dev/null 2>&1 || command -v google-chrome >/dev/null 2>&1
+}
+
+has_x11_runtime_tools(){
+  command -v xset >/dev/null 2>&1 || command -v xdpyinfo >/dev/null 2>&1 || [ -d /tmp/.X11-unix ]
+}
+
+prompt_ompx_web_kiosk(){
+  local cfg_kiosk_enable=""
+  local cfg_kiosk_install=""
+  local cfg_kiosk_display=""
+  local cfg_kiosk_url=""
+  local missing_components=""
+
+  read -t 45 -p "Enable local Chromium kiosk mode for oMPX UI (non-headless only)? [y/N] (default N): " cfg_kiosk_enable || cfg_kiosk_enable="N"
+  cfg_kiosk_enable=${cfg_kiosk_enable^^}
+  if [ "${cfg_kiosk_enable}" != "Y" ]; then
+    OMPX_WEB_KIOSK_ENABLE="false"
+    return
+  fi
+
+  OMPX_WEB_KIOSK_ENABLE="true"
+  OMPX_WEB_KIOSK_INSTALL_MISSING="false"
+
+  if ! has_x11_runtime_tools; then
+    missing_components="x11 ${missing_components}"
+  fi
+  if ! has_chromium_binary; then
+    missing_components="chromium ${missing_components}"
+  fi
+
+  if [ -n "${missing_components}" ]; then
+    echo "[INFO] Kiosk prerequisites missing: ${missing_components}"
+    read -t 45 -p "Install and configure missing kiosk dependencies now? [Y/n] (default Y): " cfg_kiosk_install || cfg_kiosk_install="Y"
+    cfg_kiosk_install=${cfg_kiosk_install^^}
+    if [ "${cfg_kiosk_install}" = "N" ]; then
+      echo "[INFO] Skipping kiosk dependency installation by user choice; kiosk mode disabled"
+      OMPX_WEB_KIOSK_ENABLE="false"
+      OMPX_WEB_KIOSK_INSTALL_MISSING="false"
+      return
+    fi
+    OMPX_WEB_KIOSK_INSTALL_MISSING="true"
+  fi
+
+  read -t 45 -p "X11 display for kiosk (default ${OMPX_WEB_KIOSK_DISPLAY}): " cfg_kiosk_display || cfg_kiosk_display=""
+  if [ -n "${cfg_kiosk_display}" ]; then
+    OMPX_WEB_KIOSK_DISPLAY="${cfg_kiosk_display}"
+  fi
+  read -t 60 -p "Kiosk URL (default ${OMPX_WEB_KIOSK_URL:-http://127.0.0.1:${OMPX_WEB_PORT}/}): " cfg_kiosk_url || cfg_kiosk_url=""
+  if [ -n "${cfg_kiosk_url}" ]; then
+    OMPX_WEB_KIOSK_URL="${cfg_kiosk_url}"
+  elif [ -z "${OMPX_WEB_KIOSK_URL}" ]; then
+    OMPX_WEB_KIOSK_URL="http://127.0.0.1:${OMPX_WEB_PORT}/"
+  fi
+
+  echo "[INFO] oMPX kiosk mode configured: enabled=${OMPX_WEB_KIOSK_ENABLE}, display=${OMPX_WEB_KIOSK_DISPLAY}, url=${OMPX_WEB_KIOSK_URL}"
 }
 
 safe_apt_update(){
@@ -1375,6 +1623,16 @@ OMPX_WRAPPER_PILOT_LEVEL="${OMPX_WRAPPER_PILOT_LEVEL}"
 OMPX_WRAPPER_RDS_LEVEL="${OMPX_WRAPPER_RDS_LEVEL}"
 OMPX_WRAPPER_PRESET="${OMPX_WRAPPER_PRESET}"
 OMPX_FM_PREEMPHASIS="${OMPX_FM_PREEMPHASIS}"
+OMPX_WEB_UI_ENABLE="${OMPX_WEB_UI_ENABLE}"
+OMPX_WEB_BIND="${OMPX_WEB_BIND}"
+OMPX_WEB_PORT="${OMPX_WEB_PORT}"
+OMPX_WEB_WHITELIST="${OMPX_WEB_WHITELIST}"
+OMPX_WEB_AUTH_ENABLE="${OMPX_WEB_AUTH_ENABLE}"
+OMPX_WEB_AUTH_USER="${OMPX_WEB_AUTH_USER}"
+OMPX_WEB_AUTH_PASSWORD="${OMPX_WEB_AUTH_PASSWORD}"
+OMPX_WEB_KIOSK_ENABLE="${OMPX_WEB_KIOSK_ENABLE}"
+OMPX_WEB_KIOSK_DISPLAY="${OMPX_WEB_KIOSK_DISPLAY}"
+OMPX_WEB_KIOSK_URL="${OMPX_WEB_KIOSK_URL}"
 PROGRAM2_ENABLED="${PROGRAM2_ENABLED}"
 ST_OUT_P1="${ST_OUT_P1}"
 ST_OUT_P2="${ST_OUT_P2}"
@@ -1940,6 +2198,11 @@ if [ -t 0 ]; then
   esac
   echo "[INFO] Default multiband module profile: ${MULTIBAND_PROFILE}"
 
+  prompt_ompx_web_ui_binding
+  if [ "${OMPX_WEB_UI_ENABLE}" = "true" ]; then
+    prompt_ompx_web_kiosk
+  fi
+
   echo ""
   echo "Stereo processing backend for FIFO chain wrappers:"
   echo "  1) ompx-mpx    (default)  - wrapper does stereo coding and optional RDS subcarrier injection"
@@ -2267,11 +2530,11 @@ R)
 echo "[INFO] Performing full cleanup before reinstall..."
 echo "[INFO] Stopping systemd services..."
 systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
-systemctl stop stereo-tool-enterprise.service 2>/dev/null || true
+systemctl stop stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service 2>/dev/null || true
 echo "[INFO] Disabling systemd services..."
 systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
-systemctl disable stereo-tool-enterprise.service 2>/dev/null || true
-rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${RDS_SYNC_PROG1_SERVICE}" "${RDS_SYNC_PROG2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}"
+systemctl disable stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service 2>/dev/null || true
+rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${RDS_SYNC_PROG1_SERVICE}" "${RDS_SYNC_PROG2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${OMPX_WEB_UI_SERVICE}" "${OMPX_WEB_KIOSK_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" "${SYS_SCRIPTS_DIR}/ompx-web-ui.py" "${SYS_SCRIPTS_DIR}/ompx-web-kiosk.sh"
 systemctl daemon-reload || true
 echo "[INFO] Removing old cron jobs..."
 if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
@@ -2294,11 +2557,11 @@ U)
 echo "[INFO] Performing full uninstall..."
 echo "[INFO] Stopping systemd services..."
 systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
-systemctl stop stereo-tool-enterprise.service 2>/dev/null || true
+systemctl stop stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service 2>/dev/null || true
 echo "[INFO] Disabling systemd services..."
 systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
-systemctl disable stereo-tool-enterprise.service 2>/dev/null || true
-rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${RDS_SYNC_PROG1_SERVICE}" "${RDS_SYNC_PROG2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}"
+systemctl disable stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service 2>/dev/null || true
+rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${RDS_SYNC_PROG1_SERVICE}" "${RDS_SYNC_PROG2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${OMPX_WEB_UI_SERVICE}" "${OMPX_WEB_KIOSK_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" "${SYS_SCRIPTS_DIR}/ompx-web-ui.py" "${SYS_SCRIPTS_DIR}/ompx-web-kiosk.sh"
 systemctl daemon-reload || true
 echo "[INFO] Removing cron jobs..."
 if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
@@ -2364,8 +2627,19 @@ echo "[SUCCESS] Directories created at ${SYS_SCRIPTS_DIR}"
 
 echo "[INFO] Updating package lists..."
 safe_apt_update
-echo "[INFO] Installing base dependencies (curl, wget, alsa-utils, ffmpeg, sox, ladspa-sdk, swh-plugins, cron)..."
-DEBIAN_FRONTEND=noninteractive apt install -y curl wget alsa-utils ffmpeg sox ladspa-sdk swh-plugins cron
+echo "[INFO] Installing base dependencies (curl, wget, alsa-utils, ffmpeg, sox, ladspa-sdk, swh-plugins, cron, python3)..."
+DEBIAN_FRONTEND=noninteractive apt install -y curl wget alsa-utils ffmpeg sox ladspa-sdk swh-plugins cron python3
+if [ "${OMPX_WEB_KIOSK_ENABLE}" = "true" ] && { [ "${OMPX_WEB_KIOSK_INSTALL_MISSING}" = "true" ] || ! has_chromium_binary || ! has_x11_runtime_tools; }; then
+  echo "[INFO] Installing kiosk dependencies (chromium + x11 runtime tools)..."
+  if ! DEBIAN_FRONTEND=noninteractive apt install -y chromium x11-xserver-utils x11-utils xinit; then
+    echo "[WARNING] Failed to install one or more kiosk dependencies; disabling kiosk mode"
+    OMPX_WEB_KIOSK_ENABLE="false"
+  fi
+fi
+if [ "${OMPX_WEB_KIOSK_ENABLE}" = "true" ] && ! has_chromium_binary; then
+  echo "[WARNING] Chromium binary not found after install attempt; disabling kiosk mode"
+  OMPX_WEB_KIOSK_ENABLE="false"
+fi
 if [ "${ICECAST_MODE}" = "local" ]; then
   install_icecast_local
 fi
@@ -2777,6 +3051,8 @@ echo "[INFO] Creating processing script..."
 cat > "${SYS_SCRIPTS_DIR}/run_processing_alsa_liquid.sh" <<'RUNP'
 #!/usr/bin/env bash
 set -euo pipefail
+PROFILE="/home/ompx/.profile"
+[ -f "${PROFILE}" ] && . "${PROFILE}"
 STEREO_TOOL_CMD="/usr/local/bin/stereo-tool"
 SAMPLE_RATE=192000
 PROG1_ALSA_IN="${PROG1_ALSA_IN:-ompx_prg1in_cap}"
@@ -2847,10 +3123,10 @@ fi
 _log "Using capture endpoints: PROG1_ALSA_IN=${PROG1_ALSA_IN}, PROG2_ALSA_IN=${PROG2_ALSA_IN}"
 
 for p in "$MPX_LEFT_MONO" "$MPX_RIGHT_MONO" "$MPX_LEFT_OUT" "$MPX_RIGHT_OUT" "$MPX_STEREO_FIFO"; do rm -f "$p" || true; mkfifo "$p"; done
-ffmpeg -hide_banner -loglevel warning -f alsa -thread_queue_size 10240 -i "${PROG1_ALSA_IN}" -map_channel 0.0.0 -f s16le -ac 1 -ar ${SAMPLE_RATE} - > "${MPX_LEFT_MONO}" &
+ffmpeg -hide_banner -loglevel warning -f alsa -thread_queue_size 10240 -i "${PROG1_ALSA_IN}" -filter_complex "[0:a]pan=mono|c0=c0[out]" -map "[out]" -f s16le -ac 1 -ar ${SAMPLE_RATE} - > "${MPX_LEFT_MONO}" &
 FF_PROG1_MONO_PID=$!; _log "Spawned PROG1 mono extractor pid $FF_PROG1_MONO_PID"
 if [ "${PROGRAM2_ENABLED}" = "true" ] && (arecord -L 2>/dev/null | grep -q "^${PROG2_ALSA_IN}$" || [[ "${PROG2_ALSA_IN}" == hw:Loopback,* ]]); then
-ffmpeg -hide_banner -loglevel warning -f alsa -thread_queue_size 10240 -i "${PROG2_ALSA_IN}" -map_channel 0.0.0 -f s16le -ac 1 -ar ${SAMPLE_RATE} - > "${MPX_RIGHT_MONO}" &
+ffmpeg -hide_banner -loglevel warning -f alsa -thread_queue_size 10240 -i "${PROG2_ALSA_IN}" -filter_complex "[0:a]pan=mono|c0=c0[out]" -map "[out]" -f s16le -ac 1 -ar ${SAMPLE_RATE} - > "${MPX_RIGHT_MONO}" &
 FF_PROG2_MONO_PID=$!; _log "Spawned PROG2 mono extractor pid ${FF_PROG2_MONO_PID:-0}"
 else
 ( while :; do dd if=/dev/zero bs=4096 count=256 status=none; sleep 0.1; done ) > "${MPX_RIGHT_MONO}" &
@@ -2894,7 +3170,7 @@ PROFILE="/home/ompx/.profile"
 ICECAST_HOST="${ICECAST_HOST:-127.0.0.1}"
 ICECAST_PORT="${ICECAST_PORT:-8000}"
 ICECAST_SOURCE_USER="${ICECAST_SOURCE_USER:-source}"
-ICECAST_PASSWORD="${ICECAST_PASSWORD:-hackme}"
+ICECAST_PASSWORD="${ICECAST_PASSWORD:-}"
 ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
 ICECAST_BIT_DEPTH="${ICECAST_BIT_DEPTH:-16}"
@@ -2907,6 +3183,19 @@ OMPX_LOG_DIR="/home/ompx/logs"
 
 mkdir -p "${OMPX_LOG_DIR}"
 _log(){ logger -t mpx-mix "$*"; echo "$(date +'%F %T') [mpx-mix] $*"; }
+
+if [ -z "${ICECAST_PASSWORD}" ]; then
+  if command -v openssl >/dev/null 2>&1; then
+    ICECAST_PASSWORD="$(openssl rand -base64 48 2>/dev/null | tr -dc 'A-Za-z0-9' | head -c 24 || true)"
+  fi
+  if [ -z "${ICECAST_PASSWORD}" ]; then
+    ICECAST_PASSWORD="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24 || true)"
+  fi
+  if [ -z "${ICECAST_PASSWORD}" ]; then
+    ICECAST_PASSWORD="ompx$(date +%s)"
+  fi
+  _log "ICECAST_PASSWORD not set; generated runtime password"
+fi
 
 if [ "${ICECAST_MODE}" = "disabled" ]; then
   _log "ICECAST_MODE=disabled — mpx-mix is not configured. Set ICECAST_MODE in /home/ompx/.profile and restart."
@@ -3242,7 +3531,7 @@ if [ "${ENABLE_RDS,,}" = "true" ] && [ -n "${RDS_ENCODER_CMD}" ]; then
   RDS_FILTER_CHAIN="[4:a]aformat=sample_fmts=fltp:sample_rates=${SAMPLE_RATE}:channel_layouts=mono[rds]"
 fi
 
-exec ffmpeg -hide_banner -loglevel warning -nostdin \
+exec ffmpeg -hide_banner -loglevel warning -nostdin -y \
   -f s16le -ar "${SAMPLE_RATE}" -ac 1 -i "${LEFT_IN}" \
   -f s16le -ar "${SAMPLE_RATE}" -ac 1 -i "${RIGHT_IN}" \
   -f lavfi -i "aevalsrc=${PILOT_LEVEL}*sin(2*PI*19000*t):s=${SAMPLE_RATE}" \
@@ -3490,6 +3779,784 @@ STARTSH
 chmod 750 "${SYS_SCRIPTS_DIR}/start_or_shell.sh"
 chown root:root "${SYS_SCRIPTS_DIR}/start_or_shell.sh"
 echo "[SUCCESS] start_or_shell wrapper created"
+
+# --- oMPX web UI service ---
+echo "[INFO] Creating oMPX web UI service..."
+cat > "${SYS_SCRIPTS_DIR}/ompx-web-ui.py" <<'OMPXWEB'
+#!/usr/bin/env python3
+import base64
+import ipaddress
+import json
+import os
+import signal
+import subprocess
+import threading
+import urllib.parse
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+PROFILE_PATH = "/home/ompx/.profile"
+STATE_PATH = "/home/ompx/ompx-webui-state.json"
+
+
+def parse_profile(path):
+  data = {}
+  if not os.path.exists(path):
+    return data
+  with open(path, "r", encoding="utf-8") as f:
+    for raw in f:
+      line = raw.strip()
+      if not line or line.startswith("#") or "=" not in line:
+        continue
+      k, v = line.split("=", 1)
+      v = v.strip().strip('"')
+      data[k.strip()] = v
+  return data
+
+
+ENV = parse_profile(PROFILE_PATH)
+BIND = ENV.get("OMPX_WEB_BIND", "0.0.0.0")
+PORT = int(ENV.get("OMPX_WEB_PORT", "8082"))
+WHITELIST_RAW = ENV.get("OMPX_WEB_WHITELIST", "127.0.0.1/32")
+AUTH_ENABLE = ENV.get("OMPX_WEB_AUTH_ENABLE", "false").lower() == "true"
+AUTH_USER = ENV.get("OMPX_WEB_AUTH_USER", "ompx")
+AUTH_PASSWORD = ENV.get("OMPX_WEB_AUTH_PASSWORD", "")
+
+ALLOWED_NETWORKS = []
+for token in WHITELIST_RAW.split(","):
+  token = token.strip()
+  if not token:
+    continue
+  try:
+    ALLOWED_NETWORKS.append(ipaddress.ip_network(token, strict=False))
+  except ValueError:
+    pass
+
+DEFAULT_STATE = {
+  "input_device": "ompx_prg1in_cap",
+  "sample_rate": 48000,
+  "pre_gain_db": 0.0,
+  "post_gain_db": 0.0,
+  "stereo_width": 1.0,
+  "hf_tame_db": 0.0,
+  "hf_tame_freq": 7000,
+  "output_limit": 0.96,
+  "fft_input_device": "ompx_prg1mpx_cap",
+  "fft_sample_rate": 192000,
+  "fft_max_hz": 60000,
+  "ui_theme": "forest",
+  "ui_custom_css": "",
+  "patch_mode": "browser",
+  "patch_output_device": "default",
+}
+
+STATE_LOCK = threading.Lock()
+PATCH_LOCK = threading.Lock()
+PATCH_PROC = None
+
+
+def load_state():
+  if os.path.exists(STATE_PATH):
+    try:
+      with open(STATE_PATH, "r", encoding="utf-8") as f:
+        loaded = json.load(f)
+      merged = dict(DEFAULT_STATE)
+      merged.update(loaded)
+      return merged
+    except Exception:
+      return dict(DEFAULT_STATE)
+  return dict(DEFAULT_STATE)
+
+
+def save_state(state):
+  os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
+  with open(STATE_PATH, "w", encoding="utf-8") as f:
+    json.dump(state, f, indent=2)
+
+
+def client_allowed(ip):
+  if not ALLOWED_NETWORKS:
+    return True
+  try:
+    addr = ipaddress.ip_address(ip)
+  except ValueError:
+    return False
+  for network in ALLOWED_NETWORKS:
+    if addr in network:
+      return True
+  return False
+
+
+def is_authorized(headers):
+  if not AUTH_ENABLE:
+    return True
+  auth = headers.get("Authorization", "")
+  if not auth.startswith("Basic "):
+    return False
+  try:
+    decoded = base64.b64decode(auth.split(" ", 1)[1]).decode("utf-8")
+  except Exception:
+    return False
+  if ":" not in decoded:
+    return False
+  user, password = decoded.split(":", 1)
+  return user == AUTH_USER and password == AUTH_PASSWORD
+
+
+def build_preview_filter(state):
+  pre = float(state.get("pre_gain_db", 0.0))
+  post = float(state.get("post_gain_db", 0.0))
+  width = float(state.get("stereo_width", 1.0))
+  hf_tame_db = float(state.get("hf_tame_db", 0.0))
+  hf_tame_freq = int(float(state.get("hf_tame_freq", 7000)))
+  limit = float(state.get("output_limit", 0.96))
+  hf_tame_filter = "anull"
+  if hf_tame_db != 0.0:
+    hf_tame_filter = f"highshelf=f={hf_tame_freq}:g={hf_tame_db}"
+  return (
+    f"aformat=sample_fmts=fltp,"
+    f"volume={pre}dB,"
+    f"{hf_tame_filter},"
+    f"alimiter=limit={limit},"
+    f"extrastereo=m={width},"
+    f"volume={post}dB"
+  )
+
+
+def spawn_patch_playback(state):
+  global PATCH_PROC
+  input_device = str(state.get("input_device", "ompx_prg1in_cap"))
+  output_device = str(state.get("patch_output_device", "default"))
+  sample_rate = int(float(state.get("sample_rate", 48000)))
+  filt = build_preview_filter(state)
+  cmd = [
+    "ffmpeg",
+    "-hide_banner",
+    "-loglevel",
+    "warning",
+    "-nostdin",
+    "-f",
+    "alsa",
+    "-ac",
+    "2",
+    "-ar",
+    str(sample_rate),
+    "-i",
+    input_device,
+    "-filter:a",
+    filt,
+    "-f",
+    "alsa",
+    output_device,
+  ]
+  PATCH_PROC = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def stop_patch_playback():
+  global PATCH_PROC
+  if PATCH_PROC is None:
+    return
+  try:
+    PATCH_PROC.terminate()
+    PATCH_PROC.wait(timeout=2)
+  except Exception:
+    try:
+      PATCH_PROC.kill()
+    except Exception:
+      pass
+  PATCH_PROC = None
+
+
+class Handler(BaseHTTPRequestHandler):
+  server_version = "oMPXWebUI/1.0"
+
+  def _send_json(self, obj, status=HTTPStatus.OK):
+    payload = json.dumps(obj).encode("utf-8")
+    self.send_response(status)
+    self.send_header("Content-Type", "application/json")
+    self.send_header("Content-Length", str(len(payload)))
+    self.end_headers()
+    self.wfile.write(payload)
+
+  def _deny_if_needed(self):
+    client_ip = self.client_address[0]
+    if not client_allowed(client_ip):
+      self.send_error(HTTPStatus.FORBIDDEN, "Client IP is not allowed")
+      return True
+    if not is_authorized(self.headers):
+      self.send_response(HTTPStatus.UNAUTHORIZED)
+      self.send_header("WWW-Authenticate", 'Basic realm="oMPX UI"')
+      self.end_headers()
+      return True
+    return False
+
+  def do_GET(self):
+    if self._deny_if_needed():
+      return
+    parsed = urllib.parse.urlparse(self.path)
+    if parsed.path == "/":
+      html = PAGE_HTML.encode("utf-8")
+      self.send_response(HTTPStatus.OK)
+      self.send_header("Content-Type", "text/html; charset=utf-8")
+      self.send_header("Content-Length", str(len(html)))
+      self.end_headers()
+      self.wfile.write(html)
+      return
+    if parsed.path == "/api/state":
+      with STATE_LOCK:
+        self._send_json(load_state())
+      return
+    if parsed.path == "/api/preview.mp3":
+      with STATE_LOCK:
+        state = load_state()
+      input_device = str(state.get("input_device", "ompx_prg1in_cap"))
+      sample_rate = int(float(state.get("sample_rate", 48000)))
+      filt = build_preview_filter(state)
+      cmd = [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "warning",
+        "-nostdin",
+        "-f",
+        "alsa",
+        "-ac",
+        "2",
+        "-ar",
+        str(sample_rate),
+        "-i",
+        input_device,
+        "-filter:a",
+        filt,
+        "-c:a",
+        "libmp3lame",
+        "-b:a",
+        "192k",
+        "-f",
+        "mp3",
+        "-",
+      ]
+      proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+      self.send_response(HTTPStatus.OK)
+      self.send_header("Content-Type", "audio/mpeg")
+      self.send_header("Cache-Control", "no-cache")
+      self.end_headers()
+      try:
+        while True:
+          chunk = proc.stdout.read(8192)
+          if not chunk:
+            break
+          self.wfile.write(chunk)
+      except (BrokenPipeError, ConnectionResetError):
+        pass
+      finally:
+        try:
+          proc.terminate()
+        except Exception:
+          pass
+      return
+    if parsed.path == "/api/mpx_fft.png":
+      with STATE_LOCK:
+        state = load_state()
+      fft_input_device = str(state.get("fft_input_device", "ompx_prg1mpx_cap"))
+      fft_sample_rate = int(float(state.get("fft_sample_rate", 192000)))
+      fft_max_hz = int(float(state.get("fft_max_hz", 60000)))
+      if fft_sample_rate < 32000:
+        fft_sample_rate = 192000
+      nyquist = int(fft_sample_rate / 2)
+      if fft_max_hz < 1000 or fft_max_hz > nyquist:
+        fft_max_hz = min(60000, nyquist)
+      stop_hz = fft_max_hz
+      cmd = [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-nostdin",
+        "-f",
+        "alsa",
+        "-ac",
+        "2",
+        "-ar",
+        str(fft_sample_rate),
+        "-i",
+        fft_input_device,
+        "-t",
+        "0.35",
+        "-filter_complex",
+        f"[0:a]pan=mono|c0=0.5*c0+0.5*c1,showspectrumpic=s=1280x360:legend=disabled:gain=2:drange=100:fscale=lin:start=0:stop={stop_hz}",
+        "-frames:v",
+        "1",
+        "-f",
+        "image2pipe",
+        "-vcodec",
+        "png",
+        "-",
+      ]
+      proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+      try:
+        out, err = proc.communicate(timeout=3)
+      except subprocess.TimeoutExpired:
+        try:
+          proc.kill()
+        except Exception:
+          pass
+        self.send_error(HTTPStatus.GATEWAY_TIMEOUT, "FFT render timed out")
+        return
+      if proc.returncode != 0 or not out:
+        self.send_error(HTTPStatus.BAD_GATEWAY, f"FFT render failed: {err.decode('utf-8', errors='ignore')[:180]}")
+        return
+      self.send_response(HTTPStatus.OK)
+      self.send_header("Content-Type", "image/png")
+      self.send_header("Cache-Control", "no-cache")
+      self.send_header("Content-Length", str(len(out)))
+      self.end_headers()
+      self.wfile.write(out)
+      return
+    self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+
+  def do_POST(self):
+    if self._deny_if_needed():
+      return
+    length = int(self.headers.get("Content-Length", "0"))
+    raw = self.rfile.read(length) if length > 0 else b"{}"
+    try:
+      payload = json.loads(raw.decode("utf-8"))
+    except Exception:
+      payload = {}
+    if self.path == "/api/state":
+      with STATE_LOCK:
+        state = load_state()
+        for key in DEFAULT_STATE:
+          if key in payload:
+            state[key] = payload[key]
+        save_state(state)
+      self._send_json({"ok": True, "state": state})
+      return
+    if self.path == "/api/patch/start":
+      with STATE_LOCK:
+        state = load_state()
+      with PATCH_LOCK:
+        stop_patch_playback()
+        spawn_patch_playback(state)
+      self._send_json({"ok": True, "message": "Patch playback started"})
+      return
+    if self.path == "/api/patch/stop":
+      with PATCH_LOCK:
+        stop_patch_playback()
+      self._send_json({"ok": True, "message": "Patch playback stopped"})
+      return
+    self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+
+
+PAGE_HTML = """<!doctype html>
+<html>
+<head>
+  <meta charset=\"utf-8\" />
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+  <title>oMPX Live Control</title>
+  <style>
+  :root { --bg:#0f1b1a; --card:#132825; --accent:#f2b642; --ink:#f4f7f5; --muted:#9fb8b0; }
+  body { margin:0; font-family: ui-sans-serif, sans-serif; background: radial-gradient(circle at 10% 10%, #1c3b35, var(--bg)); color:var(--ink); }
+  .wrap { max-width:1080px; margin:0 auto; padding:24px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .card { background:linear-gradient(180deg, #1a322e, var(--card)); border:1px solid #2a4f47; border-radius:12px; padding:14px; }
+  h1 { margin:0 0 12px; font-size:28px; letter-spacing:0.03em; }
+  label { display:block; font-size:13px; color:var(--muted); margin-top:8px; }
+  input, select, button { width:100%; margin-top:4px; padding:8px; border-radius:8px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink); }
+  button { cursor:pointer; background:linear-gradient(180deg, #f2b642, #d99424); color:#1b1406; font-weight:600; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  canvas { width:100%; height:140px; background:#0a1412; border:1px solid #2a4f47; border-radius:8px; }
+  .status { font-size:12px; color:var(--muted); margin-top:10px; }
+  @media (max-width:900px) { .grid { grid-template-columns:1fr; } }
+  </style>
+  <style id="ui_custom_css_tag"></style>
+</head>
+<body>
+  <div class=\"wrap\">
+  <h1>oMPX Live Control + Patch Preview</h1>
+  <div class=\"grid\">
+    <div class=\"card\">
+    <div class=\"row\">
+      <div>
+      <label>Input Channel</label>
+      <select id=\"input_device\">
+        <option value=\"ompx_prg1in_cap\">Program 1 input</option>
+        <option value=\"ompx_prg2in_cap\">Program 2 input</option>
+        <option value=\"ompx_prg1mpx_cap\">Program 1 MPX path</option>
+        <option value=\"ompx_prg2mpx_cap\">Program 2 MPX path</option>
+      </select>
+      </div>
+      <div>
+      <label>Sample Rate</label>
+      <input id=\"sample_rate\" type=\"number\" min=\"8000\" max=\"192000\" step=\"1000\" />
+      </div>
+    </div>
+    <div class=\"row\">
+      <div><label>Pre Gain (dB)</label><input id=\"pre_gain_db\" type=\"number\" step=\"0.1\" /></div>
+      <div><label>Post Gain (dB)</label><input id=\"post_gain_db\" type=\"number\" step=\"0.1\" /></div>
+    </div>
+    <div class=\"row\">
+      <div><label>Stereo Width</label><input id=\"stereo_width\" type=\"number\" step=\"0.01\" min=\"0\" max=\"2\" /></div>
+      <div><label>Limiter Ceiling (0..1)</label><input id=\"output_limit\" type=\"number\" step=\"0.01\" min=\"0.1\" max=\"1\" /></div>
+    </div>
+    <div class=\"row\">
+      <div><label>HF Tame (dB)</label><input id=\"hf_tame_db\" type=\"number\" step=\"0.1\" /></div>
+      <div><label>HF Tame Freq (Hz)</label><input id=\"hf_tame_freq\" type=\"number\" step=\"100\" /></div>
+    </div>
+    <div class=\"row\">
+      <div>
+      <label>Color Theme</label>
+      <select id=\"ui_theme\">
+        <option value=\"forest\">Forest (default)</option>
+        <option value=\"daylight\">Daylight</option>
+        <option value=\"midnight\">Midnight</option>
+        <option value=\"amber\">Amber Scope</option>
+      </select>
+      </div>
+      <div>
+      <label>&nbsp;</label>
+      <button id=\"theme_apply\">Apply Theme</button>
+      </div>
+    </div>
+    <label>Custom CSS (optional)</label>
+    <textarea id=\"ui_custom_css\" rows=\"4\" style=\"width:100%; margin-top:4px; padding:8px; border-radius:8px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink);\"></textarea>
+    <button id=\"css_apply\" style=\"margin-top:8px;\">Apply Custom CSS</button>
+    <button id=\"apply\">Apply and Refresh Preview</button>
+    <div class=\"row\" style=\"margin-top:8px\">
+      <div><button id=\"patch_start\">Start Hardware Patch</button></div>
+      <div><button id=\"patch_stop\">Stop Hardware Patch</button></div>
+    </div>
+    <label>Hardware Patch Output Device</label>
+    <input id=\"patch_output_device\" type=\"text\" />
+    <div class=\"row\">
+      <div>
+      <label>FFT Input Device (MPX)</label>
+      <select id=\"fft_input_device\">
+        <option value=\"ompx_prg1mpx_cap\">Program 1 MPX capture</option>
+        <option value=\"ompx_prg2mpx_cap\">Program 2 MPX capture</option>
+        <option value=\"ompx_prg1in_cap\">Program 1 audio input</option>
+        <option value=\"ompx_prg2in_cap\">Program 2 audio input</option>
+      </select>
+      </div>
+      <div>
+      <label>FFT Max Hz</label>
+      <input id=\"fft_max_hz\" type=\"number\" min=\"1000\" max=\"96000\" step=\"1000\" />
+      </div>
+    </div>
+    <div class=\"row\">
+      <div><label>FFT Sample Rate</label><input id=\"fft_sample_rate\" type=\"number\" min=\"32000\" max=\"384000\" step=\"1000\" /></div>
+      <div><label>&nbsp;</label><button id=\"fft_refresh\">Refresh FFT Now</button></div>
+    </div>
+    <audio id=\"audio\" controls autoplay style=\"width:100%; margin-top:10px\"></audio>
+    <div class=\"status\" id=\"status\">Ready.</div>
+    </div>
+    <div class=\"card\">
+    <label>Waveform</label>
+    <canvas id=\"wave\" width=\"900\" height=\"280\"></canvas>
+    <label style=\"margin-top:12px\">Band Spectrum</label>
+    <canvas id=\"spec\" width=\"900\" height=\"280\"></canvas>
+    <label style=\"margin-top:12px\">MPX FFT Snapshot (server-side)</label>
+    <div style=\"position:relative; border:1px solid #2a4f47; border-radius:8px; overflow:hidden; background:#0a1412;\">
+      <img id=\"fft_img\" alt=\"MPX FFT\" style=\"display:block; width:100%; height:auto;\" />
+      <div id=\"pilot_marker\" style=\"position:absolute; top:0; bottom:0; width:2px; background:#f2b642; opacity:0.9;\"></div>
+      <div id=\"sub_marker\" style=\"position:absolute; top:0; bottom:0; width:2px; background:#52d3c7; opacity:0.9;\"></div>
+      <div style=\"position:absolute; top:6px; left:8px; font-size:11px; color:#f2b642; background:#0008; padding:2px 6px; border-radius:4px;\">19 kHz pilot</div>
+      <div style=\"position:absolute; top:6px; left:120px; font-size:11px; color:#52d3c7; background:#0008; padding:2px 6px; border-radius:4px;\">38 kHz L-R DSB</div>
+    </div>
+    </div>
+  </div>
+  </div>
+  <script>
+  const ids = ["input_device","sample_rate","pre_gain_db","post_gain_db","stereo_width","output_limit","hf_tame_db","hf_tame_freq","patch_output_device","fft_input_device","fft_sample_rate","fft_max_hz","ui_theme","ui_custom_css"];
+  const st = document.getElementById("status");
+  const audio = document.getElementById("audio");
+  const fftImg = document.getElementById("fft_img");
+  const pilotMarker = document.getElementById("pilot_marker");
+  const subMarker = document.getElementById("sub_marker");
+  const customCssTag = document.getElementById("ui_custom_css_tag");
+  let fftTimer = null;
+
+  const themePalettes = {
+    forest: {"--bg":"#0f1b1a","--card":"#132825","--accent":"#f2b642","--ink":"#f4f7f5","--muted":"#9fb8b0"},
+    daylight: {"--bg":"#dbe6ef","--card":"#ffffff","--accent":"#1e88e5","--ink":"#142332","--muted":"#5c7286"},
+    midnight: {"--bg":"#0a0f1e","--card":"#111a32","--accent":"#56ccf2","--ink":"#ebf2ff","--muted":"#9cb4dc"},
+    amber: {"--bg":"#170f05","--card":"#2a1c08","--accent":"#ffb300","--ink":"#fff5dd","--muted":"#d6b97a"},
+  };
+
+  function setStatus(msg){ st.textContent = msg; }
+
+  async function loadState(){
+    const res = await fetch('/api/state');
+    const data = await res.json();
+    ids.forEach((id)=>{ if(data[id] !== undefined){ document.getElementById(id).value = data[id]; }});
+    applyTheme(data.ui_theme || 'forest');
+    applyCustomCss(data.ui_custom_css || '');
+    refreshPreview();
+  }
+
+  function collect(){
+    const payload = {};
+    ids.forEach((id)=> payload[id] = document.getElementById(id).value);
+    return payload;
+  }
+
+  async function saveState(){
+    await fetch('/api/state', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(collect())});
+  }
+
+  function applyTheme(themeName){
+    const palette = themePalettes[themeName] || themePalettes.forest;
+    Object.keys(palette).forEach((k) => document.documentElement.style.setProperty(k, palette[k]));
+  }
+
+  function applyCustomCss(cssText){
+    customCssTag.textContent = cssText || '';
+  }
+
+  function updateFftMarkers(){
+    const maxHz = Number(document.getElementById('fft_max_hz').value || 60000);
+    const pilotPct = Math.max(0, Math.min(100, (19000 / maxHz) * 100));
+    const subPct = Math.max(0, Math.min(100, (38000 / maxHz) * 100));
+    pilotMarker.style.left = `${pilotPct}%`;
+    subMarker.style.left = `${subPct}%`;
+  }
+
+  function refreshFft(){
+    updateFftMarkers();
+    fftImg.src = '/api/mpx_fft.png?ts=' + Date.now();
+  }
+
+  function startFftLoop(){
+    if (fftTimer) clearInterval(fftTimer);
+    fftTimer = setInterval(refreshFft, 1200);
+  }
+
+  function refreshPreview(){
+    audio.src = '/api/preview.mp3?ts=' + Date.now();
+    audio.play().catch(()=>{});
+    setStatus('Preview refreshed.');
+  }
+
+  document.getElementById('apply').onclick = async () => {
+    await saveState();
+    refreshPreview();
+    refreshFft();
+  };
+  document.getElementById('patch_start').onclick = async () => {
+    await saveState();
+    const r = await fetch('/api/patch/start', {method:'POST'});
+    const j = await r.json();
+    setStatus(j.message || 'Patch started.');
+  };
+  document.getElementById('patch_stop').onclick = async () => {
+    const r = await fetch('/api/patch/stop', {method:'POST'});
+    const j = await r.json();
+    setStatus(j.message || 'Patch stopped.');
+  };
+  document.getElementById('fft_refresh').onclick = async () => {
+    await saveState();
+    refreshFft();
+    setStatus('FFT refreshed.');
+  };
+  document.getElementById('theme_apply').onclick = async () => {
+    const theme = document.getElementById('ui_theme').value || 'forest';
+    applyTheme(theme);
+    await saveState();
+    setStatus('Theme applied.');
+  };
+  document.getElementById('css_apply').onclick = async () => {
+    const cssText = document.getElementById('ui_custom_css').value || '';
+    applyCustomCss(cssText);
+    await saveState();
+    setStatus('Custom CSS applied.');
+  };
+
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = ctx.createMediaElementSource(audio);
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 2048;
+  src.connect(analyser);
+  analyser.connect(ctx.destination);
+
+  const wave = document.getElementById('wave');
+  const spec = document.getElementById('spec');
+  const wctx = wave.getContext('2d');
+  const sctx = spec.getContext('2d');
+  const timeData = new Uint8Array(analyser.fftSize);
+  const freqData = new Uint8Array(analyser.frequencyBinCount);
+
+  function draw(){
+    requestAnimationFrame(draw);
+    analyser.getByteTimeDomainData(timeData);
+    wctx.fillStyle = '#07110f';
+    wctx.fillRect(0,0,wave.width,wave.height);
+    wctx.strokeStyle = '#f2b642';
+    wctx.lineWidth = 2;
+    wctx.beginPath();
+    const step = wave.width / timeData.length;
+    for(let i=0;i<timeData.length;i++){
+    const v = timeData[i] / 255.0;
+    const y = v * wave.height;
+    if(i===0) wctx.moveTo(0,y); else wctx.lineTo(i*step,y);
+    }
+    wctx.stroke();
+
+    analyser.getByteFrequencyData(freqData);
+    sctx.fillStyle = '#07110f';
+    sctx.fillRect(0,0,spec.width,spec.height);
+    const bars = 64;
+    const bin = Math.floor(freqData.length / bars);
+    for(let i=0;i<bars;i++){
+    let sum = 0;
+    for(let j=0;j<bin;j++) sum += freqData[i*bin + j] || 0;
+    const avg = sum / bin;
+    const h = (avg/255) * spec.height;
+    sctx.fillStyle = `hsl(${45 + i*1.6}, 80%, ${35 + (avg/255)*35}%)`;
+    const bw = spec.width / bars;
+    sctx.fillRect(i*bw, spec.height - h, bw-2, h);
+    }
+  }
+
+  document.body.addEventListener('click', () => ctx.resume(), {once:true});
+  loadState().then(() => {
+    draw();
+    refreshFft();
+    startFftLoop();
+  });
+  </script>
+</body>
+</html>"""
+
+
+def shutdown_handler(signum, frame):
+  with PATCH_LOCK:
+    stop_patch_playback()
+  raise SystemExit(0)
+
+
+if __name__ == "__main__":
+  signal.signal(signal.SIGTERM, shutdown_handler)
+  signal.signal(signal.SIGINT, shutdown_handler)
+  os.umask(0o077)
+  with STATE_LOCK:
+    state = load_state()
+    save_state(state)
+  server = ThreadingHTTPServer((BIND, PORT), Handler)
+  server.serve_forever()
+OMPXWEB
+chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/ompx-web-ui.py"
+chmod 750 "${SYS_SCRIPTS_DIR}/ompx-web-ui.py"
+
+cat > "${OMPX_WEB_UI_SERVICE}" <<EOF
+[Unit]
+Description=oMPX live web control UI
+After=network-online.target sound.target
+Wants=network-online.target sound.target
+
+[Service]
+Type=simple
+User=${OMPX_USER}
+Group=${OMPX_USER}
+SupplementaryGroups=audio
+WorkingDirectory=${OMPX_HOME}
+Environment=HOME=${OMPX_HOME}
+ExecStart=/usr/bin/python3 ${SYS_SCRIPTS_DIR}/ompx-web-ui.py
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 644 "${OMPX_WEB_UI_SERVICE}"
+chown root:root "${OMPX_WEB_UI_SERVICE}"
+echo "[SUCCESS] oMPX web UI service files created"
+
+cat > "${SYS_SCRIPTS_DIR}/ompx-web-kiosk.sh" <<'KIOSK'
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROFILE="/home/ompx/.profile"
+[ -f "${PROFILE}" ] && . "${PROFILE}"
+
+OMPX_WEB_KIOSK_ENABLE="${OMPX_WEB_KIOSK_ENABLE:-false}"
+OMPX_WEB_KIOSK_DISPLAY="${OMPX_WEB_KIOSK_DISPLAY:-:0}"
+OMPX_WEB_KIOSK_URL="${OMPX_WEB_KIOSK_URL:-http://127.0.0.1:${OMPX_WEB_PORT:-8082}/}"
+XAUTHORITY="${XAUTHORITY:-/home/ompx/.Xauthority}"
+
+if [ "${OMPX_WEB_KIOSK_ENABLE}" != "true" ]; then
+  exit 0
+fi
+
+CHROMIUM_BIN=""
+for candidate in chromium chromium-browser google-chrome; do
+  if command -v "${candidate}" >/dev/null 2>&1; then
+    CHROMIUM_BIN="${candidate}"
+    break
+  fi
+done
+
+if [ -z "${CHROMIUM_BIN}" ]; then
+  echo "[kiosk] chromium binary not found" >&2
+  exit 1
+fi
+
+export DISPLAY="${OMPX_WEB_KIOSK_DISPLAY}"
+export XAUTHORITY
+
+for _ in $(seq 1 30); do
+  if [ -S "/tmp/.X11-unix/X${DISPLAY#:}" ] || [ -d /tmp/.X11-unix ]; then
+    break
+  fi
+  sleep 1
+done
+
+for _ in $(seq 1 30); do
+  if curl -fsS --max-time 2 "${OMPX_WEB_KIOSK_URL}" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+
+pkill -u "$(id -un)" -f 'chromium|chromium-browser|google-chrome' >/dev/null 2>&1 || true
+
+exec "${CHROMIUM_BIN}" \
+  --kiosk "${OMPX_WEB_KIOSK_URL}" \
+  --noerrdialogs \
+  --disable-session-crashed-bubble \
+  --disable-infobars \
+  --autoplay-policy=no-user-gesture-required \
+  --check-for-update-interval=31536000
+KIOSK
+chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/ompx-web-kiosk.sh"
+chmod 750 "${SYS_SCRIPTS_DIR}/ompx-web-kiosk.sh"
+
+cat > "${OMPX_WEB_KIOSK_SERVICE}" <<EOF
+[Unit]
+Description=oMPX local Chromium kiosk
+After=network-online.target ompx-web-ui.service
+Wants=network-online.target ompx-web-ui.service
+
+[Service]
+Type=simple
+User=${OMPX_USER}
+Group=${OMPX_USER}
+WorkingDirectory=${OMPX_HOME}
+Environment=HOME=${OMPX_HOME}
+ExecStart=${SYS_SCRIPTS_DIR}/ompx-web-kiosk.sh
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 644 "${OMPX_WEB_KIOSK_SERVICE}"
+chown root:root "${OMPX_WEB_KIOSK_SERVICE}"
+echo "[SUCCESS] oMPX web kiosk service files created"
 
 # --- RDS sync (Program 1) ---
 echo "[INFO] Creating Program 1 RDS sync script..."
@@ -3819,6 +4886,20 @@ else
   echo "[INFO] Program 2 RDS sync disabled; installing service but not starting it"
   systemctl disable rds-sync-prog2.service >/dev/null 2>&1 || true
 fi
+if [ "${OMPX_WEB_UI_ENABLE}" = "true" ]; then
+  echo "[INFO] Enabling ompx-web-ui.service..."
+  systemctl enable --now ompx-web-ui.service || true
+else
+  echo "[INFO] oMPX web UI disabled; leaving ompx-web-ui.service stopped"
+  systemctl disable --now ompx-web-ui.service >/dev/null 2>&1 || true
+fi
+if [ "${OMPX_WEB_KIOSK_ENABLE}" = "true" ] && [ "${OMPX_WEB_UI_ENABLE}" = "true" ]; then
+  echo "[INFO] Enabling ompx-web-kiosk.service..."
+  systemctl enable --now ompx-web-kiosk.service || true
+else
+  echo "[INFO] oMPX web kiosk disabled; leaving ompx-web-kiosk.service stopped"
+  systemctl disable --now ompx-web-kiosk.service >/dev/null 2>&1 || true
+fi
 if [ "${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE}" = true ]; then
   if [ "${START_STEREO_TOOL_AFTER_INSTALL}" = true ]; then
     echo "[INFO] Enabling and starting stereo-tool-enterprise.service..."
@@ -3850,6 +4931,14 @@ if [ "${ENABLE_STEREO_TOOL_ENTERPRISE_SERVICE}" = true ] && [ "${START_STEREO_TO
   echo "[INFO] Starting Stereo Tool Enterprise immediately (non-systemd fallback)..."
   runuser -u "${OMPX_USER}" -- nohup "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" >/dev/null 2>&1 &
 fi
+if [ "${OMPX_WEB_UI_ENABLE}" = "true" ] && [ -x "${SYS_SCRIPTS_DIR}/ompx-web-ui.py" ]; then
+  echo "[INFO] Starting oMPX web UI immediately (non-systemd fallback)..."
+  runuser -u "${OMPX_USER}" -- nohup /usr/bin/python3 "${SYS_SCRIPTS_DIR}/ompx-web-ui.py" >/dev/null 2>&1 &
+fi
+if [ "${OMPX_WEB_KIOSK_ENABLE}" = "true" ] && [ -x "${SYS_SCRIPTS_DIR}/ompx-web-kiosk.sh" ]; then
+  echo "[INFO] Starting oMPX web kiosk immediately (non-systemd fallback)..."
+  runuser -u "${OMPX_USER}" -- nohup "${SYS_SCRIPTS_DIR}/ompx-web-kiosk.sh" >/dev/null 2>&1 &
+fi
 fi
 _log "Install complete. Profile: ${PROFILE}"
 echo ""
@@ -3879,6 +4968,8 @@ if has_systemd; then
   echo "     systemctl status rds-sync-prog1.service"
   echo "     systemctl status rds-sync-prog2.service"
   echo "     systemctl status stereo-tool-enterprise.service"
+  echo "     systemctl status ompx-web-ui.service"
+  echo "     systemctl status ompx-web-kiosk.service"
 else
   echo "     crontab -u ${OMPX_USER} -l"
 fi
@@ -3941,13 +5032,23 @@ echo "       Program 1: \\r\"/home/ompx/rds/prog1/rt.txt\""
 echo "       Program 2: \\r\"/home/ompx/rds/prog2/rt.txt\""
 echo "     Note: this installer uses 'prog1' and 'prog2' in the directory names."
 echo ""
-echo "  10. Multiband module profile selection (optional processing path):"
+echo "  10. oMPX web UI (live patch preview + waveform/spectrum):"
+echo "      http://<this-host>:${OMPX_WEB_PORT}/"
+echo "      Bind: ${OMPX_WEB_BIND}  Whitelist: ${OMPX_WEB_WHITELIST}"
+echo "      Auth: ${OMPX_WEB_AUTH_ENABLE}  User: ${OMPX_WEB_AUTH_USER}"
+if [ "${OMPX_WEB_AUTH_ENABLE}" = "true" ]; then
+  echo "      Password: ${OMPX_WEB_AUTH_PASSWORD}"
+fi
+echo "      Kiosk: ${OMPX_WEB_KIOSK_ENABLE}  Display: ${OMPX_WEB_KIOSK_DISPLAY}"
+echo "      Kiosk URL: ${OMPX_WEB_KIOSK_URL}"
+echo ""
+echo "  11. Multiband module profile selection (optional processing path):"
 echo "      MODULES_DIR=${MODULES_DIR}"
 echo "      MULTIBAND_PROFILE=${MULTIBAND_PROFILE}"
 echo "      Example command:"
 echo "      \"${MODULES_DIR}/multiband_agc.sh\" --profile \"${MULTIBAND_PROFILE}\" --input-url ompx_prg1in_cap --output-url ompx_prg1in --sample-rate ${SAMPLE_RATE}"
 echo ""
-echo "  11. Stereo Tool replacement wrapper backend:"
+echo "  12. Stereo Tool replacement wrapper backend:"
 echo "      OMPX_STEREO_BACKEND=${OMPX_STEREO_BACKEND}"
 echo "      OMPX_WRAPPER_RDS_ENABLE=${OMPX_WRAPPER_RDS_ENABLE}"
 echo "      OMPX_WRAPPER_SAMPLE_RATE=${OMPX_WRAPPER_SAMPLE_RATE}"
