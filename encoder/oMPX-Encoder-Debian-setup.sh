@@ -4550,11 +4550,6 @@ def build_preview_filter(state):
     keep = 1.0 - (cross * 0.5)
     side = cross * 0.5
     core += f"pan=stereo|c0={keep}*c0+{side}*c1|c1={side}*c0+{keep}*c1,"
-  if clipper_enabled:
-    if clipper_drive_db > 0.0:
-      core += f"volume={clipper_drive_db}dB,"
-    # Keep the clipper stage compatible across ffmpeg builds.
-    core += f"alimiter=limit={clipper_ceiling}:attack=1:release=25,"
   core += (
     f"extrastereo=m={width},"
     f"volume={post}dB"
@@ -5409,36 +5404,25 @@ PAGE_HTML = """<!doctype html>
   </div>
   </div>
   <script>
-  const ids = ["input_device","preview_mode","sample_rate","wave_window_sec","processor_input_gain_db","bypass_level_match_db","peak_hold_decay","pre_gain_db","post_gain_db","stereo_width","output_limit","hf_tame_db","hf_tame_freq","patch_output_device","fft_input_device","fft_sample_rate","fft_max_hz","ui_theme","ui_custom_css","tab_name_prog1","tab_name_prog2","multiband_preset","azimuth_delay_ms","auto_balance_strength","multiband_clipper_drive_db","multiband_clipper_ceiling","band1_drive_db","band1_ratio","band1_attack_ms","band1_release_ms","band1_mix","band1_drive_db_l","band1_drive_db_r","band1_mix_l","band1_mix_r","band2_drive_db","band2_ratio","band2_attack_ms","band2_release_ms","band2_mix","band2_drive_db_l","band2_drive_db_r","band2_mix_l","band2_mix_r","band3_drive_db","band3_ratio","band3_attack_ms","band3_release_ms","band3_mix","band3_drive_db_l","band3_drive_db_r","band3_mix_l","band3_mix_r","band4_drive_db","band4_ratio","band4_attack_ms","band4_release_ms","band4_mix","band4_drive_db_l","band4_drive_db_r","band4_mix_l","band4_mix_r","band5_drive_db","band5_ratio","band5_attack_ms","band5_release_ms","band5_mix","band5_drive_db_l","band5_drive_db_r","band5_mix_l","band5_mix_r"];
-  const boolStateIds = ["processing_bypass","enable_momentary_ab","ui_pro_left_rail","ui_hobbyist_mode","bypass_level_match_enabled","peak_hold_enabled","multiband_stereo_independent","multiband_clipper_enabled","azimuth_correction_enabled","auto_balance_enabled","band1_enabled","band2_enabled","band3_enabled","band4_enabled","band5_enabled"];
-  const globalOnlyIds = ["ui_theme","ui_custom_css","tab_name_prog1","tab_name_prog2","patch_output_device"];
-  const globalOnlyBoolIds = ["enable_momentary_ab","ui_pro_left_rail","ui_hobbyist_mode"];
-    // List of advanced field IDs to hide in hobbyist mode
-    const advancedFieldIds = [
-      "pre_gain_db","post_gain_db","hf_tame_db","hf_tame_freq","azimuth_correction_enabled","azimuth_delay_ms","auto_balance_enabled","auto_balance_strength","multiband_stereo_independent","band1_drive_db_l","band1_drive_db_r","band1_mix_l","band1_mix_r","band2_drive_db_l","band2_drive_db_r","band2_mix_l","band2_mix_r","band3_drive_db_l","band3_drive_db_r","band3_mix_l","band3_mix_r","band4_drive_db_l","band4_drive_db_r","band4_mix_l","band4_mix_r","band5_drive_db_l","band5_drive_db_r","band5_mix_l","band5_mix_r","multiband_clipper_enabled","multiband_clipper_drive_db","multiband_clipper_ceiling","bypass_level_match_enabled","bypass_level_match_db","peak_hold_decay"
-    ];
-
-    function updateHobbyistModeVisibility() {
-      const hobbyist = !!document.getElementById('ui_hobbyist_mode').checked;
-      advancedFieldIds.forEach((id) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        const block = el.closest('.row') || el.closest('.stereo-adv') || el;
-        if (block) block.style.display = hobbyist ? 'none' : '';
+    // Visualizer selection logic
+    document.addEventListener('DOMContentLoaded', function() {
+      const visSelect = document.getElementById('visualizer_select');
+      const visIds = ['vis_waveform','vis_spectrum','vis_meters','vis_input','vis_fft','vis_sysmon'];
+      function showVisualizer(which) {
+        visIds.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.style.display = (id === 'vis_' + which) ? '' : 'none';
+        });
+      }
+      visSelect.addEventListener('change', function() {
+        showVisualizer(this.value);
       });
-      // Hide stereo-adv block
-      const stereoAdvWrap = document.getElementById('stereo_adv_wrap');
-      if (stereoAdvWrap) stereoAdvWrap.style.display = hobbyist ? 'none' : '';
-    }
-    const hobbyistModeCtl = document.getElementById('ui_hobbyist_mode');
-    if (hobbyistModeCtl) {
-      hobbyistModeCtl.addEventListener('change', () => {
-        updateHobbyistModeVisibility();
-        queueSaveState();
-      });
-    }
-  const programScopedIds = ids.filter((id) => !globalOnlyIds.includes(id));
-  const programScopedBoolIds = boolStateIds.filter((id) => !globalOnlyBoolIds.includes(id));
+      // Show default
+      showVisualizer(visSelect.value);
+    });
+  const ids = ["input_device","preview_mode","sample_rate","wave_window_sec","processor_input_gain_db","bypass_level_match_db","peak_hold_decay","pre_gain_db","post_gain_db","stereo_width","output_limit","hf_tame_db","hf_tame_freq","patch_output_device","fft_input_device","fft_sample_rate","fft_max_hz","ui_theme","ui_custom_css","tab_name_prog1","tab_name_prog2","band1_drive_db","band1_ratio","band1_attack_ms","band1_release_ms","band1_mix","band2_drive_db","band2_ratio","band2_attack_ms","band2_release_ms","band2_mix","band3_drive_db","band3_ratio","band3_attack_ms","band3_release_ms","band3_mix","band4_drive_db","band4_ratio","band4_attack_ms","band4_release_ms","band4_mix","band5_drive_db","band5_ratio","band5_attack_ms","band5_release_ms","band5_mix"];
+  const boolStateIds = ["processing_bypass","enable_momentary_ab","bypass_level_match_enabled","peak_hold_enabled","band1_enabled","band2_enabled","band3_enabled","band4_enabled","band5_enabled"];
+  const programScopedIds = ["input_device","fft_input_device"];
   const rdsIds = ["rds_prog1_ps","rds_prog1_pi","rds_prog1_pty","rds_prog1_rt","rds_prog1_ct_mode","rds_prog2_ps","rds_prog2_pi","rds_prog2_pty","rds_prog2_rt","rds_prog2_ct_mode"];
   const rdsBoolIds = ["rds_prog1_tp","rds_prog1_ta","rds_prog1_ms","rds_prog1_ct_enable","rds_prog2_tp","rds_prog2_ta","rds_prog2_ms","rds_prog2_ct_enable"];
   const rdsLiveTextIds = ["rds_prog1_ct_current","rds_prog1_updated_at","rds_prog2_ct_current","rds_prog2_updated_at"];
@@ -5465,12 +5449,6 @@ PAGE_HTML = """<!doctype html>
   const proLeftRailCtl = document.getElementById("ui_pro_left_rail");
   const analysisPauseBtn = document.getElementById("analysis_pause");
   const analysisStepBtn = document.getElementById("analysis_step");
-  const stereoIndependentCtl = document.getElementById("multiband_stereo_independent");
-  const stereoAdvWrap = document.getElementById("stereo_adv_wrap");
-  const presetSelect = document.getElementById("multiband_preset");
-  const presetApplyBtn = document.getElementById("multiband_preset_apply");
-  const funcHint = document.getElementById("func_hint");
-  const funcNavButtons = Array.from(document.querySelectorAll(".func-nav-btn"));
   let activeProgram = 1;
   let activeTab = 'program1';
   let activeFunctionView = 'agc';
@@ -5571,16 +5549,6 @@ PAGE_HTML = """<!doctype html>
     momentaryWrap.style.display = enabled ? 'block' : 'none';
   }
 
-  function updateLayoutMode(){
-    const pro = !!proLeftRailCtl.checked;
-    document.body.classList.toggle('layout-pro-rail', pro);
-  }
-
-  function updateStereoAdvancedVisibility(){
-    const enabled = !!stereoIndependentCtl.checked;
-    stereoAdvWrap.classList.toggle('active', enabled);
-  }
-
   function updateWaveWindowReadout(){
     const sec = Number(waveWindowCtl.value || 3);
     waveWindowReadout.textContent = `${sec.toFixed(2)} s`;
@@ -5615,56 +5583,56 @@ PAGE_HTML = """<!doctype html>
 
   function applyProgramScopedInputs(program){
     programScopedIds.forEach((id) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const v = currentState[programKey(id, program)] || currentState[id] || el.value;
-      el.value = v;
-    });
-  }
-
-  function applyProgramScopedBools(program){
-    programScopedBoolIds.forEach((id) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const fallback = !!el.checked;
-      const v = (currentState[programKey(id, program)] !== undefined)
-        ? !!currentState[programKey(id, program)]
-        : ((currentState[id] !== undefined) ? !!currentState[id] : fallback);
-      el.checked = !!v;
-    });
-  }
-
-  function setActiveProgram(program){
-    if (program !== 1 && program !== 2) program = 1;
-    persistProgramScopedInputs(activeProgram);
-    persistProgramScopedBools(activeProgram);
-    activeProgram = program;
-    currentState.active_program = activeProgram;
-    applyProgramScopedInputs(activeProgram);
-    applyProgramScopedBools(activeProgram);
-    tabProg1.classList.toggle('active', activeProgram === 1);
-    tabProg2.classList.toggle('active', activeProgram === 2);
-    document.querySelectorAll('.program-field').forEach((el) => {
-      const show = (activeTab !== 'global') && el.classList.contains(`program-${activeProgram}`);
-      el.classList.toggle('active', show);
-    });
-  }
-
-  function setActiveTab(tab){
-    if (!['program1','program2','global'].includes(tab)) tab = 'program1';
-    activeTab = tab;
-    currentState.active_tab = activeTab;
-    tabProg1.classList.toggle('active', tab === 'program1');
-    tabProg2.classList.toggle('active', tab === 'program2');
-    tabGlobal.classList.toggle('active', tab === 'global');
-    document.querySelectorAll('.global-field').forEach((el) => {
-      el.classList.toggle('active', tab === 'global');
-    });
-    const funcNav = document.getElementById('func_nav');
-    if (funcNav) funcNav.style.display = (tab === 'global') ? 'none' : 'flex';
-    if (funcHint) funcHint.style.display = (tab === 'global') ? 'none' : 'block';
-    if (tab === 'global') setFunctionView('all'); else setFunctionView(activeFunctionView || 'agc');
-    setActiveProgram(activeProgram);
+        <h1>oMPX Live Control + Patch Preview</h1>
+        <div style=\"margin: 18px 0 18px 0;\">
+          <label for=\"visualizer_select\" style=\"font-size:15px; color:var(--muted);\">Visualizer:</label>
+          <select id=\"visualizer_select\" style=\"width:auto; margin-left:8px;\">
+            <option value=\"waveform\">Output Waveform (L/R)</option>
+            <option value=\"spectrum\">Band Spectrum</option>
+            <option value=\"meters\">Band Meters</option>
+            <option value=\"input\">Input Waveform</option>
+            <option value=\"fft\">MPX FFT Snapshot</option>
+          </select>
+        </div>
+        <div class=\"card\" id=\"visualizer_card\" style=\"margin-bottom:24px;\">
+          <div id=\"vis_waveform\">
+            <label style=\"margin-top:12px\">Output Waveform (L)</label>
+            <canvas id=\"wave_out_l\" width=\"900\" height=\"120\"></canvas>
+            <label style=\"margin-top:12px\">Output Waveform (R)</label>
+            <canvas id=\"wave_out_r\" width=\"900\" height=\"120\"></canvas>
+          </div>
+          <div id=\"vis_spectrum\" style=\"display:none\;\">
+            <label style=\"margin-top:12px\">Band Spectrum</label>
+            <canvas id=\"spec\" width=\"900\" height=\"140\"></canvas>
+          </div>
+          <div id=\"vis_meters\" style=\"display:none\;\">
+            <label style=\"margin-top:12px\">Processor Band Meters</label>
+            <div class=\"meter-grid\" id=\"band_meters\"> ...existing code... </div>
+          </div>
+          <div id=\"vis_input\" style=\"display:none\;\">
+            <label style=\"margin-top:12px\">Input Waveform</label>
+            <canvas id=\"wave_in\" width=\"900\" height=\"120\"></canvas>
+          </div>
+          <div id=\"vis_fft\" style=\"display:none\;\">
+            <label style=\"margin-top:12px\">MPX FFT Snapshot (server-side)</label>
+            <div style=\"position:relative; border:1px solid #2a4f47; border-radius:8px; overflow:hidden; background:#0a1412;\"> 
+              <img id=\"fft_img\" alt=\"MPX FFT\" style=\"display:block; width:100%; height:120px; object-fit:fill;\" />
+              <div id=\"pilot_marker\" style=\"position:absolute; top:0; bottom:0; width:2px; background:#f2b642; opacity:0.9;\"></div>
+              <div id=\"sub_marker\" style=\"position:absolute; top:0; bottom:0; width:2px; background:#52d3c7; opacity:0.9;\"></div>
+              <div style=\"position:absolute; top:6px; left:8px; font-size:11px; color:#f2b642; background:#0008; padding:2px 6px; border-radius:4px;\">19 kHz pilot</div>
+              <div style=\"position:absolute; top:6px; left:120px; font-size:11px; color:#52d3c7; background:#0008; padding:2px 6px; border-radius:4px;\">38 kHz L-R DSB</div>
+            </div>
+          </div>
+          <div id=\"vis_sysmon\" style=\"display:none\;\">
+            <label style=\"margin-top:12px\">System Monitor</label>
+            <div class=\"status\" id=\"cpu_status\">CPU: pending...</div>
+            <div class=\"status\" id=\"mem_status\">Memory: pending...</div>
+          </div>
+        </div>
+        <div class=\"grid\"> 
+          <div class=\"card\"> 
+            ...existing code for controls card...
+          </div>
   }
 
   async function loadState(){
@@ -5687,9 +5655,6 @@ PAGE_HTML = """<!doctype html>
     setActiveTab(String(data.active_tab || `program${Number(data.active_program || 1)}`));
     updateWaveWindowReadout();
     updateMomentaryControlVisibility();
-    updateLayoutMode();
-    updateStereoAdvancedVisibility();
-    updateHobbyistModeVisibility();
     applyTheme(data.ui_theme || 'forest');
     applyCustomCss(data.ui_custom_css || '');
     await loadRdsState();
@@ -5884,6 +5849,10 @@ PAGE_HTML = """<!doctype html>
     updateStereoAdvancedVisibility();
     queueSaveState();
   });
+  stereoIndependentCtl.addEventListener('change', () => {
+    updateStereoAdvancedVisibility();
+    saveState().catch(()=>{});
+  });
   waveWindowCtl.addEventListener('input', () => {
     updateWaveWindowReadout();
     queueSaveState();
@@ -5998,36 +5967,19 @@ PAGE_HTML = """<!doctype html>
     setStatus('RDS overrides applied. rds-sync services will use them on next sync cycle.');
   };
 
-  const ctxOut = new (window.AudioContext || window.webkitAudioContext)();
-  const srcOut = ctxOut.createMediaElementSource(audio);
-  const analyserOut = ctxOut.createAnalyser();
-  analyserOut.fftSize = 2048;
-  srcOut.connect(analyserOut);
-  analyserOut.connect(ctxOut.destination);
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = ctx.createMediaElementSource(audio);
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 2048;
+  src.connect(analyser);
+  analyser.connect(ctx.destination);
 
-  const ctxIn = new (window.AudioContext || window.webkitAudioContext)();
-  const srcIn = ctxIn.createMediaElementSource(audioInput);
-  const analyserIn = ctxIn.createAnalyser();
-  analyserIn.fftSize = 2048;
-  srcIn.connect(analyserIn);
-  const inSilentGain = ctxIn.createGain();
-  inSilentGain.gain.value = 0.0;
-  analyserIn.connect(inSilentGain);
-  inSilentGain.connect(ctxIn.destination);
-
-  const waveIn = document.getElementById('wave_in');
-  // const waveIn = document.getElementById('wave_in');
-  const waveOutL = document.getElementById('wave_out_l');
-  const waveOutR = document.getElementById('wave_out_r');
+  const wave = document.getElementById('wave');
   const spec = document.getElementById('spec');
-  const wctxIn = waveIn.getContext('2d');
-  // const wctxIn = waveIn.getContext('2d');
-  const wctxOutL = waveOutL.getContext('2d');
-  const wctxOutR = waveOutR.getContext('2d');
+  const wctx = wave.getContext('2d');
   const sctx = spec.getContext('2d');
-  const timeDataOut = new Uint8Array(analyserOut.fftSize);
-  // const timeDataIn = new Uint8Array(analyserIn.fftSize);
-  const freqData = new Uint8Array(analyserOut.frequencyBinCount);
+  const timeData = new Uint8Array(analyser.fftSize);
+  const freqData = new Uint8Array(analyser.frequencyBinCount);
   const bandDefs = [
     {name:'sub', lo:30, hi:120},
     {name:'low', lo:120, hi:400},
@@ -6061,26 +6013,11 @@ PAGE_HTML = """<!doctype html>
   }
 
   function renderAnalysisFrame(){
-    analyserOut.getByteTimeDomainData(timeDataOut);
-    // Split timeDataOut into L and R channels (assume even indices = L, odd = R)
-    const lData = [];
-    const rData = [];
-    for (let i = 0; i < timeDataOut.length - 1; i += 2) {
-      lData.push(timeDataOut[i]);
-      rData.push(timeDataOut[i + 1]);
-    }
-    // Maintain separate histories for L and R
-    if (!window.waveHistoryOutL) window.waveHistoryOutL = [];
-    if (!window.waveHistoryOutR) window.waveHistoryOutR = [];
-    captureWaveHistory(lData, window.waveHistoryOutL, false);
-    captureWaveHistory(rData, window.waveHistoryOutR, false);
-    drawWaveFromHistory(window.waveHistoryOutL, waveOutL, wctxOutL, '#f2b642');
-    drawWaveFromHistory(window.waveHistoryOutR, waveOutR, wctxOutR, '#52d3c7');
-    // Input waveform and FFT are removed/disabled.
-    // drawWaveFromHistory(waveHistoryIn, waveIn, wctxIn, '#52d3c7');
-    // drawWaveFromHistory(waveHistoryOut, waveOut, wctxOut, '#f2b642');
+    analyser.getByteTimeDomainData(timeData);
+    captureWaveHistory();
+    drawWaveFromHistory();
 
-    analyserOut.getByteFrequencyData(freqData);
+    analyser.getByteFrequencyData(freqData);
     sctx.fillStyle = '#07110f';
     sctx.fillRect(0,0,spec.width,spec.height);
     const bars = 64;
