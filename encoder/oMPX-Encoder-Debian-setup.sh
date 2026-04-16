@@ -93,8 +93,9 @@ ICECAST_PORT="${ICECAST_PORT:-8000}"
 ICECAST_SOURCE_USER="${ICECAST_SOURCE_USER:-source}"
 ICECAST_PASSWORD="${ICECAST_PASSWORD:-hackme}"
 ICECAST_ADMIN_USER="${ICECAST_ADMIN_USER:-admin}"
-ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx.ogg}"
+ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
+ICECAST_BIT_DEPTH="${ICECAST_BIT_DEPTH:-16}"
 ICECAST_CODEC="flac"
 # ICECAST_MODE: local | remote | disabled
 ICECAST_MODE="${ICECAST_MODE:-disabled}"
@@ -164,6 +165,10 @@ fi
 if ! [[ "${INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
   echo "[WARNING] Invalid INGEST_DELAY_SEC='${INGEST_DELAY_SEC}'; defaulting to 10"
   INGEST_DELAY_SEC="10"
+fi
+if ! [[ "${ICECAST_BIT_DEPTH}" =~ ^(16|24)$ ]]; then
+  echo "[WARNING] Invalid ICECAST_BIT_DEPTH='${ICECAST_BIT_DEPTH}'; defaulting to 16"
+  ICECAST_BIT_DEPTH="16"
 fi
 if [ -n "${P1_INGEST_DELAY_SEC}" ] && ! [[ "${P1_INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
   echo "[WARNING] Invalid P1_INGEST_DELAY_SEC='${P1_INGEST_DELAY_SEC}'; using INGEST_DELAY_SEC (${INGEST_DELAY_SEC})"
@@ -481,8 +486,8 @@ configure_icecast_dialog(){
       ICECAST_SOURCE_USER="${_ice_source_user:-source}"
       read -t 60 -p "Icecast source password (default hackme): " _ice_pass || _ice_pass=""
       ICECAST_PASSWORD="${_ice_pass:-hackme}"
-      read -t 60 -p "Mount point (default /mpx.ogg): " _ice_mount || _ice_mount=""
-      _ice_mount="${_ice_mount:-mpx.ogg}"; ICECAST_MOUNT="/${_ice_mount#/}"
+      read -t 60 -p "Mount point (default /mpx): " _ice_mount || _ice_mount=""
+      _ice_mount="${_ice_mount:-mpx}"; ICECAST_MOUNT="/${_ice_mount#/}"
       read -t 60 -p "Icecast admin username (default admin): " _ice_admin_user || _ice_admin_user=""
       ICECAST_ADMIN_USER="${_ice_admin_user:-admin}"
       read -t 60 -p "Icecast admin password (default admin): " _ice_admin || _ice_admin=""
@@ -509,8 +514,8 @@ configure_icecast_dialog(){
         echo "[WARNING] No password entered — Icecast mode set to disabled"; ICECAST_MODE="disabled"; return
       fi
       ICECAST_PASSWORD="${_ice_pass}"
-      read -t 60 -p "Mount point (default /mpx.ogg): " _ice_mount || _ice_mount=""
-      _ice_mount="${_ice_mount:-mpx.ogg}"; ICECAST_MOUNT="/${_ice_mount#/}"
+      read -t 60 -p "Mount point (default /mpx): " _ice_mount || _ice_mount=""
+      _ice_mount="${_ice_mount:-mpx}"; ICECAST_MOUNT="/${_ice_mount#/}"
       echo "[INFO] Remote Icecast push → ${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
       ;;
     *)
@@ -523,9 +528,17 @@ configure_icecast_dialog(){
   read -t 60 -p "Output sample rate Hz (default 192000, use 48000 for standard): " _ice_sr || _ice_sr=""
   [[ "${_ice_sr}" =~ ^[0-9]+$ ]] && ICECAST_SAMPLE_RATE="${_ice_sr}" || ICECAST_SAMPLE_RATE=192000
   echo "[INFO] Icecast encoder sample rate: ${ICECAST_SAMPLE_RATE} Hz"
+  read -t 60 -p "FLAC transport bit depth [16/24] (default 16): " _ice_bits || _ice_bits=""
+  if [[ "${_ice_bits}" =~ ^(16|24)$ ]]; then
+    ICECAST_BIT_DEPTH="${_ice_bits}"
+  else
+    [ -n "${_ice_bits}" ] && echo "[WARNING] Invalid bit depth '${_ice_bits}', defaulting to 16"
+    ICECAST_BIT_DEPTH="16"
+  fi
+  echo "[INFO] Icecast FLAC transport bit depth: ${ICECAST_BIT_DEPTH}-bit"
   ICECAST_CODEC="flac"
   if [ -z "${ICECAST_MOUNT:-}" ]; then
-    ICECAST_MOUNT="/mpx.ogg"
+    ICECAST_MOUNT="/mpx"
   fi
   echo "[INFO] Icecast codec fixed to FLAC-in-Ogg for broad player compatibility (${ICECAST_MOUNT})"
 
@@ -1250,6 +1263,7 @@ ICECAST_PASSWORD="${ICECAST_PASSWORD}"
 ICECAST_ADMIN_USER="${ICECAST_ADMIN_USER}"
 ICECAST_MOUNT="${ICECAST_MOUNT}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE}"
+ICECAST_BIT_DEPTH="${ICECAST_BIT_DEPTH}"
 ICECAST_CODEC="${ICECAST_CODEC}"
 ENABLE_DSCA_SINKS="${ENABLE_DSCA_SINKS}"
 ENABLE_PREVIEW_SINKS="${ENABLE_PREVIEW_SINKS}"
@@ -1767,7 +1781,7 @@ if [ -t 0 ]; then
   echo ""
   echo "Streaming ingest engine is fixed to FFmpeg."
   echo "  Reason: simpler runtime, fewer moving parts, no Liquidsoap dependency."
-  echo "[INFO] Ingest can be any decodable format; non-MPX sink sample rate defaults to ${NON_MPX_SAMPLE_RATE} Hz; Icecast output is fixed to FLAC at ${ICECAST_SAMPLE_RATE} Hz."
+  echo "[INFO] Ingest can be any decodable format; non-MPX sink sample rate defaults to ${NON_MPX_SAMPLE_RATE} Hz; Icecast output is fixed to FLAC-in-Ogg at ${ICECAST_SAMPLE_RATE} Hz, ${ICECAST_BIT_DEPTH}-bit."
   STREAM_ENGINE="ffmpeg"
   echo "[INFO] Selected streaming engine: ${STREAM_ENGINE}"
   read -t 30 -p "Enable DSCA sinks/cards? [y/N] (default N): " cfg_dsca || cfg_dsca="N"
@@ -2685,8 +2699,9 @@ ICECAST_HOST="${ICECAST_HOST:-127.0.0.1}"
 ICECAST_PORT="${ICECAST_PORT:-8000}"
 ICECAST_SOURCE_USER="${ICECAST_SOURCE_USER:-source}"
 ICECAST_PASSWORD="${ICECAST_PASSWORD:-hackme}"
-ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx.ogg}"
+ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
+ICECAST_BIT_DEPTH="${ICECAST_BIT_DEPTH:-16}"
 ICECAST_CODEC="flac"
 ICECAST_MODE="${ICECAST_MODE:-disabled}"
 ST_OUT_P1="${ST_OUT_P1:-ompx_prg1mpx_cap}"
@@ -2725,9 +2740,17 @@ fi
 
 _log "P1 source: ${ST_OUT_P1}"
 _log "P2 source: ${ST_OUT_P2} (enabled: ${PROGRAM2_ENABLED}, available: ${P2_AVAILABLE})"
-_log "Icecast: FLAC-in-Ogg ${ICECAST_SAMPLE_RATE}Hz → icecast://${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
+if [ "${ICECAST_BIT_DEPTH}" = "24" ]; then
+  FLAC_SAMPLE_FMT="s32"
+  FLAC_BITS_PER_RAW="24"
+else
+  FLAC_SAMPLE_FMT="s16"
+  FLAC_BITS_PER_RAW="16"
+  ICECAST_BIT_DEPTH="16"
+fi
+_log "Icecast: FLAC-in-Ogg ${ICECAST_SAMPLE_RATE}Hz ${ICECAST_BIT_DEPTH}-bit → icecast://${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
 
-CODEC_ARGS=(-c:a flac -compression_level 0 -content_type audio/ogg -f ogg)
+CODEC_ARGS=(-c:a flac -compression_level 0 -sample_fmt "${FLAC_SAMPLE_FMT}" -bits_per_raw_sample "${FLAC_BITS_PER_RAW}" -content_type audio/ogg -f ogg)
 
 if [ "${P2_AVAILABLE}" -eq 1 ]; then
   # Both programs available: P1 mono → L, P2 mono → R
