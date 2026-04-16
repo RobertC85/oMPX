@@ -2493,7 +2493,7 @@ fi
 if ! [[ "\${CHANNEL_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
   CHANNEL_DELAY_SEC=0
 fi
-INGEST_DELAY_MS=$((\${CHANNEL_DELAY_SEC} * 1000))
+INGEST_DELAY_MS=\$((CHANNEL_DELAY_SEC * 1000))
 if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
   if [ "${n}" = "1" ]; then
     SINK_NAME="plughw:${LOOPBACK_CARD_REF},0,0"
