@@ -1,24 +1,27 @@
-    <div class="row" style="margin-top:8px">
-      <button id="apply_mpx_prog1" class="program-field program-1">Apply to MPX (Program 1)</button>
-      <button id="apply_mpx_prog2" class="program-field program-2">Apply to MPX (Program 2)</button>
-  document.getElementById('apply_mpx_prog1').onclick = async () => {
-    await saveState();
-    const payload = collect();
-    payload.program = 1;
-    const r = await fetch('/api/apply_mpx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-    const j = await r.json();
-    setStatus(j.message || 'Applied to MPX (Program 1).');
-  };
-  document.getElementById('apply_mpx_prog2').onclick = async () => {
-    await saveState();
-    const payload = collect();
-    payload.program = 2;
-    const r = await fetch('/api/apply_mpx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-    const j = await r.json();
-    setStatus(j.message || 'Applied to MPX (Program 2).');
-  };
 #!/usr/bin/env bash
 set -euo pipefail
+# --- Embedded web UI and backend below this line ---
+cat <<'__END_WEBUI__' > /dev/null
+<div class="row" style="margin-top:8px">
+  <button id="apply_mpx_prog1" class="program-field program-1">Apply to MPX (Program 1)</button>
+  <button id="apply_mpx_prog2" class="program-field program-2">Apply to MPX (Program 2)</button>
+document.getElementById('apply_mpx_prog1').onclick = async () => {
+  await saveState();
+  const payload = collect();
+  payload.program = 1;
+  const r = await fetch('/api/apply_mpx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+  const j = await r.json();
+  setStatus(j.message || 'Applied to MPX (Program 1).');
+};
+document.getElementById('apply_mpx_prog2').onclick = async () => {
+  await saveState();
+  const payload = collect();
+  payload.program = 2;
+  const r = await fetch('/api/apply_mpx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+  const j = await r.json();
+  setStatus(j.message || 'Applied to MPX (Program 2).');
+};
+__END_WEBUI__
 # oMPX unified installer + ALSA asound.conf setup (192kHz sample rate, 80kHz subcarrier frequency)
 # Requires: Debian/Ubuntu or bare metal with standard kernel (not Proxmox PVE, and yes we know Proxmox is based on Debian, but their custom kernel often lacks snd_aloop which is critical for this setup)
 # For best results, use a standard Debian kernel (linux-image-amd64) that includes snd_aloop
