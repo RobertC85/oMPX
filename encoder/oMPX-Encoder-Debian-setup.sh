@@ -133,30 +133,6 @@ OMPX_USER_PASSWORD="${OMPX_USER_PASSWORD:-}"
 MODULES_DIR="${MODULES_DIR:-${REPO_ROOT}/modules}"
 MULTIBAND_PROFILE="${MULTIBAND_PROFILE:-waxdreams2-5band}"
 OMPX_STEREO_BACKEND="${OMPX_STEREO_BACKEND:-ompx-mpx}"
-
-# Patch: Always use web UI-selected profile and open-source chain unless Stereo Tool is explicitly selected
-# This ensures the main output and preview both use the same profile and processing chain
-# Only use Stereo Tool if OMPX_STEREO_BACKEND=stereotool
-
-# Per-program settings: allow separate gain/profile for each program
-# Fallback to global if per-program not set
-MULTIBAND_PROFILE_P1="${MULTIBAND_PROFILE_P1:-${MULTIBAND_PROFILE}}"
-MULTIBAND_PROFILE_P2="${MULTIBAND_PROFILE_P2:-${MULTIBAND_PROFILE}}"
-POST_GAIN_DB_P1="${POST_GAIN_DB_P1:-6}"
-POST_GAIN_DB_P2="${POST_GAIN_DB_P2:-6}"
-
-export MULTIBAND_PROFILE_P1 MULTIBAND_PROFILE_P2
-export POST_GAIN_DB_P1 POST_GAIN_DB_P2
-
-if [ "${OMPX_STEREO_BACKEND}" = "stereotool" ]; then
-  echo "[INFO] Using Stereo Tool for main output (user-selected)"
-  # Stereo Tool chain is already handled elsewhere
-else
-  echo "[INFO] Using open-source chain (multiband_agc.sh) for main output"
-  echo "[INFO] Program 1: MULTIBAND_PROFILE_P1=${MULTIBAND_PROFILE_P1}, POST_GAIN_DB_P1=${POST_GAIN_DB_P1}"
-  echo "[INFO] Program 2: MULTIBAND_PROFILE_P2=${MULTIBAND_PROFILE_P2}, POST_GAIN_DB_P2=${POST_GAIN_DB_P2}"
-  # Optionally, set any other parameters here if needed
-fi
 OMPX_WRAPPER_RDS_ENABLE="${OMPX_WRAPPER_RDS_ENABLE:-false}"
 OMPX_WRAPPER_RDS_ENCODER_CMD="${OMPX_WRAPPER_RDS_ENCODER_CMD:-}"
 OMPX_WRAPPER_SAMPLE_RATE="${OMPX_WRAPPER_SAMPLE_RATE:-192000}"
@@ -164,7 +140,7 @@ OMPX_WRAPPER_PILOT_LEVEL="${OMPX_WRAPPER_PILOT_LEVEL:-0.09}"
 OMPX_WRAPPER_RDS_LEVEL="${OMPX_WRAPPER_RDS_LEVEL:-0.03}"
 OMPX_WRAPPER_PRESET="${OMPX_WRAPPER_PRESET:-balanced}"
 OMPX_FM_PREEMPHASIS="${OMPX_FM_PREEMPHASIS:-75}"
-OMPX_WEB_UI_ENABLE="${OMPX_WEB_UI_ENABLE:-true}"
+OMPX_WEB_UI_ENABLE="${OMPX_WEB_UI_ENABLE:-false}"
 OMPX_WEB_BIND="${OMPX_WEB_BIND:-0.0.0.0}"
 OMPX_WEB_PORT="${OMPX_WEB_PORT:-8082}"
 OMPX_WEB_WHITELIST="${OMPX_WEB_WHITELIST:-127.0.0.1/32,10.0.0.0/8,192.168.0.0/16}"
@@ -189,10 +165,10 @@ ICECAST_CODEC="flac"
 # ICECAST_MODE: local | remote | disabled
 ICECAST_MODE="${ICECAST_MODE:-disabled}"
 # ICECAST_INPUT_MODE: auto | alsa | direct_urls
-ICECAST_INPUT_MODE="alsa"
+ICECAST_INPUT_MODE="${ICECAST_INPUT_MODE:-auto}"
 # ALSA capture endpoints Stereo Tool Enterprise writes its processed output to
-ST_OUT_P1="ompx_prg1in"
-ST_OUT_P2="ompx_prg2in"
+ST_OUT_P1="${ST_OUT_P1:-ompx_prg1mpx_cap}"
+ST_OUT_P2="${ST_OUT_P2:-ompx_prg2mpx_cap}"
 RDS_PROG1_ENABLE="${RDS_PROG1_ENABLE:-false}"
 RDS_PROG1_SOURCE="${RDS_PROG1_SOURCE:-url}"
 RDS_PROG1_RT_URL="${RDS_PROG1_RT_URL:-}"
@@ -4989,72 +4965,9 @@ class Handler(BaseHTTPRequestHandler):
       self.end_headers()
       self.wfile.write(out)
       return
-    if self.path == "/api/apply_mpx":
-      # Accepts: { program: 1|2, ...settings... }
-      prog = int(payload.get("program", 0))
-      if prog not in (1, 2):
-        self._send_json({"ok": False, "message": "Invalid program number"}, status=HTTPStatus.BAD_REQUEST)
-        return
-      # Extract relevant settings
-      profile = payload.get("profile") or payload.get("multiband_profile") or payload.get("MULTIBAND_PROFILE")
-      post_gain = payload.get("post_gain_db") or payload.get("POST_GAIN_DB")
-      # Fallback to UI fields if present
-      if not profile:
-        profile = payload.get("MULTIBAND_PROFILE_P%d" % prog) or payload.get("multiband_profile_p%d" % prog)
-      if not post_gain:
-        post_gain = payload.get("POST_GAIN_DB_P%d" % prog) or payload.get("post_gain_db_p%d" % prog)
-      # Accept UI field for post_gain
-      if not post_gain:
-        post_gain = payload.get("post_gain_db")
-      # Update persistent state
-      with STATE_LOCK:
-        state = load_state()
-        if prog == 1:
-          if profile: state["MULTIBAND_PROFILE_P1"] = profile
-          if post_gain: state["POST_GAIN_DB_P1"] = post_gain
-        else:
-          if profile: state["MULTIBAND_PROFILE_P2"] = profile
-          if post_gain: state["POST_GAIN_DB_P2"] = post_gain
-        save_state(state)
-      # Write to .profile for environment propagation
-      profile_path = "/home/ompx/.profile"
-      def replace_or_add_line(lines, key, value):
-        found = False
-        for i, line in enumerate(lines):
-          if line.startswith(f"{key}="):
-            lines[i] = f'{key}="{value}"
-
-            found = True
-        if not found:
-          lines.append(f'{key}="{value}"
-  def do_POST(self):
-        return lines
-      try:
-        with open(profile_path, "r") as f:
-          lines = f.readlines()
-      except Exception:
-        lines = []
-      if prog == 1:
-        if profile: lines = replace_or_add_line(lines, "MULTIBAND_PROFILE_P1", profile)
-        if post_gain: lines = replace_or_add_line(lines, "POST_GAIN_DB_P1", post_gain)
-      else:
-        if profile: lines = replace_or_add_line(lines, "MULTIBAND_PROFILE_P2", profile)
-        if post_gain: lines = replace_or_add_line(lines, "POST_GAIN_DB_P2", post_gain)
-      try:
-        with open(profile_path, "w") as f:
-          f.writelines(lines)
-      except Exception:
-        pass
-      # Restart processing chain (systemd service or script)
-      import subprocess
-      try:
-        subprocess.run(["systemctl", "restart", "mpx-processing-alsa.service"], check=True)
-        msg = f"Applied to MPX (Program {prog}) and restarted processing."
-      except Exception as e:
-        msg = f"Applied to MPX (Program {prog}), but failed to restart processing: {e}"
-      self._send_json({"ok": True, "message": msg})
-      return
     self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+
+  def do_POST(self):
     if self._deny_if_needed():
       return
     length = int(self.headers.get("Content-Length", "0"))
@@ -6512,17 +6425,6 @@ chmod 644 "${RDS_SYNC_PROG2_SERVICE}"
 chown root:root "${RDS_SYNC_PROG2_SERVICE}"
 echo "[SUCCESS] Installed rds-sync-prog2.service"
 
-SERVICE_SRC="${INSTALLER_DIR}/ompx-web-ui.service"
-SERVICE_DST="/etc/systemd/system/ompx-web-ui.service"
-if [ -f "$SERVICE_SRC" ]; then
-  echo "[INFO] Installing ompx-web-ui.service to $SERVICE_DST..."
-  cp "$SERVICE_SRC" "$SERVICE_DST"
-  chmod 644 "$SERVICE_DST"
-  chown root:root "$SERVICE_DST"
-  echo "[SUCCESS] Installed ompx-web-ui.service"
-else
-  echo "[WARNING] ompx-web-ui.service not found in $SERVICE_SRC, skipping install."
-fi
 # --- Startup integration ---
 if has_systemd; then
 echo "[INFO] Enabling and starting systemd services..."
