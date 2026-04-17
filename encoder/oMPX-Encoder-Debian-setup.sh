@@ -1,3 +1,22 @@
+    <div class="row" style="margin-top:8px">
+      <button id="apply_mpx_prog1" class="program-field program-1">Apply to MPX (Program 1)</button>
+      <button id="apply_mpx_prog2" class="program-field program-2">Apply to MPX (Program 2)</button>
+  document.getElementById('apply_mpx_prog1').onclick = async () => {
+    await saveState();
+    const payload = collect();
+    payload.program = 1;
+    const r = await fetch('/api/apply_mpx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+    const j = await r.json();
+    setStatus(j.message || 'Applied to MPX (Program 1).');
+  };
+  document.getElementById('apply_mpx_prog2').onclick = async () => {
+    await saveState();
+    const payload = collect();
+    payload.program = 2;
+    const r = await fetch('/api/apply_mpx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+    const j = await r.json();
+    setStatus(j.message || 'Applied to MPX (Program 2).');
+  };
 #!/usr/bin/env bash
 set -euo pipefail
 # oMPX unified installer + ALSA asound.conf setup (192kHz sample rate, 80kHz subcarrier frequency)
@@ -4989,9 +5008,72 @@ class Handler(BaseHTTPRequestHandler):
       self.end_headers()
       self.wfile.write(out)
       return
-    self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+    if self.path == "/api/apply_mpx":
+      # Accepts: { program: 1|2, ...settings... }
+      prog = int(payload.get("program", 0))
+      if prog not in (1, 2):
+        self._send_json({"ok": False, "message": "Invalid program number"}, status=HTTPStatus.BAD_REQUEST)
+        return
+      # Extract relevant settings
+      profile = payload.get("profile") or payload.get("multiband_profile") or payload.get("MULTIBAND_PROFILE")
+      post_gain = payload.get("post_gain_db") or payload.get("POST_GAIN_DB")
+      # Fallback to UI fields if present
+      if not profile:
+        profile = payload.get("MULTIBAND_PROFILE_P%d" % prog) or payload.get("multiband_profile_p%d" % prog)
+      if not post_gain:
+        post_gain = payload.get("POST_GAIN_DB_P%d" % prog) or payload.get("post_gain_db_p%d" % prog)
+      # Accept UI field for post_gain
+      if not post_gain:
+        post_gain = payload.get("post_gain_db")
+      # Update persistent state
+      with STATE_LOCK:
+        state = load_state()
+        if prog == 1:
+          if profile: state["MULTIBAND_PROFILE_P1"] = profile
+          if post_gain: state["POST_GAIN_DB_P1"] = post_gain
+        else:
+          if profile: state["MULTIBAND_PROFILE_P2"] = profile
+          if post_gain: state["POST_GAIN_DB_P2"] = post_gain
+        save_state(state)
+      # Write to .profile for environment propagation
+      profile_path = "/home/ompx/.profile"
+      def replace_or_add_line(lines, key, value):
+        found = False
+        for i, line in enumerate(lines):
+          if line.startswith(f"{key}="):
+            lines[i] = f'{key}="{value}"
 
+            found = True
+        if not found:
+          lines.append(f'{key}="{value}"
   def do_POST(self):
+        return lines
+      try:
+        with open(profile_path, "r") as f:
+          lines = f.readlines()
+      except Exception:
+        lines = []
+      if prog == 1:
+        if profile: lines = replace_or_add_line(lines, "MULTIBAND_PROFILE_P1", profile)
+        if post_gain: lines = replace_or_add_line(lines, "POST_GAIN_DB_P1", post_gain)
+      else:
+        if profile: lines = replace_or_add_line(lines, "MULTIBAND_PROFILE_P2", profile)
+        if post_gain: lines = replace_or_add_line(lines, "POST_GAIN_DB_P2", post_gain)
+      try:
+        with open(profile_path, "w") as f:
+          f.writelines(lines)
+      except Exception:
+        pass
+      # Restart processing chain (systemd service or script)
+      import subprocess
+      try:
+        subprocess.run(["systemctl", "restart", "mpx-processing-alsa.service"], check=True)
+        msg = f"Applied to MPX (Program {prog}) and restarted processing."
+      except Exception as e:
+        msg = f"Applied to MPX (Program {prog}), but failed to restart processing: {e}"
+      self._send_json({"ok": True, "message": msg})
+      return
+    self.send_error(HTTPStatus.NOT_FOUND, "Not found")
     if self._deny_if_needed():
       return
     length = int(self.headers.get("Content-Length", "0"))
