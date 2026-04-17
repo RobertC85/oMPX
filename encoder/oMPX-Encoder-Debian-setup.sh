@@ -5267,13 +5267,7 @@ PAGE_HTML = """<!doctype html>
       <div class=\"meter-row\"><span class=\"name\">Air (6k-15k)</span><div class=\"meter-track\"><div id=\"meter_air\" class=\"meter-fill\"></div></div><span id=\"meter_air_db\" class=\"db\">-inf dB</span></div>
     </div>
     <label style=\"margin-top:12px\">MPX FFT Snapshot (server-side)</label>
-    <div style=\"position:relative; border:1px solid #2a4f47; border-radius:8px; overflow:hidden; background:#0a1412;\">
-      <img id=\"fft_img\" alt=\"MPX FFT\" style=\"display:block; width:100%; height:300px; object-fit:fill;\" />
-      <div id=\"pilot_marker\" style=\"position:absolute; top:0; bottom:0; width:2px; background:#f2b642; opacity:0.9;\"></div>
-      <div id=\"sub_marker\" style=\"position:absolute; top:0; bottom:0; width:2px; background:#52d3c7; opacity:0.9;\"></div>
-      <div style=\"position:absolute; top:6px; left:8px; font-size:11px; color:#f2b642; background:#0008; padding:2px 6px; border-radius:4px;\">19 kHz pilot</div>
-      <div style=\"position:absolute; top:6px; left:120px; font-size:11px; color:#52d3c7; background:#0008; padding:2px 6px; border-radius:4px;\">38 kHz L-R DSB</div>
-    </div>
+    <!-- FFT visualizer removed -->
     </div>
   </div>
   </div>
@@ -5286,9 +5280,6 @@ PAGE_HTML = """<!doctype html>
   const rdsLiveTextIds = ["rds_prog1_ct_current","rds_prog1_updated_at","rds_prog2_ct_current","rds_prog2_updated_at"];
   const st = document.getElementById("status");
   const audio = document.getElementById("audio");
-  const fftImg = document.getElementById("fft_img");
-  const pilotMarker = document.getElementById("pilot_marker");
-  const subMarker = document.getElementById("sub_marker");
   const customCssTag = document.getElementById("ui_custom_css_tag");
   const tabProg1 = document.getElementById("tab_prog1");
   const tabProg2 = document.getElementById("tab_prog2");
@@ -5496,7 +5487,8 @@ PAGE_HTML = """<!doctype html>
   }
 
   function startRdsLoop(){
-    setInterval(() => {
+    if (window.rdsPollTimer) clearInterval(window.rdsPollTimer);
+    window.rdsPollTimer = setInterval(() => {
       loadRdsState().catch(()=>{});
     }, 2000);
   }
