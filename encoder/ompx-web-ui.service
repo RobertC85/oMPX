@@ -6,6 +6,7 @@ After=network.target
 Type=simple
 User=ompx
 WorkingDirectory=/workspaces/oMPX/encoder
+Environment=OMPX_WEB_PORT=8082
 ExecStart=/usr/bin/python3 /workspaces/oMPX/encoder/ompx-web-ui.py
 Restart=on-failure
 
