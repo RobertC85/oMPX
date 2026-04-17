@@ -3401,7 +3401,7 @@ else
 fi
 _log "Icecast: FLAC-in-Ogg ${ICECAST_SAMPLE_RATE}Hz ${ICECAST_BIT_DEPTH}-bit → icecast://${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
 
-CODEC_ARGS=(-c:a flac -compression_level 0 -sample_fmt "${FLAC_SAMPLE_FMT}" -bits_per_raw_sample "${FLAC_BITS_PER_RAW}" -content_type audio/ogg -f ogg)
+CODEC_ARGS=(-c:a flac -compression_level 8 -sample_fmt "${FLAC_SAMPLE_FMT}" -bits_per_raw_sample "${FLAC_BITS_PER_RAW}" -content_type audio/ogg -f ogg)
 
 ICECAST_INPUT_MODE="${ICECAST_INPUT_MODE,,}"
 if [ "${ICECAST_INPUT_MODE}" = "auto" ]; then
