@@ -11,6 +11,7 @@ import subprocess
 
 STATE_LOCK = threading.Lock()
 STATE_FILE = "/home/ompx/.ompx_web_state.json"
+STATE_FILE_BACKUP = "/home/ompx/.ompx_web_state.prev.json"
 
 def load_state():
     try:
@@ -20,10 +21,26 @@ def load_state():
         return {}
 
 def save_state(state):
+    # Backup current state before saving new one
+    import shutil
+    try:
+        shutil.copy2(STATE_FILE, STATE_FILE_BACKUP)
+    except Exception:
+        pass
     with open(STATE_FILE, "w") as f:
         json.dump(state, f)
 
 class Handler(BaseHTTPRequestHandler):
+                        if self.path == "/api/undo":
+                            # Restore previous state from backup
+                            import shutil
+                            try:
+                                shutil.copy2(STATE_FILE_BACKUP, STATE_FILE)
+                                msg = "Settings reverted to previous state."
+                            except Exception as e:
+                                msg = f"Failed to revert: {e}"
+                            self._send_json({"ok": True, "message": msg})
+                            return
                 if self.path == "/api/apply_mpx":
                     # Commit settings to main Liquidsoap instance
                     # (Assume settings are in payload, e.g., AGC, gain, etc.)
