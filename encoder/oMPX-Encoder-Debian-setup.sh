@@ -165,10 +165,10 @@ ICECAST_CODEC="flac"
 # ICECAST_MODE: local | remote | disabled
 ICECAST_MODE="${ICECAST_MODE:-disabled}"
 # ICECAST_INPUT_MODE: auto | alsa | direct_urls
-ICECAST_INPUT_MODE="${ICECAST_INPUT_MODE:-auto}"
+ICECAST_INPUT_MODE="alsa"
 # ALSA capture endpoints Stereo Tool Enterprise writes its processed output to
-ST_OUT_P1="${ST_OUT_P1:-ompx_prg1mpx_cap}"
-ST_OUT_P2="${ST_OUT_P2:-ompx_prg2mpx_cap}"
+ST_OUT_P1="ompx_prg1in"
+ST_OUT_P2="ompx_prg2in"
 RDS_PROG1_ENABLE="${RDS_PROG1_ENABLE:-false}"
 RDS_PROG1_SOURCE="${RDS_PROG1_SOURCE:-url}"
 RDS_PROG1_RT_URL="${RDS_PROG1_RT_URL:-}"
