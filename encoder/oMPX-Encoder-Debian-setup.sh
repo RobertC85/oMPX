@@ -152,6 +152,7 @@ OMPX_WEB_KIOSK_DISPLAY="${OMPX_WEB_KIOSK_DISPLAY:-:0}"
 OMPX_WEB_KIOSK_URL="${OMPX_WEB_KIOSK_URL:-}"
 OMPX_WEB_KIOSK_INSTALL_MISSING="false"
 
+MPX_STEREO_FIFO="/tmp/mpx_stereo.pcm"
 # Icecast output (MPX mix → Icecast)
 ICECAST_HOST="${ICECAST_HOST:-127.0.0.1}"
 ICECAST_PORT="${ICECAST_PORT:-8000}"
@@ -162,6 +163,47 @@ ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
 ICECAST_BIT_DEPTH="${ICECAST_BIT_DEPTH:-16}"
 ICECAST_CODEC="flac"
+
+# --- Ensure processed MPX is streamed to Icecast ---
+cat > /usr/local/bin/ompx-icecast-mpx.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+FIFO="/tmp/mpx_stereo.pcm"
+ICECAST_HOST="${ICECAST_HOST:-127.0.0.1}"
+ICECAST_PORT="${ICECAST_PORT:-8000}"
+ICECAST_SOURCE_USER="${ICECAST_SOURCE_USER:-source}"
+ICECAST_PASSWORD="${ICECAST_PASSWORD:-}"
+ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx}"
+ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
+ICECAST_BIT_DEPTH="${ICECAST_BIT_DEPTH:-16}"
+ICECAST_CODEC="flac"
+while [ ! -p "$FIFO" ]; do sleep 1; done
+exec ffmpeg -hide_banner -loglevel warning -f s16le -ar "$ICECAST_SAMPLE_RATE" -ac 2 -i "$FIFO" \
+  -c:a flac -sample_fmt s16 -compression_level 5 \
+  -content_type audio/flac \
+  -ice_name "oMPX MPX" \
+  -f flac "icecast://$ICECAST_SOURCE_USER:$ICECAST_PASSWORD@$ICECAST_HOST:$ICECAST_PORT$ICECAST_MOUNT"
+EOF
+chmod +x /usr/local/bin/ompx-icecast-mpx.sh
+
+# Add systemd service for Icecast streaming
+cat > /etc/systemd/system/ompx-icecast-mpx.service <<'EOF'
+[Unit]
+Description=oMPX MPX to Icecast
+After=network.target run_processing_alsa.service
+
+[Service]
+Type=simple
+User=ompx
+ExecStart=/usr/local/bin/ompx-icecast-mpx.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 644 /etc/systemd/system/ompx-icecast-mpx.service
+systemctl daemon-reload || true
+systemctl enable --now ompx-icecast-mpx.service || true
 # ICECAST_MODE: local | remote | disabled
 ICECAST_MODE="${ICECAST_MODE:-disabled}"
 # ICECAST_INPUT_MODE: auto | alsa | direct_urls
