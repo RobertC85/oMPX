@@ -1,0 +1,13 @@
+[Unit]
+Description=oMPX Web UI Backend
+After=network.target
+
+[Service]
+Type=simple
+User=ompx
+WorkingDirectory=/workspaces/oMPX/encoder
+ExecStart=/usr/bin/python3 /workspaces/oMPX/encoder/ompx-web-ui.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
