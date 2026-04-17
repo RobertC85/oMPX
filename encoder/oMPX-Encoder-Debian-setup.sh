@@ -6512,6 +6512,17 @@ chmod 644 "${RDS_SYNC_PROG2_SERVICE}"
 chown root:root "${RDS_SYNC_PROG2_SERVICE}"
 echo "[SUCCESS] Installed rds-sync-prog2.service"
 
+SERVICE_SRC="${INSTALLER_DIR}/ompx-web-ui.service"
+SERVICE_DST="/etc/systemd/system/ompx-web-ui.service"
+if [ -f "$SERVICE_SRC" ]; then
+  echo "[INFO] Installing ompx-web-ui.service to $SERVICE_DST..."
+  cp "$SERVICE_SRC" "$SERVICE_DST"
+  chmod 644 "$SERVICE_DST"
+  chown root:root "$SERVICE_DST"
+  echo "[SUCCESS] Installed ompx-web-ui.service"
+else
+  echo "[WARNING] ompx-web-ui.service not found in $SERVICE_SRC, skipping install."
+fi
 # --- Startup integration ---
 if has_systemd; then
 echo "[INFO] Enabling and starting systemd services..."
