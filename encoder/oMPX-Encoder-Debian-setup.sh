@@ -1,3 +1,76 @@
+# --- Liquidsoap processing service ---
+cat > /usr/local/bin/ompx-liquidsoap.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+LIQ_SCRIPT="/workspaces/oMPX/encoder/ompx-processing.liq"
+liquidsoap "$LIQ_SCRIPT"
+EOF
+chmod +x /usr/local/bin/ompx-liquidsoap.sh
+
+cat > /etc/systemd/system/ompx-liquidsoap.service <<'EOF'
+[Unit]
+Description=oMPX Liquidsoap Processing
+After=network.target
+
+[Service]
+Type=simple
+User=ompx
+ExecStart=/usr/local/bin/ompx-liquidsoap.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 644 /etc/systemd/system/ompx-liquidsoap.service
+systemctl daemon-reload || true
+systemctl enable --now ompx-liquidsoap.service || true
+
+# --- Update Icecast streaming to use Liquidsoap output ---
+cat > /usr/local/bin/ompx-icecast-mpx.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+ICECAST_HOST="${ICECAST_HOST:-127.0.0.1}"
+ICECAST_PORT="${ICECAST_PORT:-8000}"
+ICECAST_SOURCE_USER="${ICECAST_SOURCE_USER:-source}"
+ICECAST_PASSWORD="${ICECAST_PASSWORD:-}"
+ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx}"
+ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
+ICECAST_BIT_DEPTH="${ICECAST_BIT_DEPTH:-16}"
+ICECAST_CODEC="flac"
+LIQ_PORT=1234
+
+# Wait for Liquidsoap to be ready
+while ! nc -z 127.0.0.1 $LIQ_PORT; do sleep 1; done
+
+liquidsoap --telnet 127.0.0.1:$LIQ_PORT "help" >/dev/null 2>&1 || true
+
+liquidsoap --telnet 127.0.0.1:$LIQ_PORT "help" >/dev/null 2>&1 || true
+
+exec ffmpeg -hide_banner -loglevel warning -f s16le -ar "$ICECAST_SAMPLE_RATE" -ac 2 -i - \
+  -c:a flac -sample_fmt s16 -compression_level 5 \
+  -content_type audio/flac \
+  -ice_name "oMPX MPX" \
+  -f flac "icecast://$ICECAST_SOURCE_USER:$ICECAST_PASSWORD@$ICECAST_HOST:$ICECAST_PORT$ICECAST_MOUNT"
+EOF
+chmod +x /usr/local/bin/ompx-icecast-mpx.sh
+
+cat > /etc/systemd/system/ompx-icecast-mpx.service <<'EOF'
+[Unit]
+Description=oMPX MPX to Icecast (from Liquidsoap)
+After=ompx-liquidsoap.service
+
+[Service]
+Type=simple
+User=ompx
+ExecStart=/usr/local/bin/ompx-icecast-mpx.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 644 /etc/systemd/system/ompx-icecast-mpx.service
+systemctl daemon-reload || true
+systemctl enable --now ompx-icecast-mpx.service || true
 #!/usr/bin/env bash
 set -euo pipefail
 # oMPX unified installer + ALSA asound.conf setup (192kHz sample rate, 80kHz subcarrier frequency)

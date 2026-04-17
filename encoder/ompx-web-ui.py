@@ -83,11 +83,27 @@ class Handler(BaseHTTPRequestHandler):
                     f.writelines(lines)
             except Exception:
                 pass
+            # Apply changes to Liquidsoap via telnet
+            import socket
+            liq_host = "127.0.0.1"
+            liq_port = 1234
+            cmds = []
+            if post_gain:
+                try:
+                    gain_val = float(post_gain)
+                    cmds.append(f"var post_gain = amplify({2**(gain_val/6):.3f}, multiband)\n")
+                except Exception:
+                    pass
+            # Add more parameter updates as needed
+            response = ""
             try:
-                subprocess.run(["systemctl", "restart", "mpx-processing-alsa.service"], check=True)
-                msg = f"Applied to MPX (Program {prog}) and restarted processing."
+                with socket.create_connection((liq_host, liq_port), timeout=2) as s:
+                    for cmd in cmds:
+                        s.sendall(cmd.encode())
+                        response += s.recv(1024).decode()
+                msg = f"Applied to MPX (Program {prog}) and updated Liquidsoap."
             except Exception as e:
-                msg = f"Applied to MPX (Program {prog}), but failed to restart processing: {e}"
+                msg = f"Applied to MPX (Program {prog}), but failed to update Liquidsoap: {e}"
             self._send_json({"ok": True, "message": msg})
             return
         self.send_error(HTTPStatus.NOT_FOUND, "Not found")
