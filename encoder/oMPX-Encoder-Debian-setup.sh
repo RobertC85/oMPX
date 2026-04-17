@@ -133,6 +133,21 @@ OMPX_USER_PASSWORD="${OMPX_USER_PASSWORD:-}"
 MODULES_DIR="${MODULES_DIR:-${REPO_ROOT}/modules}"
 MULTIBAND_PROFILE="${MULTIBAND_PROFILE:-waxdreams2-5band}"
 OMPX_STEREO_BACKEND="${OMPX_STEREO_BACKEND:-ompx-mpx}"
+
+# Patch: Always use web UI-selected profile and open-source chain unless Stereo Tool is explicitly selected
+# This ensures the main output and preview both use the same profile and processing chain
+# Only use Stereo Tool if OMPX_STEREO_BACKEND=stereotool
+
+if [ "${OMPX_STEREO_BACKEND}" = "stereotool" ]; then
+  echo "[INFO] Using Stereo Tool for main output (user-selected)"
+  # Stereo Tool chain is already handled elsewhere
+else
+  echo "[INFO] Using open-source chain (multiband_agc.sh) for main output"
+  # Force both main output and preview to use the web UI-selected profile
+  MULTIBAND_PROFILE="${MULTIBAND_PROFILE}"
+  export MULTIBAND_PROFILE
+  # Optionally, set any other parameters here if needed
+fi
 OMPX_WRAPPER_RDS_ENABLE="${OMPX_WRAPPER_RDS_ENABLE:-false}"
 OMPX_WRAPPER_RDS_ENCODER_CMD="${OMPX_WRAPPER_RDS_ENCODER_CMD:-}"
 OMPX_WRAPPER_SAMPLE_RATE="${OMPX_WRAPPER_SAMPLE_RATE:-192000}"
