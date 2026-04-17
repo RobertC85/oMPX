@@ -146,6 +146,9 @@ else
   # Force both main output and preview to use the web UI-selected profile
   MULTIBAND_PROFILE="${MULTIBAND_PROFILE}"
   export MULTIBAND_PROFILE
+  # Set global loudness boost for open-source chain
+  POST_GAIN_DB="6"
+  export POST_GAIN_DB
   # Optionally, set any other parameters here if needed
 fi
 OMPX_WRAPPER_RDS_ENABLE="${OMPX_WRAPPER_RDS_ENABLE:-false}"
