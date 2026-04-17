@@ -265,6 +265,7 @@ ICECAST_CODEC="flac"
 
 # --- Ensure processed MPX is streamed to Icecast ---
 # --- Install/Update oMPX Web UI HTML ---
+mkdir -p /workspaces/oMPX/encoder
 cat > /workspaces/oMPX/encoder/ompx-web-ui.html <<'EOF'
 <!DOCTYPE html>
 <html lang="en">
