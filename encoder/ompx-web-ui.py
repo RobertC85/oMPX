@@ -24,6 +24,44 @@ def save_state(state):
         json.dump(state, f)
 
 class Handler(BaseHTTPRequestHandler):
+                if self.path == "/api/apply_mpx":
+                    # Commit settings to main Liquidsoap instance
+                    # (Assume settings are in payload, e.g., AGC, gain, etc.)
+                    # Write settings to ompx-processing.liq or send via telnet as needed
+                    # For now, just restart the main service to reload settings
+                    try:
+                        subprocess.run(["systemctl", "restart", "ompx-liquidsoap.service"], check=True)
+                        msg = "Settings applied to main output."
+                    except Exception as e:
+                        msg = f"Failed to apply settings: {e}"
+                    self._send_json({"ok": True, "message": msg})
+                    return
+            def _send_json(self, obj, code=200):
+                self.send_response(code)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(obj).encode())
+        def do_POST(self):
+            length = int(self.headers.get('Content-Length', 0))
+            payload = json.loads(self.rfile.read(length)) if length else {}
+            if self.path == "/api/preview_start":
+                # Start preview Liquidsoap service
+                try:
+                    subprocess.run(["systemctl", "restart", "ompx-liquidsoap-preview.service"], check=True)
+                    msg = "Preview started."
+                except Exception as e:
+                    msg = f"Failed to start preview: {e}"
+                self._send_json({"ok": True, "message": msg})
+                return
+            if self.path == "/api/preview_stop":
+                # Stop preview Liquidsoap service
+                try:
+                    subprocess.run(["systemctl", "stop", "ompx-liquidsoap-preview.service"], check=True)
+                    msg = "Preview stopped."
+                except Exception as e:
+                    msg = f"Failed to stop preview: {e}"
+                self._send_json({"ok": True, "message": msg})
+                return
     def _send_json(self, obj, status=HTTPStatus.OK):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")

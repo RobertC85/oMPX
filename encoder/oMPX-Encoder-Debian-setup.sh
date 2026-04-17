@@ -1,3 +1,29 @@
+# --- Liquidsoap preview service ---
+cat > /usr/local/bin/ompx-liquidsoap-preview.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+LIQ_SCRIPT="/workspaces/oMPX/encoder/ompx-preview.liq"
+liquidsoap "$LIQ_SCRIPT"
+EOF
+chmod +x /usr/local/bin/ompx-liquidsoap-preview.sh
+
+cat > /etc/systemd/system/ompx-liquidsoap-preview.service <<'EOF'
+[Unit]
+Description=oMPX Liquidsoap Preview Processing
+After=network.target
+
+[Service]
+Type=simple
+User=ompx
+ExecStart=/usr/local/bin/ompx-liquidsoap-preview.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 644 /etc/systemd/system/ompx-liquidsoap-preview.service
+systemctl daemon-reload || true
+# Preview service is started/stopped by backend on demand
 # --- Liquidsoap processing service ---
 cat > /usr/local/bin/ompx-liquidsoap.sh <<'EOF'
 #!/usr/bin/env bash
