@@ -9,37 +9,77 @@
   </style>
 </head>
 <body>
-  <div class="row">
-    <button id="test_preview" class="program-field">Test (Preview)</button>
-    <button id="undo_btn" class="program-field">Undo</button>
-    <button id="apply_mpx_prog1" class="program-field program-1">Apply to MPX (Program 1)</button>
-    <button id="apply_mpx_prog2" class="program-field program-2">Apply to MPX (Program 2)</button>
-  </div>
+  <form id="settings_form">
+    <div class="row">
+      <label>Profile:
+        <select id="profile">
+          <option value="decoder-clean">Decoder Clean</option>
+          <option value="music-heavy">Music Heavy</option>
+          <option value="talk-heavy">Talk Heavy</option>
+        </select>
+      </label>
+      <label>Post Gain (dB): <input type="number" id="post_gain_db" step="0.1" value="0"></label>
+      <label>Pre Gain (dB): <input type="number" id="pre_gain_db" step="0.1" value="0"></label>
+      <label>Stereo Width: <input type="number" id="stereo_width" step="0.01" min="0" max="2" value="1.0"></label>
+      <label>AGC Filter: <input type="text" id="agc_filter" value=""></label>
+      <label>Output Limit: <input type="number" id="output_limit" step="0.001" min="0" max="1" value="0.95"></label>
+      <label>HPF (Hz): <input type="number" id="hpf_freq" step="1" min="0" value="30"></label>
+      <label>LPF (Hz): <input type="number" id="lpf_freq" step="1" min="0" value="15000"></label>
+      <label>Preview Format:
+        <select id="preview_format">
+          <option value="mp3">MP3</option>
+          <option value="wav">WAV</option>
+        </select>
+      </label>
+    </div>
+    <div class="row">
+      <button type="button" id="test_preview" class="program-field">Test (Preview)</button>
+      <button type="button" id="undo_btn" class="program-field">Undo</button>
+      <button type="button" id="apply_mpx_prog1" class="program-field program-1">Apply to MPX (Program 1)</button>
+      <button type="button" id="apply_mpx_prog2" class="program-field program-2">Apply to MPX (Program 2)</button>
+    </div>
+  </form>
   <div id="status"></div>
+  <audio id="preview_audio" controls style="margin-top:16px; width:100%"></audio>
   <script>
-        document.getElementById('test_preview').onclick = async () => {
-          setStatus('Starting preview...');
-          const payload = collect();
-          const r = await fetch('/api/preview_start', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-          const j = await r.json();
-          setStatus(j.message || 'Preview started.');
-        };
-        document.getElementById('undo_btn').onclick = async () => {
-          setStatus('Reverting to previous settings...');
-          const r = await fetch('/api/undo', {method:'POST', headers:{'Content-Type':'application/json'}, body: '{}'});
-          const j = await r.json();
-          setStatus(j.message || 'Settings reverted.');
-        };
     function collect() {
-      // TODO: Collect relevant UI state for payload
-      return {};
+      return {
+        multiband_profile: document.getElementById('profile').value,
+        post_gain_db: document.getElementById('post_gain_db').value,
+        pre_gain_db: document.getElementById('pre_gain_db').value,
+        stereo_width: document.getElementById('stereo_width').value,
+        agc_filter: document.getElementById('agc_filter').value,
+        output_limit: document.getElementById('output_limit').value,
+        hpf_freq: document.getElementById('hpf_freq').value,
+        lpf_freq: document.getElementById('lpf_freq').value,
+        preview_format: document.getElementById('preview_format').value
+      };
     }
     async function saveState() {
-      // TODO: Save UI state if needed
+      // Optionally persist UI state (e.g., localStorage)
     }
     function setStatus(msg) {
       document.getElementById('status').innerText = msg;
     }
+    document.getElementById('test_preview').onclick = async () => {
+      setStatus('Starting preview...');
+      const payload = collect();
+      const r = await fetch('/api/preview_start', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+      const j = await r.json();
+      setStatus(j.message || 'Preview started.');
+      // Play preview audio
+      const fmt = payload.preview_format || 'mp3';
+      const audio = document.getElementById('preview_audio');
+      audio.src = fmt === 'wav' ? '/api/preview.wav' : '/api/preview.mp3';
+      audio.load();
+      audio.play();
+    };
+    document.getElementById('undo_btn').onclick = async () => {
+      setStatus('Reverting to previous settings...');
+      const r = await fetch('/api/undo', {method:'POST', headers:{'Content-Type':'application/json'}, body: '{}'});
+      const j = await r.json();
+      setStatus(j.message || 'Settings reverted.');
+    };
     document.getElementById('apply_mpx_prog1').onclick = async () => {
       await saveState();
       const payload = collect();
