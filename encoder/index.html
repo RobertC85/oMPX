@@ -49,61 +49,37 @@
   </style>
 </head>
 <body>
-  <div style="display: flex; height: 90vh;">
-    <!-- Left panel: Tab menu -->
-    <nav id="side-menu" style="width: 220px; background: var(--card); border-right: 1px solid var(--muted); display: flex; flex-direction: column;">
-      <h2 style="margin: 16px 0 8px 16px; font-size: 18px;">oMPX Processing</h2>
-      <ul style="list-style: none; padding: 0; margin: 0; flex: 1;">
-        <li><button class="tab-btn" data-tab="clipping">Clipping</button></li>
-        <li><button class="tab-btn" data-tab="dynamic">Dynamic Enhancement</button></li>
-        <li><button class="tab-btn" data-tab="unclipping">Unclipping (Input)</button></li>
-        <li><button class="tab-btn" data-tab="agc">AGC</button></li>
-        <li><button class="tab-btn" data-tab="limiter">Limiter</button></li>
-        <li><button class="tab-btn" data-tab="output">Output</button></li>
-      </ul>
-      <div style="margin: 16px; font-size: 12px; color: var(--muted);">Inspired by Breakaway One / Stereo Tool</div>
-    </nav>
-    <!-- Main content area -->
-    <div style="flex: 1; padding: 24px; overflow-y: auto;">
-      <div class="row">
-        <button id="test_preview" class="program-field">Test (Preview)</button>
-        <button id="stop_preview" class="program-field">Stop Preview</button>
-        <button id="undo_btn" class="program-field">Undo</button>
-        <button id="apply_mpx_prog1" class="program-field program-1">Apply to MPX (Program 1)</button>
-        <button id="apply_mpx_prog2" class="program-field program-2">Apply to MPX (Program 2)</button>
+  <div class="wrap">
+    <h1>oMPX Live Control + Patch Preview</h1>
+    <div class="grid">
+      <div class="card"> 
+        <div class="tabs">
+          <button type="button" id="tab_prog1" class="tab-btn active">Program 1</button>
+          <button type="button" id="tab_prog2" class="tab-btn">Program 2</button>
+          <button type="button" id="tab_global" class="tab-btn">Global Settings</button>
+        </div>
+        ...existing code from the provided original UI for all controls, rows, meters, and visualizations...
       </div>
-      <div id="status"></div>
-      <!-- Tab panels -->
-      <div id="tab-panels">
-        <div class="tab-panel" id="panel-clipping">
-          <h3>Clipping</h3>
-          <p>Configure input and output clipping, soft/hard clipper, oversampling, etc.</p>
-          <!-- TODO: Add controls for clipping section -->
+      <div class="card">
+        <label>Waveform</label>
+        <canvas id="wave" width="900" height="280"></canvas>
+        <label style="margin-top:12px">Band Spectrum</label>
+        <canvas id="spec" width="900" height="280"></canvas>
+        <label style="margin-top:12px">Processor Band Meters</label>
+        <div class="meter-grid" id="band_meters">
+          <div class="meter-row"><span class="name">Sub (30-120)</span><div class="meter-track"><div id="meter_sub" class="meter-fill"></div></div><span id="meter_sub_db" class="db">-inf dB</span></div>
+          <div class="meter-row"><span class="name">Low (120-400)</span><div class="meter-track"><div id="meter_low" class="meter-fill"></div></div><span id="meter_low_db" class="db">-inf dB</span></div>
+          <div class="meter-row"><span class="name">Mid (400-2k)</span><div class="meter-track"><div id="meter_mid" class="meter-fill"></div></div><span id="meter_mid_db" class="db">-inf dB</span></div>
+          <div class="meter-row"><span class="name">Presence (2k-6k)</span><div class="meter-track"><div id="meter_pres" class="meter-fill"></div></div><span id="meter_pres_db" class="db">-inf dB</span></div>
+          <div class="meter-row"><span class="name">Air (6k-15k)</span><div class="meter-track"><div id="meter_air" class="meter-fill"></div></div><span id="meter_air_db" class="db">-inf dB</span></div>
         </div>
-        <div class="tab-panel" id="panel-dynamic" style="display:none;">
-          <h3>Dynamic Enhancement</h3>
-          <p>Multi-band compression, expansion, and enhancement controls.</p>
-          <!-- TODO: Add controls for dynamic enhancement section -->
-        </div>
-        <div class="tab-panel" id="panel-unclipping" style="display:none;">
-          <h3>Unclipping (Input)</h3>
-          <p>Restore clipped audio at the start of the chain.</p>
-          <!-- TODO: Add controls for unclipping section -->
-        </div>
-        <div class="tab-panel" id="panel-agc" style="display:none;">
-          <h3>AGC</h3>
-          <p>Automatic gain control settings.</p>
-          <!-- TODO: Add controls for AGC section -->
-        </div>
-        <div class="tab-panel" id="panel-limiter" style="display:none;">
-          <h3>Limiter</h3>
-          <p>Final output limiter configuration.</p>
-          <!-- TODO: Add controls for limiter section -->
-        </div>
-        <div class="tab-panel" id="panel-output" style="display:none;">
-          <h3>Output</h3>
-          <p>Output routing, monitoring, and streaming options.</p>
-          <!-- TODO: Add controls for output section -->
+        <label style="margin-top:12px">MPX FFT Snapshot (server-side)</label>
+        <div style="position:relative; border:1px solid #2a4f47; border-radius:8px; overflow:hidden; background:#0a1412;">
+          <img id="fft_img" alt="MPX FFT" style="display:block; width:100%; height:300px; object-fit:fill;" />
+          <div id="pilot_marker" style="position:absolute; top:0; bottom:0; width:2px; background:#f2b642; opacity:0.9;"></div>
+          <div id="sub_marker" style="position:absolute; top:0; bottom:0; width:2px; background:#52d3c7; opacity:0.9;"></div>
+          <div style="position:absolute; top:6px; left:8px; font-size:11px; color:#f2b642; background:#0008; padding:2px 6px; border-radius:4px;">19 kHz pilot</div>
+          <div style="position:absolute; top:6px; left:120px; font-size:11px; color:#52d3c7; background:#0008; padding:2px 6px; border-radius:4px;">38 kHz L-R DSB</div>
         </div>
       </div>
     </div>

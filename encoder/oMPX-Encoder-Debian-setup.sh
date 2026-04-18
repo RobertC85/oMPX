@@ -104,8 +104,8 @@ set -euo pipefail
 # For best results, use a standard Debian kernel (linux-image-amd64) that includes snd_aloop
 # Date: 2026-04-07
 
-# --- Default to whiptail menu unless --nuke or --no-menu is specified ---
-if [[ "$*" != *--nuke* && "$*" != *--no-menu* ]]; then
+ # --- Default to whiptail menu unless --nuke or --prompt is specified ---
+if [[ "$*" != *--nuke* && "$*" != *--prompt* ]]; then
   if command -v whiptail >/dev/null 2>&1; then
     CHOICE=$(whiptail --title "oMPX Installer Menu" --menu "Choose an action" 20 70 10 \
       "install" "Install/Update oMPX" \
@@ -1143,97 +1143,92 @@ apply_stereo_tool_start_limit_preset(){
 }
 
 configure_icecast_dialog(){
-  echo ""
-  echo "=== Icecast output configuration ==="
-  echo "  L) Local  — install Icecast2 on THIS machine; downstream clients pull from here"
-  echo "  R) Remote — push encoded stream to a remote Icecast server (transmitter or third-party)"
-  echo "  S) Skip   — configure Icecast later; mpx-mix service will remain disabled"
-  read -t 60 -p "Choose Icecast mode [L/R/S] (default S): " _ice_mode || _ice_mode="S"
+  _ice_mode=$(whiptail --title "Icecast output configuration" --menu "Select Icecast mode:" 15 60 3 \
+    "L" "Local — install Icecast2 on THIS machine" \
+    "R" "Remote — push encoded stream to a remote Icecast server" \
+    "S" "Skip — configure Icecast later" \
+    3>&1 1>&2 2>&3)
+  [ -z "$_ice_mode" ] && _ice_mode="S"
   _ice_mode=${_ice_mode^^}
 
   case "${_ice_mode}" in
     L)
       ICECAST_MODE="local"
       ICECAST_HOST="127.0.0.1"
-      read -t 60 -p "Icecast HTTP port (default 8000): " _ice_port || _ice_port=""
+      _ice_port=$(whiptail --inputbox "Icecast HTTP port (default 8000):" 8 60 "8000" 3>&1 1>&2 2>&3)
       [[ "${_ice_port}" =~ ^[0-9]+$ ]] && ICECAST_PORT="${_ice_port}" || ICECAST_PORT=8000
-      read -t 60 -p "Icecast source username (default source): " _ice_source_user || _ice_source_user=""
-      ICECAST_SOURCE_USER="${_ice_source_user:-source}"
-      read -t 60 -p "Icecast source password (default auto-generated secure): " _ice_pass || _ice_pass=""
+      ICECAST_SOURCE_USER=$(whiptail --inputbox "Icecast source username (default source):" 8 60 "source" 3>&1 1>&2 2>&3)
+      _ice_pass=$(whiptail --passwordbox "Icecast source password (leave blank for auto-generated):" 8 60 3>&1 1>&2 2>&3)
       if [ -n "${_ice_pass}" ]; then
         ICECAST_PASSWORD="${_ice_pass}"
       else
         ICECAST_PASSWORD="$(generate_secure_password 24)"
-        echo "[INFO] Generated Icecast source password: ${ICECAST_PASSWORD}"
+        whiptail --msgbox "Generated Icecast source password: ${ICECAST_PASSWORD}" 8 60
       fi
-      read -t 60 -p "Mount point (default /mpx): " _ice_mount || _ice_mount=""
+      _ice_mount=$(whiptail --inputbox "Mount point (default /mpx):" 8 60 "/mpx" 3>&1 1>&2 2>&3)
       _ice_mount="${_ice_mount:-mpx}"; ICECAST_MOUNT="/${_ice_mount#/}"
-      read -t 60 -p "Icecast admin username (default admin): " _ice_admin_user || _ice_admin_user=""
-      ICECAST_ADMIN_USER="${_ice_admin_user:-admin}"
-      read -t 60 -p "Icecast admin password (default auto-generated secure): " _ice_admin || _ice_admin=""
+      ICECAST_ADMIN_USER=$(whiptail --inputbox "Icecast admin username (default admin):" 8 60 "admin" 3>&1 1>&2 2>&3)
+      _ice_admin=$(whiptail --passwordbox "Icecast admin password (leave blank for auto-generated):" 8 60 3>&1 1>&2 2>&3)
       if [ -n "${_ice_admin}" ]; then
         _ICE_ADMIN_PASS="${_ice_admin}"
       else
         _ICE_ADMIN_PASS="$(generate_secure_password 24)"
-        echo "[INFO] Generated Icecast admin password: ${_ICE_ADMIN_PASS}"
+        whiptail --msgbox "Generated Icecast admin password: ${_ICE_ADMIN_PASS}" 8 60
       fi
-      read -t 60 -p "Max simultaneous listeners (default 25): " _ice_clients || _ice_clients=""
+      _ice_clients=$(whiptail --inputbox "Max simultaneous listeners (default 25):" 8 60 "25" 3>&1 1>&2 2>&3)
       [[ "${_ice_clients}" =~ ^[0-9]+$ ]] && _ICE_MAX_LISTENERS="${_ice_clients}" || _ICE_MAX_LISTENERS=25
-      read -t 60 -p "Station name shown to listeners (default oMPX): " _ice_name || _ice_name=""
-      _ICE_STATION="${_ice_name:-oMPX}"
-      echo "[INFO] Local Icecast2 → localhost:${ICECAST_PORT}${ICECAST_MOUNT}"
+      _ICE_STATION=$(whiptail --inputbox "Station name shown to listeners (default oMPX):" 8 60 "oMPX" 3>&1 1>&2 2>&3)
+      whiptail --msgbox "Local Icecast2 → localhost:${ICECAST_PORT}${ICECAST_MOUNT}" 8 60
       ;;
     R)
       ICECAST_MODE="remote"
-      read -t 120 -p "Remote Icecast hostname or IP: " _ice_host || _ice_host=""
+      _ice_host=$(whiptail --inputbox "Remote Icecast hostname or IP:" 8 60 "" 3>&1 1>&2 2>&3)
       if [ -z "${_ice_host}" ]; then
-        echo "[WARNING] No host entered — Icecast mode set to disabled"; ICECAST_MODE="disabled"; return
+        whiptail --msgbox "No host entered — Icecast mode set to disabled" 8 60; ICECAST_MODE="disabled"; return
       fi
       ICECAST_HOST="${_ice_host}"
-      read -t 60 -p "Remote Icecast port (default 8000): " _ice_port || _ice_port=""
+      _ice_port=$(whiptail --inputbox "Remote Icecast port (default 8000):" 8 60 "8000" 3>&1 1>&2 2>&3)
       [[ "${_ice_port}" =~ ^[0-9]+$ ]] && ICECAST_PORT="${_ice_port}" || ICECAST_PORT=8000
-      read -t 60 -p "Source username (default source): " _ice_source_user || _ice_source_user=""
-      ICECAST_SOURCE_USER="${_ice_source_user:-source}"
-      read -t 60 -p "Source password (default auto-generated secure): " _ice_pass || _ice_pass=""
+      ICECAST_SOURCE_USER=$(whiptail --inputbox "Source username (default source):" 8 60 "source" 3>&1 1>&2 2>&3)
+      _ice_pass=$(whiptail --passwordbox "Source password (leave blank for auto-generated):" 8 60 3>&1 1>&2 2>&3)
       if [ -n "${_ice_pass}" ]; then
         ICECAST_PASSWORD="${_ice_pass}"
       else
         ICECAST_PASSWORD="$(generate_secure_password 24)"
-        echo "[INFO] Generated remote Icecast source password: ${ICECAST_PASSWORD}"
+        whiptail --msgbox "Generated remote Icecast source password: ${ICECAST_PASSWORD}" 8 60
       fi
-      read -t 60 -p "Mount point (default /mpx): " _ice_mount || _ice_mount=""
+      _ice_mount=$(whiptail --inputbox "Mount point (default /mpx):" 8 60 "/mpx" 3>&1 1>&2 2>&3)
       _ice_mount="${_ice_mount:-mpx}"; ICECAST_MOUNT="/${_ice_mount#/}"
-      echo "[INFO] Remote Icecast push → ${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
+      whiptail --msgbox "Remote Icecast push → ${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}" 8 60
       ;;
     *)
       ICECAST_MODE="disabled"
-      echo "[INFO] Icecast skipped — edit /home/ompx/.profile and restart mpx-mix.service later"
+      whiptail --msgbox "Icecast skipped — edit /home/ompx/.profile and restart mpx-mix.service later" 8 60
       return
       ;;
   esac
 
-  read -t 60 -p "Output sample rate Hz (default 192000, use 48000 for standard): " _ice_sr || _ice_sr=""
+  _ice_sr=$(whiptail --inputbox "Output sample rate Hz (default 192000, use 48000 for standard):" 8 60 "192000" 3>&1 1>&2 2>&3)
   [[ "${_ice_sr}" =~ ^[0-9]+$ ]] && ICECAST_SAMPLE_RATE="${_ice_sr}" || ICECAST_SAMPLE_RATE=192000
-  echo "[INFO] Icecast encoder sample rate: ${ICECAST_SAMPLE_RATE} Hz"
-  read -t 60 -p "FLAC transport bit depth [16/24] (default 16): " _ice_bits || _ice_bits=""
+  whiptail --msgbox "Icecast encoder sample rate: ${ICECAST_SAMPLE_RATE} Hz" 8 60
+  _ice_bits=$(whiptail --inputbox "FLAC transport bit depth [16/24] (default 16):" 8 60 "16" 3>&1 1>&2 2>&3)
   if [[ "${_ice_bits}" =~ ^(16|24)$ ]]; then
     ICECAST_BIT_DEPTH="${_ice_bits}"
   else
-    [ -n "${_ice_bits}" ] && echo "[WARNING] Invalid bit depth '${_ice_bits}', defaulting to 16"
+    [ -n "${_ice_bits}" ] && whiptail --msgbox "Invalid bit depth '${_ice_bits}', defaulting to 16" 8 60
     ICECAST_BIT_DEPTH="16"
   fi
-  echo "[INFO] Icecast FLAC transport bit depth: ${ICECAST_BIT_DEPTH}-bit"
+  whiptail --msgbox "Icecast FLAC transport bit depth: ${ICECAST_BIT_DEPTH}-bit" 8 60
   ICECAST_CODEC="flac"
   if [ -z "${ICECAST_MOUNT:-}" ]; then
     ICECAST_MOUNT="/mpx"
   fi
-  echo "[INFO] Icecast codec fixed to FLAC-in-Ogg for broad player compatibility (${ICECAST_MOUNT})"
+  whiptail --msgbox "Icecast codec fixed to FLAC-in-Ogg for broad player compatibility (${ICECAST_MOUNT})" 8 60
 
-  echo ""
-  echo "MPX capture endpoints consumed by mpx-mix (read/capture side of ST's MPX output loopbacks):"
-  read -t 60 -p "Program 1 MPX capture device (default ompx_prg1mpx_cap): " _st_p1 || _st_p1=""
+  whiptail --msgbox "MPX capture endpoints consumed by mpx-mix (read/capture side of ST's MPX output loopbacks):" 10 60
+  _st_p1=$(whiptail --inputbox "Program 1 MPX capture device (default ompx_prg1mpx_cap):" 8 60 "ompx_prg1mpx_cap" 3>&1 1>&2 2>&3)
   ST_OUT_P1="${_st_p1:-ompx_prg1mpx_cap}"
-  read -t 60 -p "Program 2 MPX capture device (default ompx_prg2mpx_cap, 'none' to disable): " _st_p2 || _st_p2=""
+  _st_p2=$(whiptail --inputbox "Program 2 MPX capture device (default ompx_prg2mpx_cap, 'none' to disable):" 8 60 "ompx_prg2mpx_cap" 3>&1 1>&2 2>&3)
   [ "${_st_p2,,}" = "none" ] && ST_OUT_P2="" || ST_OUT_P2="${_st_p2:-ompx_prg2mpx_cap}"
 }
 
