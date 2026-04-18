@@ -265,6 +265,27 @@ ICECAST_CODEC="flac"
 
 # --- Ensure processed MPX is streamed to Icecast ---
 # --- Install/Update oMPX Web UI HTML ---
+echo "[INFO] Installing Nginx and deploying oMPX Web UI..."
+apt-get update && apt-get install -y nginx
+cp /workspaces/oMPX/encoder/index.html /usr/share/nginx/html/index.html
+# Allow port override via OMPX_WEB_PORT, default 8083
+OMPX_WEB_PORT="${OMPX_WEB_PORT:-8083}"
+cat > /etc/nginx/sites-available/ompx-web-ui <<EOF
+server {
+  listen ${OMPX_WEB_PORT} default_server;
+  listen [::]:${OMPX_WEB_PORT} default_server;
+  server_name _;
+  root /usr/share/nginx/html;
+  index index.html;
+  location / {
+    try_files \$uri \$uri/ =404;
+  }
+}
+EOF
+ln -sf /etc/nginx/sites-available/ompx-web-ui /etc/nginx/sites-enabled/ompx-web-ui
+rm -f /etc/nginx/sites-enabled/default
+systemctl reload nginx
+echo "[INFO] oMPX Web UI is now served by Nginx on port ${OMPX_WEB_PORT}."
 mkdir -p /workspaces/oMPX/encoder
 cat > /workspaces/oMPX/encoder/ompx-web-ui.html <<'EOF'
 <!DOCTYPE html>
