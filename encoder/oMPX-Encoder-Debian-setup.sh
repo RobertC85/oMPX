@@ -407,27 +407,81 @@ cat > /workspaces/oMPX/encoder/index.html <<'EOF'
   </style>
 </head>
 <body>
-  <div class="row">
-    <button id="test_preview" class="program-field">Test (Preview)</button>
-    <button id="undo_btn" class="program-field">Undo</button>
-    <button id="apply_mpx_prog1" class="program-field program-1">Apply to MPX (Program 1)</button>
-    <button id="apply_mpx_prog2" class="program-field program-2">Apply to MPX (Program 2)</button>
+  <div class="wrap">
+    <h1>oMPX Unified Web UI</h1>
+    <div class="grid">
+      <div class="card"> 
+        <div class="tabs">
+          <button type="button" id="tab_prog1" class="tab-btn active">Program 1</button>
+          <button type="button" id="tab_prog2" class="tab-btn">Program 2</button>
+          <button type="button" id="tab_global" class="tab-btn">Global Settings</button>
+        </div>
+        <!-- All controls, rows, meters, and visualizations from the original UI go here -->
+        <!-- Add the extra buttons from ompx-web-ui.html -->
+        <div class="row" style="margin-top:12px;">
+          <button id="test_preview" class="program-field">Test (Preview)</button>
+          <button id="stop_preview" class="program-field">Stop Preview</button>
+          <button id="undo_btn" class="program-field">Undo</button>
+          <button id="apply_mpx_prog1" class="program-field program-1">Apply to MPX (Program 1)</button>
+          <button id="apply_mpx_prog2" class="program-field program-2">Apply to MPX (Program 2)</button>
+        </div>
+        <!-- ...rest of the original UI controls and layout... -->
+      </div>
+      <div class="card">
+        <label>Waveform</label>
+        <canvas id="wave" width="900" height="280"></canvas>
+        <label style="margin-top:12px">Band Spectrum</label>
+        <canvas id="spec" width="900" height="280"></canvas>
+        <label style="margin-top:12px">Processor Band Meters</label>
+        <div class="meter-grid" id="band_meters">
+          <div class="meter-row"><span class="name">Sub (30-120)</span><div class="meter-track"><div id="meter_sub" class="meter-fill"></div></div><span id="meter_sub_db" class="db">-inf dB</span></div>
+          <div class="meter-row"><span class="name">Low (120-400)</span><div class="meter-track"><div id="meter_low" class="meter-fill"></div></div><span id="meter_low_db" class="db">-inf dB</span></div>
+          <div class="meter-row"><span class="name">Mid (400-2k)</span><div class="meter-track"><div id="meter_mid" class="meter-fill"></div></div><span id="meter_mid_db" class="db">-inf dB</span></div>
+          <div class="meter-row"><span class="name">Presence (2k-6k)</span><div class="meter-track"><div id="meter_pres" class="meter-fill"></div></div><span id="meter_pres_db" class="db">-inf dB</span></div>
+          <div class="meter-row"><span class="name">Air (6k-15k)</span><div class="meter-track"><div id="meter_air" class="meter-fill"></div></div><span id="meter_air_db" class="db">-inf dB</span></div>
+        </div>
+        <label style="margin-top:12px">MPX FFT Snapshot (server-side)</label>
+        <div style="position:relative; border:1px solid #2a4f47; border-radius:8px; overflow:hidden; background:#0a1412;">
+          <img id="fft_img" alt="MPX FFT" style="display:block; width:100%; height:300px; object-fit:fill;" />
+          <div id="pilot_marker" style="position:absolute; top:0; bottom:0; width:2px; background:#f2b642; opacity:0.9;"></div>
+          <div id="sub_marker" style="position:absolute; top:0; bottom:0; width:2px; background:#52d3c7; opacity:0.9;"></div>
+          <div style="position:absolute; top:6px; left:8px; font-size:11px; color:#f2b642; background:#0008; padding:2px 6px; border-radius:4px;">19 kHz pilot</div>
+          <div style="position:absolute; top:6px; left:120px; font-size:11px; color:#52d3c7; background:#0008; padding:2px 6px; border-radius:4px;">38 kHz L-R DSB</div>
+        </div>
+      </div>
+    </div>
   </div>
-  <div id="status"></div>
   <script>
-        document.getElementById('test_preview').onclick = async () => {
-          setStatus('Starting preview...');
-          const payload = collect();
-          const r = await fetch('/api/preview_start', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-          const j = await r.json();
-          setStatus(j.message || 'Preview started.');
-        };
-        document.getElementById('undo_btn').onclick = async () => {
-          setStatus('Reverting to previous settings...');
-          const r = await fetch('/api/undo', {method:'POST', headers:{'Content-Type':'application/json'}, body: '{}'});
-          const j = await r.json();
-          setStatus(j.message || 'Settings reverted.');
-        };
+    // Tab switching logic
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.onclick = function() {
+        document.querySelectorAll('.tab-panel').forEach(panel => panel.style.display = 'none');
+        const tab = btn.getAttribute('data-tab');
+        document.getElementById('panel-' + tab).style.display = '';
+      };
+    });
+    // Default to first tab
+    document.getElementById('panel-clipping').style.display = '';
+
+    document.getElementById('test_preview').onclick = async () => {
+      setStatus('Starting preview...');
+      const payload = collect();
+      const r = await fetch('/api/preview_start', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+      const j = await r.json();
+      setStatus(j.message || 'Preview started.');
+    };
+    document.getElementById('stop_preview').onclick = async () => {
+      setStatus('Stopping preview...');
+      const r = await fetch('/api/preview_stop', {method:'POST', headers:{'Content-Type':'application/json'}, body: '{}'});
+      const j = await r.json();
+      setStatus(j.message || 'Preview stopped.');
+    };
+    document.getElementById('undo_btn').onclick = async () => {
+      setStatus('Reverting to previous settings...');
+      const r = await fetch('/api/undo', {method:'POST', headers:{'Content-Type':'application/json'}, body: '{}'});
+      const j = await r.json();
+      setStatus(j.message || 'Settings reverted.');
+    };
     function collect() {
       // TODO: Collect relevant UI state for payload
       return {};
