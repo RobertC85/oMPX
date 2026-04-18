@@ -1,6 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# --- oMPX Web UI manual start helper script ---
+cat > /usr/local/bin/start-ompx-web-ui.sh <<'EOF'
+#!/bin/bash
+# Start oMPX Web UI backend manually and log output
+
+LOGFILE="/var/log/ompx-web-ui.log"
+PYTHON_SCRIPT="/opt/mpx-radio/ompx-web-ui.py"
+
+# Stop any running instance
+sudo pkill -f "$PYTHON_SCRIPT"
+
+# Start the backend in the background with nohup
+sudo nohup python3 "$PYTHON_SCRIPT" > "$LOGFILE" 2>&1 &
+
+echo "oMPX Web UI backend started. Logs: $LOGFILE"
+EOF
+chmod +x /usr/local/bin/start-ompx-web-ui.sh
+# --- End oMPX Web UI manual start helper script ---
+
 # --- Ensure critical variables are defined early for all code paths (including uninstall) ---
 OMPX_USER="ompx"
 OMPX_HOME="/home/ompx"
