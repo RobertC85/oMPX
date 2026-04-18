@@ -1,4 +1,4 @@
-i # oMPX Web UI backend (Python HTTP server)
+# oMPX Web UI backend (Python HTTP server)
 # Extracted from oMPX-Encoder-Debian-setup.sh for maintainability
 # Place your backend logic here. If you had embedded Python code in the installer, move it here.
 
@@ -32,17 +32,17 @@ def save_state(state):
     with open(STATE_FILE, "w") as f:
         json.dump(state, f)
 
-'
-')
+
 
 class Handler(BaseHTTPRequestHandler):
-        def _is_local_kiosk(self):
-            # Check if kiosk mode is enabled and request is from localhost
-            kiosk = os.environ.get("OMPX_WEB_KIOSK_ENABLE", "false").lower() == "true"
-            # Accept both IPv4 and IPv6 loopback
-            client = self.client_address[0]
-            is_local = client in ("127.0.0.1", "::1", "localhost")
-            return kiosk and is_local
+
+    def _is_local_kiosk(self):
+        # Check if kiosk mode is enabled and request is from localhost
+        kiosk = os.environ.get("OMPX_WEB_KIOSK_ENABLE", "false").lower() == "true"
+        # Accept both IPv4 and IPv6 loopback
+        client = self.client_address[0]
+        is_local = client in ("127.0.0.1", "::1", "localhost")
+        return kiosk and is_local
 
     def _send_json(self, obj, status=HTTPStatus.OK):
         self.send_response(status)
