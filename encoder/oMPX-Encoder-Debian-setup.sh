@@ -416,8 +416,6 @@ cat > /workspaces/oMPX/encoder/index.html <<'EOF'
           <button type="button" id="tab_prog2" class="tab-btn">Program 2</button>
           <button type="button" id="tab_global" class="tab-btn">Global Settings</button>
         </div>
-        <!-- All controls, rows, meters, and visualizations from the original UI go here -->
-        <!-- Add the extra buttons from ompx-web-ui.html -->
         <div class="row" style="margin-top:12px;">
           <button id="test_preview" class="program-field">Test (Preview)</button>
           <button id="stop_preview" class="program-field">Stop Preview</button>
