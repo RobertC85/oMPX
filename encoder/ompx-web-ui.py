@@ -183,46 +183,6 @@ class Handler(BaseHTTPRequestHandler):
             return
         self.send_error(HTTPStatus.NOT_FOUND, "Not found")
 
-    def do_GET(self):
-        if self.path == "/":
-            self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", "text/html")
-            self.end_headers()
-            with open(os.path.join(os.path.dirname(__file__), "index.html"), "r") as f:
-                self.wfile.write(f.read().encode())
-            return
-        # Audio preview endpoints
-        if self.path.startswith("/api/preview.mp3"):
-            try:
-                resp = requests.get("http://127.0.0.1:8000/preview", stream=True, timeout=5)
-                self.send_response(HTTPStatus.OK)
-                self.send_header("Content-Type", "audio/mpeg")
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                for chunk in resp.iter_content(chunk_size=4096):
-                    if not chunk:
-                        break
-                    self.wfile.write(chunk)
-                return
-            except Exception as e:
-                self.send_error(HTTPStatus.SERVICE_UNAVAILABLE, f"MP3 preview unavailable: {e}")
-                return
-        if self.path.startswith("/api/preview.wav"):
-            try:
-                resp = requests.get("http://127.0.0.1:8088/", stream=True, timeout=5)
-                self.send_response(HTTPStatus.OK)
-                self.send_header("Content-Type", "audio/wav")
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                for chunk in resp.iter_content(chunk_size=4096):
-                    if not chunk:
-                        break
-                    self.wfile.write(chunk)
-                return
-            except Exception as e:
-                self.send_error(HTTPStatus.SERVICE_UNAVAILABLE, f"WAV preview unavailable: {e}")
-                return
-        self.send_error(HTTPStatus.NOT_FOUND, "Not found")
 
     def do_GET(self):
         if self.path == "/":
@@ -236,7 +196,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/api/preview.mp3"):
             # Proxy from Icecast (MP3)
             try:
-                resp = requests.get("http://127.0.0.1:8000/preview", stream=True, timeout=5)
+                resp = requests.get("http://127.0.0.1:8082/preview", stream=True, timeout=5)
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "audio/mpeg")
                 self.send_header("Cache-Control", "no-store")
@@ -270,7 +230,7 @@ class Handler(BaseHTTPRequestHandler):
 def run():
     # Recreate RDS JSON files on every launch
     recreate_rds_json()
-    port = int(os.environ.get("OMPX_WEB_PORT", 8080))
+    port = int(os.environ.get("OMPX_WEB_PORT", 8082))
     server = HTTPServer(("0.0.0.0", port), Handler)
     print(f"oMPX Web UI running on port {port}")
     server.serve_forever()
