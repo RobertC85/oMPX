@@ -389,7 +389,6 @@ ICECAST_CODEC="flac"
 cat > /workspaces/oMPX/encoder/index.html <<'EOF'
 <the full, current contents of index.html with all original JS and UI logic, as just merged>
 EOF
-EOF
 echo "[INFO] Installing Nginx and deploying oMPX Web UI..."
 apt-get update && apt-get install -y nginx
 cp /workspaces/oMPX/encoder/index.html /var/www/html/index.html
