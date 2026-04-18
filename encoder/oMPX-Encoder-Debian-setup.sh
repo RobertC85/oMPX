@@ -104,6 +104,96 @@ set -euo pipefail
 # For best results, use a standard Debian kernel (linux-image-amd64) that includes snd_aloop
 # Date: 2026-04-07
 
+# --- Default to whiptail menu unless --nuke or --no-menu is specified ---
+if [[ "$*" != *--nuke* && "$*" != *--no-menu* ]]; then
+  if command -v whiptail >/dev/null 2>&1; then
+    CHOICE=$(whiptail --title "oMPX Installer Menu" --menu "Choose an action" 20 70 10 \
+      "install" "Install/Update oMPX" \
+      "reinstall" "Reinstall (clean/fresh)" \
+      "uninstall" "Uninstall (remove all)" \
+      "abort" "Abort/Exit" \
+      3>&1 1>&2 2>&3)
+    case "$CHOICE" in
+      install)
+        echo "[INFO] Proceeding with install/update..."
+        ;;
+      reinstall)
+        set -- "$@" --force-reinstall
+        ;;
+      uninstall)
+        echo "[INFO] Proceeding with uninstall (--nuke)..."
+        "$0" --nuke
+        exit $?
+        ;;
+      abort|*)
+        echo "[INFO] Aborted by user."
+        exit 0
+        ;;
+    esac
+  fi
+fi
+
+# --- Command-line argument parsing for --nuke and --menu ---
+if [[ "$*" == *--nuke* ]]; then
+  echo "[INFO] --nuke switch detected: performing full uninstall (no prompts)"
+  # Uninstall logic (copied from 'U' case in main prompt)
+  echo "[INFO] Stopping systemd services..."
+  systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
+  systemctl stop stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service 2>/dev/null || true
+  echo "[INFO] Disabling systemd services..."
+  systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
+  systemctl disable stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service 2>/dev/null || true
+  rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${RDS_SYNC_PROG1_SERVICE}" "${RDS_SYNC_PROG2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${OMPX_WEB_UI_SERVICE}" "${OMPX_WEB_KIOSK_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" "${SYS_SCRIPTS_DIR}/ompx-web-ui.py" "${SYS_SCRIPTS_DIR}/ompx-web-kiosk.sh"
+  systemctl daemon-reload || true
+  echo "[INFO] Removing cron jobs..."
+  if command -v crontab >/dev/null 2>&1 && id -u "${OMPX_USER}" >/dev/null 2>&1; then
+    crontab -u "${OMPX_USER}" -l 2>/dev/null | grep -v "${SYS_SCRIPTS_DIR}/source" | sed '/^$/d' | crontab -u "${OMPX_USER}" - 2>/dev/null || true
+  else
+    echo "[WARNING] crontab command not found; skipping cron cleanup"
+  fi
+  echo "[INFO] Removing files and directories..."
+  rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
+  rm -rf "${SYS_SCRIPTS_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log /var/log/radio-source1.log /var/log/radio-source2.log
+  rm -f "${OMPX_AUDIO_UDEV_RULE}" || true
+  rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
+  echo "[INFO] Removing oMPX user..."
+  if id -u "${OMPX_USER}" >/dev/null 2>&1; then userdel -r "${OMPX_USER}" || true; fi
+  echo "[INFO] Unloading snd_aloop module..."
+  modprobe -r snd_aloop 2>/dev/null || true
+  echo "[SUCCESS] Uninstall complete. (--nuke)"
+  exit 0
+fi
+
+if [[ "$*" == *--menu* ]]; then
+  if ! command -v whiptail >/dev/null 2>&1; then
+    echo "[ERROR] whiptail is not installed. Please install it (apt install whiptail) or run without --menu."
+    exit 1
+  fi
+  CHOICE=$(whiptail --title "oMPX Installer Menu" --menu "Choose an action" 20 70 10 \
+    "install" "Install/Update oMPX" \
+    "reinstall" "Reinstall (clean/fresh)" \
+    "uninstall" "Uninstall (remove all)" \
+    "abort" "Abort/Exit" \
+    3>&1 1>&2 2>&3)
+  case "$CHOICE" in
+    install)
+      echo "[INFO] Proceeding with install/update..."
+      ;;
+    reinstall)
+      set -- "$@" --force-reinstall
+      ;;
+    uninstall)
+      echo "[INFO] Proceeding with uninstall (--nuke)..."
+      "$0" --nuke
+      exit $?
+      ;;
+    abort|*)
+      echo "[INFO] Aborted by user."
+      exit 0
+      ;;
+  esac
+fi
+
 echo "[$(date +'%F %T')] oMPX installer starting..."
 INSTALLER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${INSTALLER_DIR}/.." && pwd)"
