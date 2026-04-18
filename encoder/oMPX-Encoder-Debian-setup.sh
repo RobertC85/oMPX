@@ -104,9 +104,43 @@ liquidsoap --telnet 127.0.0.1:$LIQ_PORT "help" >/dev/null 2>&1 || true
 liquidsoap --telnet 127.0.0.1:$LIQ_PORT "help" >/dev/null 2>&1 || true
 
 exec ffmpeg -hide_banner -loglevel warning -f s16le -ar "$ICECAST_SAMPLE_RATE" -ac 2 -i - \
-  -c:a flac -sample_fmt s16 -compression_level 5 \
-  -content_type audio/flac \
-  -ice_name "oMPX MPX" \
+cat > /workspaces/oMPX/encoder/index.html <<'EOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>oMPX Web UI</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: Canvas;
+      --card: Canvas;
+      --accent: Highlight;
+      --ink: CanvasText;
+      --muted: GrayText;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: Canvas;
+        --card: Canvas;
+        --accent: Highlight;
+        --ink: CanvasText;
+        --muted: GrayText;
+      }
+    }
+
+    body {
+      background: var(--bg);
+      font-family: system-ui, sans-serif;
+  <!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>oMPX Live Control</title>
+  <style>
+  :root { --bg:#0f1b1a; --card:#132825; --accent:#f2b642; --ink:#f4f7f5; --muted:#9fb8b0; }
+  body { margin:0; font-family: ui-sans-serif, sans-serif; background: radial-gradient(circle at 10% 10%, #1c3b35, var(--bg)); color:var(--ink); }
   -f flac "icecast://$ICECAST_SOURCE_USER:$ICECAST_PASSWORD@$ICECAST_HOST:$ICECAST_PORT$ICECAST_MOUNT"
 EOF
 chmod +x /usr/local/bin/ompx-icecast-mpx.sh
@@ -136,33 +170,33 @@ set -euo pipefail
 # Date: 2026-04-07
 
  # --- Default to whiptail menu unless --nuke or --prompt is specified ---
-if [[ "$*" != *--nuke* && "$*" != *--prompt* ]]; then
-  if command -v whiptail >/dev/null 2>&1; then
-    CHOICE=$(whiptail --title "oMPX Installer Menu" --menu "Choose an action" 20 70 10 \
-      "install" "Install/Update oMPX" \
-      "reinstall" "Reinstall (clean/fresh)" \
-      "uninstall" "Uninstall (remove all)" \
-      "abort" "Abort/Exit" \
-      3>&1 1>&2 2>&3)
-    case "$CHOICE" in
-      install)
-        echo "[INFO] Proceeding with install/update..."
-        ;;
-      reinstall)
-        set -- "$@" --force-reinstall
-        ;;
-      uninstall)
-        echo "[INFO] Proceeding with uninstall (--nuke)..."
-        "$0" --nuke
-        exit $?
-        ;;
-      abort|*)
-        echo "[INFO] Aborted by user."
-        exit 0
-        ;;
-    esac
-  fi
+if ! command -v whiptail >/dev/null 2>&1; then
+  echo "[INFO] whiptail not found. Installing..."
+  apt-get update && apt-get install -y whiptail
 fi
+CHOICE=$(whiptail --title "oMPX Installer Menu" --menu "Choose an action" 20 70 10 \
+  "install" "Install/Update oMPX" \
+  "reinstall" "Reinstall (clean/fresh)" \
+  "uninstall" "Uninstall (remove all)" \
+  "abort" "Abort/Exit" \
+  3>&1 1>&2 2>&3)
+case "$CHOICE" in
+  install)
+    echo "[INFO] Proceeding with install/update..."
+    ;;
+  reinstall)
+    set -- "$@" --force-reinstall
+    ;;
+  uninstall)
+    echo "[INFO] Proceeding with uninstall (--nuke)..."
+    "$0" --nuke
+    exit $?
+    ;;
+  abort|*)
+    echo "[INFO] Aborted by user."
+    exit 0
+    ;;
+esac
 
 # --- Command-line argument parsing for --nuke and --menu ---
 if [[ "$*" == *--nuke* ]]; then
@@ -2780,6 +2814,8 @@ if [ -t 0 ]; then
       OMPX_USER_PASSWORD="${cfg_pwd_1}"
       break
     done
+  else
+    echo "[WARNING] No password will be set for user ${OMPX_USER}. Continuing installation."
   fi
 
   configure_icecast_dialog
