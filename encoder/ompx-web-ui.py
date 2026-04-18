@@ -230,6 +230,8 @@ class Handler(BaseHTTPRequestHandler):
 def run():
     # Recreate RDS JSON files on every launch
     recreate_rds_json()
+    # Default port is 8082, but can be overridden by OMPX_WEB_PORT environment variable.
+    # In the future, allow user to set this via the UI advanced tab.
     port = int(os.environ.get("OMPX_WEB_PORT", 8082))
     server = HTTPServer(("0.0.0.0", port), Handler)
     print(f"oMPX Web UI running on port {port}")
