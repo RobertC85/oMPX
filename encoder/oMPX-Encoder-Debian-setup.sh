@@ -265,6 +265,109 @@ ICECAST_CODEC="flac"
 
 # --- Ensure processed MPX is streamed to Icecast ---
 # --- Install/Update oMPX Web UI HTML ---
+cat > /workspaces/oMPX/encoder/index.html <<'EOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>oMPX Web UI</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: Canvas;
+      --card: Canvas;
+      --accent: Highlight;
+      --ink: CanvasText;
+      --muted: GrayText;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: Canvas;
+        --card: Canvas;
+        --accent: Highlight;
+        --ink: CanvasText;
+        --muted: GrayText;
+      }
+    }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: system-ui, sans-serif;
+    }
+    .row { margin-top: 8px; }
+    .program-field { margin-right: 8px; }
+    button {
+      background: var(--accent);
+      color: var(--ink);
+      border: 1px solid var(--muted);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+    button:hover {
+      filter: brightness(0.95);
+    }
+    #status {
+      margin-top: 12px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <button id="test_preview" class="program-field">Test (Preview)</button>
+    <button id="undo_btn" class="program-field">Undo</button>
+    <button id="apply_mpx_prog1" class="program-field program-1">Apply to MPX (Program 1)</button>
+    <button id="apply_mpx_prog2" class="program-field program-2">Apply to MPX (Program 2)</button>
+  </div>
+  <div id="status"></div>
+  <script>
+        document.getElementById('test_preview').onclick = async () => {
+          setStatus('Starting preview...');
+          const payload = collect();
+          const r = await fetch('/api/preview_start', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+          const j = await r.json();
+          setStatus(j.message || 'Preview started.');
+        };
+        document.getElementById('undo_btn').onclick = async () => {
+          setStatus('Reverting to previous settings...');
+          const r = await fetch('/api/undo', {method:'POST', headers:{'Content-Type':'application/json'}, body: '{}'});
+          const j = await r.json();
+          setStatus(j.message || 'Settings reverted.');
+        };
+    function collect() {
+      // TODO: Collect relevant UI state for payload
+      return {};
+    }
+    async function saveState() {
+      // TODO: Save UI state if needed
+    }
+    function setStatus(msg) {
+      document.getElementById('status').innerText = msg;
+    }
+    document.getElementById('apply_mpx_prog1').onclick = async () => {
+      await saveState();
+      const payload = collect();
+      payload.program = 1;
+      const r = await fetch('/api/apply_mpx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+      const j = await r.json();
+      setStatus(j.message || 'Applied to MPX (Program 1).');
+    };
+    document.getElementById('apply_mpx_prog2').onclick = async () => {
+      await saveState();
+      const payload = collect();
+      payload.program = 2;
+      const r = await fetch('/api/apply_mpx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+      const j = await r.json();
+      setStatus(j.message || 'Applied to MPX (Program 2).');
+    };
+  </script>
+</body>
+</html>
+EOF
 echo "[INFO] Installing Nginx and deploying oMPX Web UI..."
 apt-get update && apt-get install -y nginx
 cp /workspaces/oMPX/encoder/index.html /var/www/html/index.html
