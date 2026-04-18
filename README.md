@@ -8,6 +8,19 @@ Additional processing modules live in [modules/README.md](modules/README.md).
 Current module:
 - [modules/multiband_agc.sh](modules/multiband_agc.sh): 3-band compressor + AGC + limiter pipeline using FFmpeg.
 
+
+## Dependencies
+
+You must have Liquidsoap installed for all processing and preview services to work:
+
+- Install on Debian/Ubuntu:
+	sudo apt-get update && sudo apt-get install liquidsoap
+
+Liquidsoap is required for:
+- Main processing (ompx-processing.liq)
+- Preview processing (ompx-preview.liq)
+- All real-time audio streaming and preview endpoints
+
 ## Live Web Control UI
 
 The installer now supports an optional oMPX web control service with:

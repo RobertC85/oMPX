@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# --- Install required dependencies ---
+echo "Installing required dependencies (including Liquidsoap)..."
+sudo apt-get update
+sudo apt-get install -y liquidsoap
+
 # --- oMPX Web UI manual start helper script ---
 cat > /usr/local/bin/start-ompx-web-ui.sh <<'EOF'
 #!/bin/bash
