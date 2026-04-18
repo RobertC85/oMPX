@@ -111,6 +111,17 @@
               ${cat.name}
             </div>
             <div class="category-content" style="margin-left:1.5em;${expanded[cat.name] ? '' : 'display:none;'}">
+              <div style="margin-bottom:1em;display:flex;align-items:center;gap:1em;">
+                <div>
+                  <label for="program-select-${cat.name.replace(/\W/g,'_')}"><b>Program:</b></label>
+                  <select id="program-select-${cat.name.replace(/\W/g,'_')}">
+                    <option value="1">Program 1</option>
+                    <option value="2">Program 2</option>
+                  </select>
+                </div>
+                <button class="listen-btn" data-cat="${cat.name}">Listen</button>
+                <audio id="audio-player-${cat.name.replace(/\W/g,'_')}" controls style="display:none;width:200px;"></audio>
+              </div>
               <ul class="feature-list">
                 ${cat.features.map(f => `<li>${f}</li>`).join('')}
               </ul>
@@ -138,16 +149,28 @@
           renderMain();
         };
       });
+      document.querySelectorAll('.listen-btn').forEach(btn => {
+        btn.onclick = () => {
+          const cat = btn.getAttribute('data-cat');
+          const program = parseInt(document.getElementById('program-select-' + cat.replace(/\W/g,'_')).value);
+          const audio = document.getElementById('audio-player-' + cat.replace(/\W/g,'_'));
+          audio.src = `/api/preview.mp3?program=${program}&_=${Date.now()}`;
+          audio.style.display = 'inline-block';
+          audio.load();
+          audio.play();
+        };
+      });
       document.querySelectorAll('.test-btn').forEach(btn => {
         btn.onclick = async () => {
           const cat = btn.getAttribute('data-cat');
+          const program = parseInt(document.getElementById('program-select-' + cat.replace(/\W/g,'_')).value);
           document.getElementById('action-result-' + cat.replace(/\W/g,'_')).textContent = 'Testing...';
           const adv = advancedMode ? collectAdvanced(cat) : {};
           try {
             const res = await fetch('/api/preview_start', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ category: cat, ...adv })
+              body: JSON.stringify({ program, category: cat, ...adv })
             });
             const data = await res.json();
             document.getElementById('action-result-' + cat.replace(/\W/g,'_')).textContent = data.message || (data.ok ? 'Preview started.' : 'Failed');
@@ -159,18 +182,32 @@
       document.querySelectorAll('.apply-btn').forEach(btn => {
         btn.onclick = async () => {
           const cat = btn.getAttribute('data-cat');
+          const program = parseInt(document.getElementById('program-select-' + cat.replace(/\W/g,'_')).value);
           document.getElementById('action-result-' + cat.replace(/\W/g,'_')).textContent = 'Applying...';
           const adv = advancedMode ? collectAdvanced(cat) : {};
           try {
             const res = await fetch('/api/apply_mpx', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ program: 1, category: cat, ...adv })
+              body: JSON.stringify({ program, category: cat, ...adv })
             });
             const data = await res.json();
             document.getElementById('action-result-' + cat.replace(/\W/g,'_')).textContent = data.message || (data.ok ? 'Applied.' : 'Failed');
           } catch (e) {
             document.getElementById('action-result-' + cat.replace(/\W/g,'_')).textContent = 'Error: ' + e;
+          }
+        };
+      });
+      // Update audio player stream if program changes
+      document.querySelectorAll('select[id^="program-select-"]').forEach(sel => {
+        sel.onchange = () => {
+          const cat = sel.id.replace('program-select-','').replace(/_/g,' ');
+          const audio = document.getElementById('audio-player-' + sel.id.replace('program-select-',''));
+          if(audio && audio.style.display !== 'none') {
+            const program = parseInt(sel.value);
+            audio.src = `/api/preview.mp3?program=${program}&_=${Date.now()}`;
+            audio.load();
+            audio.play();
           }
         };
       });
