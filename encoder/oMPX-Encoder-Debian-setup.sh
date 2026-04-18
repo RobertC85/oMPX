@@ -267,7 +267,7 @@ ICECAST_CODEC="flac"
 # --- Install/Update oMPX Web UI HTML ---
 echo "[INFO] Installing Nginx and deploying oMPX Web UI..."
 apt-get update && apt-get install -y nginx
-cp /workspaces/oMPX/encoder/index.html /usr/share/nginx/html/index.html
+cp /workspaces/oMPX/encoder/index.html /var/www/html/index.html
 # Allow port override via OMPX_WEB_PORT, default 8083
 OMPX_WEB_PORT="${OMPX_WEB_PORT:-8083}"
 cat > /etc/nginx/sites-available/ompx-web-ui <<EOF
@@ -275,7 +275,7 @@ server {
   listen ${OMPX_WEB_PORT} default_server;
   listen [::]:${OMPX_WEB_PORT} default_server;
   server_name _;
-  root /usr/share/nginx/html;
+  root /var/www/html;
   index index.html;
   location / {
     try_files \$uri \$uri/ =404;
