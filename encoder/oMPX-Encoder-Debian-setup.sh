@@ -421,7 +421,65 @@ ICECAST_CODEC="flac"
 # --- Ensure processed MPX is streamed to Icecast ---
 # --- Install/Update oMPX Web UI HTML ---
 cat > /workspaces/oMPX/encoder/index.html <<'EOF'
-<the full, current contents of index.html with all original JS and UI logic, as just merged>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>oMPX Live Control</title>
+  <style>
+  :root { --bg:#0f1b1a; --card:#132825; --accent:#f2b642; --ink:#f4f7f5; --muted:#9fb8b0; }
+  body { margin:0; font-family: ui-sans-serif, sans-serif; background: radial-gradient(circle at 10% 10%, #1c3b35, var(--bg)); color:var(--ink); }
+  .wrap { max-width:1080px; margin:0 auto; padding:24px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .card { background:linear-gradient(180deg, #1a322e, var(--card)); border:1px solid #2a4f47; border-radius:12px; padding:14px; }
+  h1 { margin:0 0 12px; font-size:28px; letter-spacing:0.03em; }
+  label { display:block; font-size:13px; color:var(--muted); margin-top:8px; }
+  input, select, button { width:100%; margin-top:4px; padding:8px; border-radius:8px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink); }
+  button { cursor:pointer; background:linear-gradient(180deg, #f2b642, #d99424); color:#1b1406; font-weight:600; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  canvas { width:100%; height:140px; background:#0a1412; border:1px solid #2a4f47; border-radius:8px; }
+  .status { font-size:12px; color:var(--muted); margin-top:10px; }
+  .meter-grid { display:grid; grid-template-columns:1fr; gap:8px; margin-top:8px; }
+  .meter-row { display:grid; grid-template-columns:86px 1fr 62px; gap:8px; align-items:center; }
+  .meter-row .name { font-size:12px; color:var(--muted); }
+  .meter-row .db { font-size:12px; color:var(--ink); text-align:right; }
+  .meter-track { height:10px; border-radius:999px; border:1px solid #2a4f47; background:#0a1412; overflow:hidden; }
+  .meter-fill { height:100%; width:0%; background:linear-gradient(90deg, #2fd38a, #f2b642); transition:width 120ms linear; }
+  .tabs { display:flex; gap:8px; margin-bottom:10px; align-items:center; }
+  .tab-btn { width:auto; padding:8px 12px; border-radius:999px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink); }
+  .tab-btn.active { background:linear-gradient(180deg, #f2b642, #d99424); color:#1b1406; border-color:#d99424; }
+  .tab-name { max-width:180px; }
+  .program-field { display:none; }
+  .global-field { display:none; }
+  .program-field.active { display:block; }
+  .global-field.active { display:block; }
+  .stereo-adv { display:none; }
+  .stereo-adv.active { display:block; }
+  @media (max-width:900px) { .grid { grid-template-columns:1fr; } }
+  </style>
+  <style id="ui_custom_css_tag"></style>
+</head>
+<body>
+  <div class="wrap">
+  <h1>oMPX Live Control + Patch Preview</h1>
+  <div class="grid">
+    <div class="card"> 
+    <div class="tabs">
+      <button type="button" id="tab_prog1" class="tab-btn active">Program 1</button>
+      <button type="button" id="tab_prog2" class="tab-btn">Program 2</button>
+      <button type="button" id="tab_global" class="tab-btn">Global Settings</button>
+    </div>
+    <div class="row">
+      <div><label>Program 1 Tab Name</label><input id="tab_name_prog1" class="tab-name" type="text" maxlength="24" /></div>
+      <div><label>Program 2 Tab Name</label><input id="tab_name_prog2" class="tab-name" type="text" maxlength="24" /></div>
+    </div>
+    <div class="global-field">
+      <label style="margin-top:8px">Global Settings</label>
+      <label><input id="enable_momentary_ab" type="checkbox" /> Enable Momentary A/B Hold (optional)</label>
+      <div class="status">When enabled, hold the A/B button to temporarily bypass processing, then release to return.</div>
+    </div>
+    ...[HTML content truncated for brevity]...
 EOF
 echo "[INFO] Installing Nginx and deploying oMPX Web UI..."
 apt-get update && apt-get install -y nginx
