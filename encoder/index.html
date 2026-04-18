@@ -49,27 +49,96 @@
   </style>
 </head>
 <body>
-  <div class="row">
-    <button id="test_preview" class="program-field">Test (Preview)</button>
-    <button id="undo_btn" class="program-field">Undo</button>
-    <button id="apply_mpx_prog1" class="program-field program-1">Apply to MPX (Program 1)</button>
-    <button id="apply_mpx_prog2" class="program-field program-2">Apply to MPX (Program 2)</button>
+  <div style="display: flex; height: 90vh;">
+    <!-- Left panel: Tab menu -->
+    <nav id="side-menu" style="width: 220px; background: var(--card); border-right: 1px solid var(--muted); display: flex; flex-direction: column;">
+      <h2 style="margin: 16px 0 8px 16px; font-size: 18px;">oMPX Processing</h2>
+      <ul style="list-style: none; padding: 0; margin: 0; flex: 1;">
+        <li><button class="tab-btn" data-tab="clipping">Clipping</button></li>
+        <li><button class="tab-btn" data-tab="dynamic">Dynamic Enhancement</button></li>
+        <li><button class="tab-btn" data-tab="unclipping">Unclipping (Input)</button></li>
+        <li><button class="tab-btn" data-tab="agc">AGC</button></li>
+        <li><button class="tab-btn" data-tab="limiter">Limiter</button></li>
+        <li><button class="tab-btn" data-tab="output">Output</button></li>
+      </ul>
+      <div style="margin: 16px; font-size: 12px; color: var(--muted);">Inspired by Breakaway One / Stereo Tool</div>
+    </nav>
+    <!-- Main content area -->
+    <div style="flex: 1; padding: 24px; overflow-y: auto;">
+      <div class="row">
+        <button id="test_preview" class="program-field">Test (Preview)</button>
+        <button id="stop_preview" class="program-field">Stop Preview</button>
+        <button id="undo_btn" class="program-field">Undo</button>
+        <button id="apply_mpx_prog1" class="program-field program-1">Apply to MPX (Program 1)</button>
+        <button id="apply_mpx_prog2" class="program-field program-2">Apply to MPX (Program 2)</button>
+      </div>
+      <div id="status"></div>
+      <!-- Tab panels -->
+      <div id="tab-panels">
+        <div class="tab-panel" id="panel-clipping">
+          <h3>Clipping</h3>
+          <p>Configure input and output clipping, soft/hard clipper, oversampling, etc.</p>
+          <!-- TODO: Add controls for clipping section -->
+        </div>
+        <div class="tab-panel" id="panel-dynamic" style="display:none;">
+          <h3>Dynamic Enhancement</h3>
+          <p>Multi-band compression, expansion, and enhancement controls.</p>
+          <!-- TODO: Add controls for dynamic enhancement section -->
+        </div>
+        <div class="tab-panel" id="panel-unclipping" style="display:none;">
+          <h3>Unclipping (Input)</h3>
+          <p>Restore clipped audio at the start of the chain.</p>
+          <!-- TODO: Add controls for unclipping section -->
+        </div>
+        <div class="tab-panel" id="panel-agc" style="display:none;">
+          <h3>AGC</h3>
+          <p>Automatic gain control settings.</p>
+          <!-- TODO: Add controls for AGC section -->
+        </div>
+        <div class="tab-panel" id="panel-limiter" style="display:none;">
+          <h3>Limiter</h3>
+          <p>Final output limiter configuration.</p>
+          <!-- TODO: Add controls for limiter section -->
+        </div>
+        <div class="tab-panel" id="panel-output" style="display:none;">
+          <h3>Output</h3>
+          <p>Output routing, monitoring, and streaming options.</p>
+          <!-- TODO: Add controls for output section -->
+        </div>
+      </div>
+    </div>
   </div>
-  <div id="status"></div>
   <script>
-        document.getElementById('test_preview').onclick = async () => {
-          setStatus('Starting preview...');
-          const payload = collect();
-          const r = await fetch('/api/preview_start', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-          const j = await r.json();
-          setStatus(j.message || 'Preview started.');
-        };
-        document.getElementById('undo_btn').onclick = async () => {
-          setStatus('Reverting to previous settings...');
-          const r = await fetch('/api/undo', {method:'POST', headers:{'Content-Type':'application/json'}, body: '{}'});
-          const j = await r.json();
-          setStatus(j.message || 'Settings reverted.');
-        };
+    // Tab switching logic
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.onclick = function() {
+        document.querySelectorAll('.tab-panel').forEach(panel => panel.style.display = 'none');
+        const tab = btn.getAttribute('data-tab');
+        document.getElementById('panel-' + tab).style.display = '';
+      };
+    });
+    // Default to first tab
+    document.getElementById('panel-clipping').style.display = '';
+
+    document.getElementById('test_preview').onclick = async () => {
+      setStatus('Starting preview...');
+      const payload = collect();
+      const r = await fetch('/api/preview_start', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+      const j = await r.json();
+      setStatus(j.message || 'Preview started.');
+    };
+    document.getElementById('stop_preview').onclick = async () => {
+      setStatus('Stopping preview...');
+      const r = await fetch('/api/preview_stop', {method:'POST', headers:{'Content-Type':'application/json'}, body: '{}'});
+      const j = await r.json();
+      setStatus(j.message || 'Preview stopped.');
+    };
+    document.getElementById('undo_btn').onclick = async () => {
+      setStatus('Reverting to previous settings...');
+      const r = await fetch('/api/undo', {method:'POST', headers:{'Content-Type':'application/json'}, body: '{}'});
+      const j = await r.json();
+      setStatus(j.message || 'Settings reverted.');
+    };
     function collect() {
       // TODO: Collect relevant UI state for payload
       return {};
