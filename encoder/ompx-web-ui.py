@@ -168,7 +168,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "text/html")
             self.end_headers()
-            with open(os.path.join(os.path.dirname(__file__), "ompx-web-ui.html"), "r") as f:
+            with open(os.path.join(os.path.dirname(__file__), "index.html"), "r") as f:
                 self.wfile.write(f.read().encode())
             return
         self.send_error(HTTPStatus.NOT_FOUND, "Not found")
