@@ -123,6 +123,24 @@ output_filtered_2 = lowpass(output_filtered_2, 16900.0)
 
 # --- Output ---
 output.icecast(%mp3(bitrate=320), host="localhost", port=8000, password="hackme", mount="/mpx1", name="MPX Program 1", description="MPX 1")
-	(audio_to_stereo(output_filtered_1))
+		(audio_to_stereo(output_filtered_1))
 output.icecast(%mp3(bitrate=320), host="localhost", port=8000, password="hackme", mount="/mpx2", name="MPX Program 2", description="MPX 2")
-	(audio_to_stereo(output_filtered_2))
+		(audio_to_stereo(output_filtered_2))
+
+# HTTP WAV preview output for Program 1
+output.http(
+	id="preview1",
+	host="0.0.0.0",
+	port=8088,
+	content_type="audio/wav",
+	mksafe(output_filtered_1)
+)
+
+# HTTP WAV preview output for Program 2
+output.http(
+	id="preview2",
+	host="0.0.0.0",
+	port=8089,
+	content_type="audio/wav",
+	mksafe(output_filtered_2)
+)
