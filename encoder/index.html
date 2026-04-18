@@ -1,1 +1,179 @@
-<the full, current contents of index.html with all original JS and UI logic, as just merged>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>oMPX Web UI</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f9f9f9;
+      color: #222;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 700px;
+      margin: 2em auto;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px #0001;
+      padding: 2em;
+    }
+    .category-title {
+      font-size: 1.3em;
+      font-weight: 500;
+      margin-bottom: 1em;
+      color: #333;
+    }
+    .feature-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .feature-list li {
+      margin-bottom: 0.7em;
+      color: #444;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="main"></div>
+  </div>
+  <script>
+    let activeTab = 0;
+    const categories = [
+      { name: 'Dynamics', features: [
+        'Noise gate',
+        'AGC',
+        'Multiband Compressor',
+        'Wideband Compressor',
+        'Limiting & Clipping',
+        'Enhanced Dynamics',
+        'Chain Drive (dB)'
+      ] },
+      { name: 'Equalization', features: [
+        'Bandpass',
+        'Equalizer'
+      ] },
+      { name: 'Phase & Stereo', features: [
+        'Phase',
+        'Phase rotation',
+        'Phase delay',
+        'Stereo',
+        'Stereo Boost',
+        'Stereo Image',
+        'Stereo Phase',
+        'Stereo Delay'
+      ] },
+      { name: 'Other', features: [
+        'Dynamics'
+      ] }
+    ];
+
+    let advancedMode = false;
+    function renderMain() {
+      const main = document.getElementById('main');
+      const cat = categories[activeTab];
+      // Advanced controls for each category (scaffold)
+      const advancedControls = {
+        'Dynamics': `
+          <label>Pre Gain <input type="number" step="0.01" id="pre_gain" value="0.25"></label><br>
+          <label>Post Gain <input type="number" step="0.01" id="post_gain" value="0.99"></label><br>
+          <label>Gate Threshold (dB) <input type="number" step="1" id="gate_threshold" value="-50"></label><br>
+          <label>Gate Attack (s) <input type="number" step="0.01" id="gate_attack" value="0.01"></label><br>
+          <label>Gate Release (s) <input type="number" step="0.01" id="gate_release" value="0.1"></label><br>
+          <label>AGC Attack (s) <input type="number" step="0.001" id="agc_attack" value="0.005"></label><br>
+          <label>AGC Release (s) <input type="number" step="0.01" id="agc_release" value="0.3"></label><br>
+          <label>AGC Threshold (dB) <input type="number" step="1" id="agc_threshold" value="-18"></label><br>
+          <label>AGC Ratio <input type="number" step="0.1" id="agc_ratio" value="2.0"></label><br>
+        `,
+        'Equalization': `
+          <label>Bass Gain <input type="number" step="0.01" id="eq_bass" value="1.2"></label><br>
+          <label>Mid Gain <input type="number" step="0.01" id="eq_mid" value="1.0"></label><br>
+          <label>Treble Gain <input type="number" step="0.01" id="eq_treble" value="1.1"></label><br>
+        `,
+        'Phase & Stereo': `
+          <label>Stereo Width <input type="number" step="0.01" id="stereo_width" value="1.0"></label><br>
+        `,
+        'Other': ``
+      };
+      main.innerHTML = `
+        <div style="margin-bottom:1em;">
+          <label><input type="checkbox" id="advanced-toggle" ${advancedMode ? 'checked' : ''}> Advanced Mode</label>
+        </div>
+        <div class="category-title">${cat.name}</div>
+        <ul class="feature-list">
+          ${cat.features.map(f => `<li>${f}</li>`).join('')}
+        </ul>
+        <div id="advanced-controls" style="margin:1em 0;background:#f3f3f3;padding:1em;border-radius:6px;"${advancedMode ? '' : ' hidden'}>
+          <b>Advanced Controls</b><br>
+          ${advancedControls[cat.name] || ''}
+        </div>
+        <div style="margin-top:2em;">
+          <button id="test-btn" style="margin-right:1em;">Test</button>
+          <button id="apply-btn">Apply</button>
+          <span id="action-result" style="margin-left:1em;color:#007700;"></span>
+        </div>
+      `;
+      document.getElementById('advanced-toggle').onchange = (e) => {
+        advancedMode = e.target.checked;
+        renderMain();
+      };
+      document.getElementById('test-btn').onclick = async () => {
+        document.getElementById('action-result').textContent = 'Testing...';
+        const adv = advancedMode ? collectAdvanced(cat.name) : {};
+        try {
+          const res = await fetch('/api/preview_start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ category: cat.name, ...adv })
+          });
+          const data = await res.json();
+          document.getElementById('action-result').textContent = data.message || (data.ok ? 'Preview started.' : 'Failed');
+        } catch (e) {
+          document.getElementById('action-result').textContent = 'Error: ' + e;
+        }
+      };
+      document.getElementById('apply-btn').onclick = async () => {
+        document.getElementById('action-result').textContent = 'Applying...';
+        const adv = advancedMode ? collectAdvanced(cat.name) : {};
+        try {
+          const res = await fetch('/api/apply_mpx', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ program: 1, category: cat.name, ...adv })
+          });
+          const data = await res.json();
+          document.getElementById('action-result').textContent = data.message || (data.ok ? 'Applied.' : 'Failed');
+        } catch (e) {
+          document.getElementById('action-result').textContent = 'Error: ' + e;
+        }
+      };
+    }
+    function collectAdvanced(cat) {
+      const vals = {};
+      if (cat === 'Dynamics') {
+        vals.pre_gain = parseFloat(document.getElementById('pre_gain').value);
+        vals.post_gain = parseFloat(document.getElementById('post_gain').value);
+        vals.gate_threshold = parseFloat(document.getElementById('gate_threshold').value);
+        vals.gate_attack = parseFloat(document.getElementById('gate_attack').value);
+        vals.gate_release = parseFloat(document.getElementById('gate_release').value);
+        vals.agc_attack = parseFloat(document.getElementById('agc_attack').value);
+        vals.agc_release = parseFloat(document.getElementById('agc_release').value);
+        vals.agc_threshold = parseFloat(document.getElementById('agc_threshold').value);
+        vals.agc_ratio = parseFloat(document.getElementById('agc_ratio').value);
+      } else if (cat === 'Equalization') {
+        vals.eq_bass = parseFloat(document.getElementById('eq_bass').value);
+        vals.eq_mid = parseFloat(document.getElementById('eq_mid').value);
+        vals.eq_treble = parseFloat(document.getElementById('eq_treble').value);
+      } else if (cat === 'Phase & Stereo') {
+        vals.stereo_width = parseFloat(document.getElementById('stereo_width').value);
+      }
+      return vals;
+    }
+    renderMain();
+  </script>
+</body>
+</html>
