@@ -42,6 +42,7 @@
     <div id="main"></div>
   </div>
   <script>
+    let activeTab = 0;
     const categories = [
       { name: 'Dynamics', features: [
         'Noise gate',
@@ -72,11 +73,9 @@
     ];
 
     let advancedMode = false;
-    let expanded = {};
-    categories.forEach(cat => { expanded[cat.name] = false; });
-
     function renderMain() {
       const main = document.getElementById('main');
+      const cat = categories[activeTab];
       // Advanced controls for each category (scaffold)
       const advancedControls = {
         'Dynamics': `
@@ -104,76 +103,54 @@
         <div style="margin-bottom:1em;">
           <label><input type="checkbox" id="advanced-toggle" ${advancedMode ? 'checked' : ''}> Advanced Mode</label>
         </div>
-        <div>
-          ${categories.map(cat => `
-            <div class="category-title" style="cursor:pointer;user-select:none;display:flex;align-items:center;" data-cat="${cat.name}">
-              <span style="font-size:1.2em;margin-right:0.5em;">${expanded[cat.name] ? '▼' : '►'}</span>
-              ${cat.name}
-            </div>
-            <div class="category-content" style="margin-left:1.5em;${expanded[cat.name] ? '' : 'display:none;'}">
-              <ul class="feature-list">
-                ${cat.features.map(f => `<li>${f}</li>`).join('')}
-              </ul>
-              <div id="advanced-controls-${cat.name.replace(/\W/g,'_')}" style="margin:1em 0;background:#f3f3f3;padding:1em;border-radius:6px;"${advancedMode ? '' : ' hidden'}>
-                <b>Advanced Controls</b><br>
-                ${advancedControls[cat.name] || ''}
-              </div>
-              <div style="margin-top:2em;">
-                <button class="test-btn" data-cat="${cat.name}" style="margin-right:1em;">Test</button>
-                <button class="apply-btn" data-cat="${cat.name}">Apply</button>
-                <span class="action-result" id="action-result-${cat.name.replace(/\W/g,'_')}" style="margin-left:1em;color:#007700;"></span>
-              </div>
-            </div>
-          `).join('')}
+        <div class="category-title">${cat.name}</div>
+        <ul class="feature-list">
+          ${cat.features.map(f => `<li>${f}</li>`).join('')}
+        </ul>
+        <div id="advanced-controls" style="margin:1em 0;background:#f3f3f3;padding:1em;border-radius:6px;"${advancedMode ? '' : ' hidden'}>
+          <b>Advanced Controls</b><br>
+          ${advancedControls[cat.name] || ''}
+        </div>
+        <div style="margin-top:2em;">
+          <button id="test-btn" style="margin-right:1em;">Test</button>
+          <button id="apply-btn">Apply</button>
+          <span id="action-result" style="margin-left:1em;color:#007700;"></span>
         </div>
       `;
       document.getElementById('advanced-toggle').onchange = (e) => {
         advancedMode = e.target.checked;
         renderMain();
       };
-      document.querySelectorAll('.category-title').forEach(el => {
-        el.onclick = () => {
-          const cat = el.getAttribute('data-cat');
-          expanded[cat] = !expanded[cat];
-          renderMain();
-        };
-      });
-      document.querySelectorAll('.test-btn').forEach(btn => {
-        btn.onclick = async () => {
-          const cat = btn.getAttribute('data-cat');
-          document.getElementById('action-result-' + cat.replace(/\W/g,'_')).textContent = 'Testing...';
-          const adv = advancedMode ? collectAdvanced(cat) : {};
-          try {
-            const res = await fetch('/api/preview_start', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ category: cat, ...adv })
-            });
-            const data = await res.json();
-            document.getElementById('action-result-' + cat.replace(/\W/g,'_')).textContent = data.message || (data.ok ? 'Preview started.' : 'Failed');
-          } catch (e) {
-            document.getElementById('action-result-' + cat.replace(/\W/g,'_')).textContent = 'Error: ' + e;
-          }
-        };
-      });
-      document.querySelectorAll('.apply-btn').forEach(btn => {
-        btn.onclick = async () => {
-          const cat = btn.getAttribute('data-cat');
-          document.getElementById('action-result-' + cat.replace(/\W/g,'_')).textContent = 'Applying...';
-          const adv = advancedMode ? collectAdvanced(cat) : {};
-          try {
-            const res = await fetch('/api/apply_mpx', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ program: 1, category: cat, ...adv })
-            });
-            const data = await res.json();
-            document.getElementById('action-result-' + cat.replace(/\W/g,'_')).textContent = data.message || (data.ok ? 'Applied.' : 'Failed');
-          } catch (e) {
-            document.getElementById('action-result-' + cat.replace(/\W/g,'_')).textContent = 'Error: ' + e;
-          }
-        };
-      });
+      document.getElementById('test-btn').onclick = async () => {
+        document.getElementById('action-result').textContent = 'Testing...';
+        const adv = advancedMode ? collectAdvanced(cat.name) : {};
+        try {
+          const res = await fetch('/api/preview_start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ category: cat.name, ...adv })
+          });
+          const data = await res.json();
+          document.getElementById('action-result').textContent = data.message || (data.ok ? 'Preview started.' : 'Failed');
+        } catch (e) {
+          document.getElementById('action-result').textContent = 'Error: ' + e;
+        }
+      };
+      document.getElementById('apply-btn').onclick = async () => {
+        document.getElementById('action-result').textContent = 'Applying...';
+        const adv = advancedMode ? collectAdvanced(cat.name) : {};
+        try {
+          const res = await fetch('/api/apply_mpx', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ program: 1, category: cat.name, ...adv })
+          });
+          const data = await res.json();
+          document.getElementById('action-result').textContent = data.message || (data.ok ? 'Applied.' : 'Failed');
+        } catch (e) {
+          document.getElementById('action-result').textContent = 'Error: ' + e;
+        }
+      };
     }
     function collectAdvanced(cat) {
       const vals = {};

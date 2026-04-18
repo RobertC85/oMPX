@@ -75,8 +75,11 @@ class Handler(BaseHTTPRequestHandler):
             prog = int(payload.get("program", 0))
             if prog not in (1, 2):
                 self._send_json({"ok": False, "message": "Invalid program number"}, status=HTTPStatus.BAD_REQUEST)
-                return
-            # Accept all UI-exposed options, fallback to installer env or previous state
+                # Serve the latest index.html from the same directory as this script
+                import os
+                index_path = os.path.join(os.path.dirname(__file__), "index.html")
+                with open(index_path, "r") as f:
+                    self.wfile.write(f.read().encode())
             def get_opt(key, env_key=None, default=None):
                 return (
                     payload.get(key)
