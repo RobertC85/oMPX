@@ -467,37 +467,6 @@ systemctl reload nginx
 echo "[INFO] oMPX Web UI is now served by Nginx on port ${OMPX_WEB_PORT}."
 mkdir -p /workspaces/oMPX/encoder
 ## Removed hardcoded overwrite of ompx-web-ui.html to preserve latest committed UI
-          const j = await r.json();
-          setStatus(j.message || 'Preview started.');
-        };
-        document.getElementById('undo_btn').onclick = async () => {
-          setStatus('Reverting to previous settings...');
-          const r = await fetch('/api/undo', {method:'POST', headers:{'Content-Type':'application/json'}, body: '{}'});
-          const j = await r.json();
-          setStatus(j.message || 'Settings reverted.');
-        };
-    function collect() {
-      // TODO: Collect relevant UI state for payload
-      return {};
-    }
-    async function saveState() {
-      // TODO: Save UI state if needed
-    }
-    function setStatus(msg) {
-      document.getElementById('status').innerText = msg;
-    }
-    document.getElementById('apply_mpx_prog1').onclick = async () => {
-      await saveState();
-      const payload = collect();
-      payload.program = 1;
-      const r = await fetch('/api/apply_mpx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-      const j = await r.json();
-      setStatus(j.message || 'Applied to MPX (Program 1).');
-    };
-    document.getElementById('apply_mpx_prog2').onclick = async () => {
-      await saveState();
-      const payload = collect();
-      payload.program = 2;
       const r = await fetch('/api/apply_mpx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
       const j = await r.json();
       setStatus(j.message || 'Applied to MPX (Program 2).');
