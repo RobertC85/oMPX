@@ -1,3 +1,5 @@
+# 0.2.2k9 (2026-04-19)
+- Feature: "Bandaid for k9" — If nginx configs are missing or nginx fails to start, the installer will now automatically purge, remove, and reinstall nginx, then start the service. This ensures nginx is always recoverable after a --scorch or config loss.
 # 0.2.2k8 (2026-04-19)
 - Security: All --scorch warnings now explicitly state that it will delete users, home directories, configs, and may break logins or system access. Prompts and help text are much stronger and clearer.
 - Feature: After a --scorch uninstall, running the installer again will automatically "bandaid" the system: it will recreate the ompx user/home, reinstall all required packages, and restore missing directories/configs for a fresh start.

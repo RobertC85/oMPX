@@ -379,37 +379,64 @@ if [ "$SCORCH_MODE" = true ] || [ "$NUKE_PACKAGES" = true ] || [[ "$*" == *--nuk
     echo "[INFO] After reboot, you may re-run this installer to automatically repair and reinstall all missing users, packages, and configs."
     exit 0
   # --- BANDAID REINSTALL LOGIC: Repair missing users, home, and packages after --scorch ---
-  # If ompx user or home is missing, recreate them
+  # If ompx user or home is missing, politely notify user and repair
+  scorched=false
   if ! id -u ompx >/dev/null 2>&1; then
-    echo "[BANDAID] ompx user missing. Re-creating ompx user and home directory."
+    echo "[NOTICE] oMPX system user was missing. This usually means a destructive uninstall (--scorch) or manual removal was detected."
+    echo "[NOTICE] Re-creating ompx user and home directory."
     useradd -m -s /bin/bash ompx || true
     passwd -d ompx || true
+    scorched=true
   fi
   if [ ! -d /home/ompx ]; then
-    echo "[BANDAID] /home/ompx missing. Re-creating home directory."
+    echo "[NOTICE] /home/ompx was missing. This usually means a destructive uninstall (--scorch) or manual removal was detected."
+    echo "[NOTICE] Re-creating home directory."
     mkdir -p /home/ompx
     chown ompx:ompx /home/ompx
+    scorched=true
   fi
   # Ensure all required packages are installed
   REQUIRED_PKGS="nginx python3 curl wget alsa-utils ffmpeg sox ladspa-sdk swh-plugins cron liquidsoap icecast2"
   for pkg in $REQUIRED_PKGS; do
     if ! dpkg -s "$pkg" >/dev/null 2>&1; then
-      echo "[BANDAID] Package $pkg missing. Installing..."
+      echo "[NOTICE] Package $pkg was missing. Reinstalling $pkg."
       apt-get update && apt-get install -y "$pkg"
+      scorched=true
     fi
   done
   # Re-create /opt/mpx-radio and other critical dirs if missing
   if [ ! -d /opt/mpx-radio ]; then
-    echo "[BANDAID] /opt/mpx-radio missing. Re-creating."
+    echo "[NOTICE] /opt/mpx-radio was missing. Re-creating."
     mkdir -p /opt/mpx-radio
     chown ompx:ompx /opt/mpx-radio
+    scorched=true
   fi
   # Re-create logs dir
   if [ ! -d /home/ompx/logs ]; then
     mkdir -p /home/ompx/logs
     chown ompx:ompx /home/ompx/logs
+    scorched=true
+  fi
+  if [ "$scorched" = true ]; then
+    echo "[NOTICE] oMPX detected a scorched or partially removed system. All missing users, directories, and packages have been restored."
+    echo "[NOTICE] If this was unintentional, please review your system for any other missing data or configs."
   fi
   # End bandaid logic
+  # --- NGINX BANDAID LOGIC (k9): If nginx.conf is missing or nginx fails to start, fully purge and reinstall nginx ---
+  if ! [ -f /etc/nginx/nginx.conf ] || ! systemctl start nginx 2>/dev/null; then
+    echo "[BANDAID:k9] nginx config missing or nginx failed to start. Purging and reinstalling nginx..."
+    apt-get purge --remove -y nginx nginx-common nginx-full || true
+    rm -rf /etc/nginx
+    apt-get update
+    apt-get install -y nginx
+    systemctl enable nginx || true
+    systemctl start nginx || true
+    if systemctl status nginx | grep -q running; then
+      echo "[BANDAID:k9] nginx successfully reinstalled and running."
+    else
+      echo "[BANDAID:k9] nginx reinstall attempted, but service is not running. Please check manually."
+    fi
+  fi
   fi
 
   if [ "$NUKE_PACKAGES" = true ]; then
