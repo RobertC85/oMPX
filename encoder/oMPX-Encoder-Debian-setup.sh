@@ -143,16 +143,15 @@ fi
 # Replace positional args with parsed ones (removes --auto/--interactive/--help/--version)
 set -- "${PARSED_ARGS[@]}"
 
-# --- IMMEDIATE UNINSTALL LOGIC: If any destructive flag is present, do nothing else ---
-
-# --- IMMEDIATE UNINSTALL LOGIC: If any destructive flag is present, run uninstall and exit ---
-if [[ "$*" == *--scorch* || "$*" == *--nuke* || "$*" == *--nuke-packages* ]]; then
+### --- IMMEDIATE UNINSTALL LOGIC: If any destructive flag is present, run uninstall and exit ---
+if [ "$SCORCH_MODE" = true ] || [ "$NUKE_PACKAGES" = true ] || [[ "$*" == *--nuke* ]]; then
+  # Always run uninstall logic and exit before any menu or install logic
   if [ "$SCORCH_MODE" = true ]; then
     # Red whiptail warning or fallback prompt
     if command -v whiptail >/dev/null 2>&1; then
-      whiptail --title "\Zb\Z1 DANGER: oMPX --scorch" --backtitle "oMPX SCORCH MODE" --msgbox "\Z1\ZbWARNING:\Zn\n\nThis will PERMANENTLY and IRREVERSIBLY DELETE ALL oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users, and services.\n\nIt may also remove shared dependencies.\n\nThere is NO UNDO.\n\nPress <OK> to continue, or <Cancel> to abort." 16 70 --colors || exit 1
-      whiptail --title "\Zb\Z1 FINAL CONFIRMATION" --yesno "\Z1\ZbAre you absolutely sure you want to OBLITERATE all traces of oMPX and related stack?\Zn\n\nType 'YES' in the next box to confirm." 12 70 --colors || exit 1
-      CONFIRM=$(whiptail --inputbox "Type YES to confirm destructive removal:" 10 60 "" 3>&1 1>&2 2>&3)
+      whiptail --title "DANGER: oMPX --scorch" --backtitle "oMPX SCORCH MODE" --msgbox "WARNING:\n\nThis will PERMANENTLY and IRREVERSIBLY DELETE ALL oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users, and services.\n\nIt may also remove shared dependencies.\n\nThere is NO UNDO.\n\nPress <OK> to continue, or <Cancel> to abort." 16 70 || exit 1
+      whiptail --title "FINAL CONFIRMATION" --yesno "Are you absolutely sure you want to OBLITERATE all traces of oMPX and related stack?\n\nYou MUST type 'YES' (all caps) in the next box to confirm." 12 70 || exit 1
+      CONFIRM=$(whiptail --inputbox "Type YES (all caps) to confirm destructive removal:" 10 60 "" 3>&1 1>&2 2>&3)
       [ "$CONFIRM" = "YES" ] || { echo "[ABORTED] --scorch cancelled by user."; exit 1; }
     else
       echo ""

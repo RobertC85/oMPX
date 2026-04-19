@@ -1,8 +1,11 @@
-# 0.2.2k4 (2026-04-19)
+# 0.2.2k5 (2026-04-19)
+- Remove --colors flag from all whiptail dialogs for compatibility on all systems.
+- Clarify destructive confirmation: menu now explicitly states 'YES' must be typed in all caps.
+- Fix: --scorch, --nuke, and --nuke-packages now always bypass menu and run uninstall logic immediately, regardless of invocation.
 - Feature: Add --nuke-packages flag. When used with --nuke, purges all oMPX-related apt packages (liquidsoap, nginx, icecast2, ffmpeg, etc) on uninstall for a truly clean removal.
 - Uninstall now also removes Nginx configs and static web UI files.
 - Help text updated to document new flag.
-- Version bump: 0.2.2k4 in VERSION file.
+- Version bump: 0.2.2k5 in VERSION file.
 - Ultra-aggressive uninstall: --scorch and --nuke now attempt to remove all possible oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users, groups, and binaries. Any failure to remove is logged as an error. User/group removal is forced (with pkill), and a reboot is now required to complete cleanup.
 ## 0.2.2k (2026-04-19)
 - Fix version detection for all environments (bare metal, Codespaces, etc.)
