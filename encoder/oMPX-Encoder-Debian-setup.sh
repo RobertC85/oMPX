@@ -226,7 +226,7 @@ Options:
   --force-update     Overwrite all managed files (default)
   --nuke             Uninstall oMPX and remove all files/services
   --nuke-packages    Uninstall oMPX, remove all files/services, and purge all oMPX-related apt packages (liquidsoap, nginx, icecast2, etc)
-  --scorch           Ultra-aggressive uninstall: removes all oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users, and disables/removes all related services. Leaves no trace.
+  --scorch           ⚠️  DANGER: Ultra-aggressive uninstall. PERMANENTLY and IRREVERSIBLY deletes ALL oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users (including home directories), and disables/removes all related services. This may break logins, remove user data, and leave your system in an unusable state. **THERE IS NO UNDO.**
   --kill-ompx-user   (Only with --scorch, as ompx) Also deletes the ompx user account itself. Without this, only the home directory is deleted and SSH remains possible for ompx, but with no home directory.
   --menu             Launch interactive whiptail menu (if available)
   --interactive      Require explicit answers for all prompts (no timeouts, no defaults)
@@ -259,20 +259,21 @@ if [ "$SCORCH_MODE" = true ] || [ "$NUKE_PACKAGES" = true ] || [[ "$*" == *--nuk
   if [ "$SCORCH_MODE" = true ]; then
     # Red whiptail warning or fallback prompt
     if command -v whiptail >/dev/null 2>&1; then
-      whiptail --title "DANGER: oMPX --scorch" --backtitle "oMPX SCORCH MODE" --msgbox "WARNING:\n\nThis will PERMANENTLY and IRREVERSIBLY DELETE ALL oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users, and services.\n\nIt may also remove shared dependencies.\n\nThere is NO UNDO.\n\nPress <OK> to continue, or <Cancel> to abort." 16 70 || exit 1
+      whiptail --title "⚠️  DANGER: oMPX --scorch" --backtitle "oMPX SCORCH MODE" --msgbox "⚠️  WARNING:\n\nThis will PERMANENTLY and IRREVERSIBLY DELETE ALL oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users (including home directories), and services.\n\nThis may break logins, remove user data, and leave your system in an unusable state.\n\n**THERE IS NO UNDO.**\n\nPress <OK> to continue, or <Cancel> to abort." 18 70 || exit 1
       whiptail --title "FINAL CONFIRMATION" --yesno "Are you absolutely sure you want to OBLITERATE all traces of oMPX and related stack?\n\nYou MUST type 'YES' (all caps) in the next box to confirm." 12 70 || exit 1
-      CONFIRM=$(whiptail --inputbox "Type YES (all caps) to confirm destructive removal:" 10 60 "" 3>&1 1>&2 2>&3)
+      CONFIRM=$(whiptail --inputbox "Type YES (all caps) to confirm destructive removal:\n\n⚠️  This will delete users, home directories, configs, and may break logins or system access!" 12 70 "" 3>&1 1>&2 2>&3)
       [ "$CONFIRM" = "YES" ] || { echo "[ABORTED] --scorch cancelled by user."; exit 1; }
     else
       echo ""
-      echo "==================== DANGER: oMPX --scorch ===================="
-      echo "WARNING: This will PERMANENTLY and IRREVERSIBLY DELETE ALL oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users, and services."
-      echo "It may also remove shared dependencies. There is NO UNDO."
+      echo "==================== ⚠️  DANGER: oMPX --scorch ===================="
+      echo "WARNING: This will PERMANENTLY and IRREVERSIBLY DELETE ALL oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users (including home directories), and services."
+      echo "This may break logins, remove user data, and leave your system in an unusable state. THERE IS NO UNDO."
       echo "Type YES to continue, or anything else to abort."
       read -r CONFIRM
       [ "$CONFIRM" = "YES" ] || { echo "[ABORTED] --scorch cancelled by user."; exit 1; }
     fi
     echo "[INFO] --scorch detected: performing ultra-aggressive uninstall (no prompts, menu bypassed)"
+    echo "[INFO] ⚠️  Reminder: This will delete users, home directories, configs, and may break logins or system access."
   else
     echo "[INFO] --nuke or --nuke-packages detected: performing full uninstall (no prompts, menu bypassed)"
   fi
@@ -375,7 +376,40 @@ if [ "$SCORCH_MODE" = true ] || [ "$NUKE_PACKAGES" = true ] || [[ "$*" == *--nuk
     fi
     echo "[SUCCESS] --scorch: All traces of oMPX and related stack removed."
     echo "[INFO] A REBOOT IS REQUIRED to complete cleanup. Please run: sudo reboot"
+    echo "[INFO] After reboot, you may re-run this installer to automatically repair and reinstall all missing users, packages, and configs."
     exit 0
+  # --- BANDAID REINSTALL LOGIC: Repair missing users, home, and packages after --scorch ---
+  # If ompx user or home is missing, recreate them
+  if ! id -u ompx >/dev/null 2>&1; then
+    echo "[BANDAID] ompx user missing. Re-creating ompx user and home directory."
+    useradd -m -s /bin/bash ompx || true
+    passwd -d ompx || true
+  fi
+  if [ ! -d /home/ompx ]; then
+    echo "[BANDAID] /home/ompx missing. Re-creating home directory."
+    mkdir -p /home/ompx
+    chown ompx:ompx /home/ompx
+  fi
+  # Ensure all required packages are installed
+  REQUIRED_PKGS="nginx python3 curl wget alsa-utils ffmpeg sox ladspa-sdk swh-plugins cron liquidsoap icecast2"
+  for pkg in $REQUIRED_PKGS; do
+    if ! dpkg -s "$pkg" >/dev/null 2>&1; then
+      echo "[BANDAID] Package $pkg missing. Installing..."
+      apt-get update && apt-get install -y "$pkg"
+    fi
+  done
+  # Re-create /opt/mpx-radio and other critical dirs if missing
+  if [ ! -d /opt/mpx-radio ]; then
+    echo "[BANDAID] /opt/mpx-radio missing. Re-creating."
+    mkdir -p /opt/mpx-radio
+    chown ompx:ompx /opt/mpx-radio
+  fi
+  # Re-create logs dir
+  if [ ! -d /home/ompx/logs ]; then
+    mkdir -p /home/ompx/logs
+    chown ompx:ompx /home/ompx/logs
+  fi
+  # End bandaid logic
   fi
 
   if [ "$NUKE_PACKAGES" = true ]; then
