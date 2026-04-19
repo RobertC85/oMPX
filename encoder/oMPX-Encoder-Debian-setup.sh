@@ -437,7 +437,6 @@ ICECAST_CODEC="flac"
 # --- Install/Update oMPX Web UI HTML ---
 # Deploy latest committed index.html from git
 echo "[INFO] Installing Nginx and deploying oMPX Web UI..."
-# Install Nginx and deploy latest UI to both Nginx and backend static locations
 apt-get update && apt-get install -y nginx
 git show HEAD:encoder/index.html > /var/www/html/index.html
 cp /var/www/html/index.html /workspaces/oMPX/encoder/ompx-web-ui.html
@@ -448,20 +447,20 @@ server {
   listen ${OMPX_WEB_PORT} default_server;
   listen [::]:${OMPX_WEB_PORT} default_server;
   server_name _;
+  root /var/www/html;
+  index index.html;
   location / {
-    proxy_pass http://127.0.0.1:5000;
-    proxy_set_header Host \$host;
-    proxy_set_header X-Real-IP \$remote_addr;
-    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto \$scheme;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade \$http_upgrade;
-    proxy_set_header Connection "upgrade";
+    try_files $uri $uri/ =404;
   }
 }
 EOF
 ln -sf /etc/nginx/sites-available/ompx-web-ui /etc/nginx/sites-enabled/ompx-web-ui
 rm -f /etc/nginx/sites-enabled/default
+# Disable conflicting ompx-8082.conf if present
+if [ -f /etc/nginx/sites-enabled/ompx-8082.conf ]; then
+  mv /etc/nginx/sites-enabled/ompx-8082.conf /etc/nginx/sites-enabled/ompx-8082.conf.disabled
+  echo "[INFO] Disabled conflicting ompx-8082.conf."
+fi
 systemctl start nginx
 systemctl reload nginx
 echo "[INFO] oMPX Web UI is now served by Nginx on port ${OMPX_WEB_PORT}."
