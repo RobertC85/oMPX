@@ -118,6 +118,22 @@ ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx}"
 ICECAST_SAMPLE_RATE="${ICECAST_SAMPLE_RATE:-192000}"
 ICECAST_BIT_DEPTH="${ICECAST_BIT_DEPTH:-16}"
 ICECAST_CODEC="flac"
+# Ensure ompx-processing.liq is present and up to date
+src_liq=""
+if [ -f /root/ompx/encoder/ompx-processing.liq ]; then
+  src_liq="/root/ompx/encoder/ompx-processing.liq"
+fi
+if [ -f "$(pwd)/ompx-processing.liq" ]; then
+  if [ -z "$src_liq" ] || [ "$(pwd)/ompx-processing.liq" -nt "$src_liq" ]; then
+    src_liq="$(pwd)/ompx-processing.liq"
+  fi
+fi
+if [ -n "$src_liq" ]; then
+  if [ ! -f /workspaces/oMPX/encoder/ompx-processing.liq ] || [ "$src_liq" -nt /workspaces/oMPX/encoder/ompx-processing.liq ]; then
+    cp "$src_liq" /workspaces/oMPX/encoder/ompx-processing.liq
+    echo "[INFO] Copied ompx-processing.liq from $src_liq to /workspaces/oMPX/encoder/."
+  fi
+fi
 LIQ_PORT=1234
 
 # Wait for Liquidsoap to be ready

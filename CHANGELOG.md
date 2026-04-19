@@ -1,9 +1,14 @@
 # oMPX Changelog
 
-## 0.2.2d (2026-04-19)
-- Revision bump: version auto-incremented to 0.2.2d in VERSION file
+## 0.2.2f (2026-04-19)
+- Installer now checks both /root/ompx/encoder/ and the current working directory for ompx-processing.liq, always copying the newest to /workspaces/oMPX/encoder/
+- Revision bump: version auto-incremented to 0.2.2f in VERSION file
 
-## 0.2.2b (2026-04-19)
+## 0.2.2e (2026-04-19)
+- Installer now auto-copies ompx-processing.liq from /root/ompx/encoder/ if present and newer, ensuring Liquidsoap always has the correct script
+- Revision bump: version auto-incremented to 0.2.2e in VERSION file
+
+## 0.2.2d (2026-04-19)
 - Fix: Nginx config heredoc now uses unquoted delimiter for variable expansion, and escapes $uri as \$uri
 - This resolves the bug where the config contained a literal ${OMPX_WEB_PORT} instead of the actual port number, causing Nginx to fail to start
 - Patch installer to automatically disable conflicting ompx-8082.conf for Nginx
