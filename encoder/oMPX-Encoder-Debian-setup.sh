@@ -467,6 +467,8 @@ systemctl reload nginx
 echo "[INFO] oMPX Web UI is now served by Nginx on port ${OMPX_WEB_PORT}."
 systemctl restart nginx
 cp /workspaces/oMPX/encoder/index.html /var/www/html/index.html
+cp /workspaces/oMPX/encoder/index.html /usr/share/nginx/html/index.html
+cp /workspaces/oMPX/encoder/index.html /var/www/html/index.html
 cp /workspaces/oMPX/encoder/index.html /var/www/html/index.html
 mkdir -p /workspaces/oMPX/encoder
 cp /var/www/html/index.html /workspaces/oMPX/encoder/ompx-web-ui.html
