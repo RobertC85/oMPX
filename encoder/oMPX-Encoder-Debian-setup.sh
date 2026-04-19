@@ -469,6 +469,7 @@ server {
 EOF
 ln -sf /etc/nginx/sites-available/ompx-web-ui /etc/nginx/sites-enabled/ompx-web-ui
 rm -f /etc/nginx/sites-enabled/default
+systemctl start nginx
 systemctl reload nginx
 echo "[INFO] oMPX Web UI is now served by Nginx on port ${OMPX_WEB_PORT}."
 mkdir -p /workspaces/oMPX/encoder
