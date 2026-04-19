@@ -2,6 +2,288 @@
 # --- oMPX Installer: ensure OMPX_VERSION is always set ---
 OMPX_VERSION="$(cat "$(dirname "$0")/VERSION" 2>/dev/null || echo "dev")"
 
+# --- Ensure critical variables are defined early for all code paths (including uninstall) ---
+OMPX_USER="ompx"
+OMPX_HOME="/home/ompx"
+OMPX_LOG_DIR="${OMPX_HOME}/logs"
+OMPX_SHELL="/bin/bash"
+SYS_SCRIPTS_DIR="/opt/mpx-radio"
+FIFOS_DIR="${SYS_SCRIPTS_DIR}/fifos"
+SYSTEMD_DIR="/etc/systemd/system"
+STEREO_TOOL_WRAPPER="/usr/local/bin/stereo-tool"
+STEREO_TOOL_ENTERPRISE_BIN="${OMPX_HOME}/stereo-tool-enterprise/stereo-tool-enterprise"
+STEREO_TOOL_ENTERPRISE_LAUNCHER="/usr/local/bin/stereo-tool-enterprise-launch"
+STEREO_TOOL_ENTERPRISE_SERVICE="${SYSTEMD_DIR}/stereo-tool-enterprise.service"
+OMPX_STREAM_PULL_SERVICE="${SYSTEMD_DIR}/mpx-stream-pull.service"
+OMPX_SOURCE1_SERVICE="${SYSTEMD_DIR}/mpx-source1.service"
+OMPX_SOURCE2_SERVICE="${SYSTEMD_DIR}/mpx-source2.service"
+RDS_SYNC_PROG1_SERVICE="${SYSTEMD_DIR}/rds-sync-prog1.service"
+RDS_SYNC_PROG2_SERVICE="${SYSTEMD_DIR}/rds-sync-prog2.service"
+OMPX_WEB_UI_SERVICE="${SYSTEMD_DIR}/ompx-web-ui.service"
+OMPX_WEB_KIOSK_SERVICE="${SYSTEMD_DIR}/ompx-web-kiosk.service"
+OMPX_ADD="/usr/local/bin/ompx_add_source"
+ASOUND_CONF_PATH="/etc/asound.conf"
+OMPX_AUDIO_UDEV_RULE="/etc/udev/rules.d/70-ompx-audio.rules"
+ASOUND_MAP_HELPER="/usr/local/bin/asound-map"
+ASOUND_SWITCH_HELPER="/usr/local/bin/asound-switch"
+SAMPLE_RATE=192000
+NON_MPX_SAMPLE_RATE="${NON_MPX_SAMPLE_RATE:-48000}"
+CRON_SLEEP=10
+
+# --- Service management abstraction for systemd/Devuan/other ---
+has_systemd(){
+  command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]
+}
+
+service_action() {
+  # Usage: service_action <action> <service_name>
+  # action: start|stop|restart|enable|disable|daemon-reload
+  # service_name: without .service for 'service', with .service for systemctl
+  local action="$1"
+  local svc="$2"
+  if has_systemd; then
+    if [ "$action" = "daemon-reload" ]; then
+      systemctl daemon-reload || true
+    else
+      systemctl "$action" "$svc" 2>/dev/null || true
+    fi
+  elif command -v service >/dev/null 2>&1; then
+    # Remove .service suffix for 'service' command
+    local svc_base="${svc%.service}"
+    case "$action" in
+      start|stop|restart)
+        service "$svc_base" "$action" 2>/dev/null || true
+        ;;
+      enable|disable|daemon-reload)
+        # Not supported by 'service', just print info
+        echo "[INFO] Skipping '$action' for $svc_base (no systemd)"
+        ;;
+      *)
+        echo "[WARNING] Unknown service action: $action"
+        ;;
+    esac
+  else
+    echo "[WARNING] No supported service manager (systemd or service) found; skipping $action for $svc"
+  fi
+}
+
+# --- Robust flag parsing: allow combining --auto, --interactive, --help, --version ---
+INTERACTIVE_MODE=false
+AUTO_MODE=false
+NO_MENU=false
+SHOW_HELP=false
+SHOW_VERSION=false
+NUKE_PACKAGES=false
+SCORCH_MODE=false
+PARSED_ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    -v|--version)
+      SHOW_VERSION=true
+      ;;
+    -h|--help)
+      SHOW_HELP=true
+      ;;
+    --interactive)
+      INTERACTIVE_MODE=true
+      ;;
+    --auto)
+      AUTO_MODE=true
+      ;;
+    --no-menu)
+      NO_MENU=true
+      ;;
+    --nuke-packages)
+      NUKE_PACKAGES=true
+      NO_MENU=true
+      INTERACTIVE_MODE=false
+      AUTO_MODE=true
+      ;;
+    --nuke)
+      NO_MENU=true
+      INTERACTIVE_MODE=false
+      AUTO_MODE=true
+      ;;
+    --scorch)
+      SCORCH_MODE=true
+      NO_MENU=true
+      INTERACTIVE_MODE=false
+      AUTO_MODE=true
+      ;;
+    *)
+      PARSED_ARGS+=("$arg")
+      ;;
+  esac
+done
+# Show help/version and exit if requested
+if [ "$SHOW_VERSION" = true ]; then
+  echo "oMPX Installer version: $OMPX_VERSION"
+  exit 0
+fi
+if [ "$SHOW_HELP" = true ]; then
+  cat <<EOF
+oMPX-Encoder-Debian-setup.sh – oMPX Installer v$OMPX_VERSION
+
+Usage: sudo ./oMPX-Encoder-Debian-setup.sh [OPTIONS]
+
+Options:
+  -h, --help         Show this help message and exit
+  -v, --version      Show installer version and exit
+  --update           Only update files that are newer (preserves user settings)
+  --force-update     Overwrite all managed files (default)
+  --nuke             Uninstall oMPX and remove all files/services
+  --nuke-packages    Uninstall oMPX, remove all files/services, and purge all oMPX-related apt packages (liquidsoap, nginx, icecast2, etc)
+  --scorch           Ultra-aggressive uninstall: removes all oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users, and disables/removes all related services. Leaves no trace.
+  --menu             Launch interactive whiptail menu (if available)
+  --interactive      Require explicit answers for all prompts (no timeouts, no defaults)
+  --auto             Automated mode: assume all defaults, never prompt
+EOF
+  exit 0
+fi
+# Replace positional args with parsed ones (removes --auto/--interactive/--help/--version)
+set -- "${PARSED_ARGS[@]}"
+
+# --- IMMEDIATE UNINSTALL LOGIC: If any destructive flag is present, do nothing else ---
+
+# --- IMMEDIATE UNINSTALL LOGIC: If any destructive flag is present, run uninstall and exit ---
+if [[ "$*" == *--scorch* || "$*" == *--nuke* || "$*" == *--nuke-packages* ]]; then
+  if [ "$SCORCH_MODE" = true ]; then
+    # Red whiptail warning or fallback prompt
+    if command -v whiptail >/dev/null 2>&1; then
+      whiptail --title "\Zb\Z1 DANGER: oMPX --scorch" --backtitle "oMPX SCORCH MODE" --msgbox "\Z1\ZbWARNING:\Zn\n\nThis will PERMANENTLY and IRREVERSIBLY DELETE ALL oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users, and services.\n\nIt may also remove shared dependencies.\n\nThere is NO UNDO.\n\nPress <OK> to continue, or <Cancel> to abort." 16 70 --colors || exit 1
+      whiptail --title "\Zb\Z1 FINAL CONFIRMATION" --yesno "\Z1\ZbAre you absolutely sure you want to OBLITERATE all traces of oMPX and related stack?\Zn\n\nType 'YES' in the next box to confirm." 12 70 --colors || exit 1
+      CONFIRM=$(whiptail --inputbox "Type YES to confirm destructive removal:" 10 60 "" 3>&1 1>&2 2>&3)
+      [ "$CONFIRM" = "YES" ] || { echo "[ABORTED] --scorch cancelled by user."; exit 1; }
+    else
+      echo ""
+      echo "==================== DANGER: oMPX --scorch ===================="
+      echo "WARNING: This will PERMANENTLY and IRREVERSIBLY DELETE ALL oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users, and services."
+      echo "It may also remove shared dependencies. There is NO UNDO."
+      echo "Type YES to continue, or anything else to abort."
+      read -r CONFIRM
+      [ "$CONFIRM" = "YES" ] || { echo "[ABORTED] --scorch cancelled by user."; exit 1; }
+    fi
+    echo "[INFO] --scorch detected: performing ultra-aggressive uninstall (no prompts, menu bypassed)"
+  else
+    echo "[INFO] --nuke or --nuke-packages detected: performing full uninstall (no prompts, menu bypassed)"
+  fi
+  # Uninstall logic (copied from 'U' case in main prompt)
+  echo "[INFO] Attempting to stop and disable oMPX-related services (if present)..."
+  for svc in mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service; do
+    if has_systemd; then
+      service_action stop "$svc"
+      service_action disable "$svc"
+    else
+      echo "[WARNING] Systemd/service not available, skipping stop/disable for $svc."
+    fi
+  done
+  echo "[INFO] Removing systemd unit/service files (if present)..."
+  rm -vf "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${RDS_SYNC_PROG1_SERVICE}" "${RDS_SYNC_PROG2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${OMPX_WEB_UI_SERVICE}" "${OMPX_WEB_KIOSK_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" "${SYS_SCRIPTS_DIR}/ompx-web-ui.py" "${SYS_SCRIPTS_DIR}/ompx-web-kiosk.sh"
+  if has_systemd; then
+    service_action daemon-reload mpx-processing-alsa.service
+  else
+    echo "[WARNING] Systemd not available, skipping daemon-reload."
+  fi
+  echo "[INFO] Removing cron jobs (if present)..."
+  if command -v crontab >/dev/null 2>&1 && id -u "${OMPX_USER}" >/dev/null 2>&1; then
+    crontab -u "${OMPX_USER}" -l 2>/dev/null | grep -v "${SYS_SCRIPTS_DIR}/source" | sed '/^$/d' | crontab -u "${OMPX_USER}" - 2>/dev/null || true
+  else
+    echo "[WARNING] crontab command not found or user missing; skipping cron cleanup."
+  fi
+  echo "[INFO] Removing files and directories..."
+  rm -vf "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
+  rm -vrf "${SYS_SCRIPTS_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log /var/log/radio-source1.log /var/log/radio-source2.log
+  rm -vf "${OMPX_AUDIO_UDEV_RULE}" || true
+  rm -vf "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
+  echo "[INFO] Removing oMPX user (if present)..."
+  if id -u "${OMPX_USER}" >/dev/null 2>&1; then userdel -r "${OMPX_USER}" || true; else echo "[WARNING] oMPX user not found."; fi
+  echo "[INFO] Attempting to unload snd_aloop kernel module (if present)..."
+  modprobe -r snd_aloop 2>/dev/null || echo "[WARNING] Could not unload snd_aloop (may not be loaded)."
+
+  # Remove Nginx configs and web UI static files
+  echo "[INFO] Removing Nginx configs and static web UI files..."
+  rm -vf /etc/nginx/sites-enabled/ompx-web-ui /etc/nginx/sites-available/ompx-web-ui
+  rm -vf /var/www/html/index.html /usr/share/nginx/html/index.html
+  if has_systemd; then
+    service_action restart nginx.service
+  else
+    echo "[WARNING] Systemd/service not available, skipping nginx restart."
+  fi
+
+  if [ "$SCORCH_MODE" = true ]; then
+    echo "[INFO] --scorch: Removing all traces of oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related stack..."
+    for svc in nginx.service icecast2.service liquidsoap.service alsa-restore.service alsa-state.service; do
+      if has_systemd; then
+        service_action stop "$svc"
+        service_action disable "$svc"
+      else
+        echo "[WARNING] Systemd/service not available, skipping stop/disable for $svc."
+      fi
+    done
+    echo "[INFO] Removing all configs, logs, and binaries for oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related stack..."
+    # Aggressive removal of all possible leftovers
+    for path in \
+      /etc/nginx /etc/icecast2 /etc/liquidsoap /etc/asound.conf /etc/asound.conf.ompx-staged \
+      /etc/udev/rules.d/70-ompx-audio.rules /etc/udev/rules.d/ompx* /etc/udev/rules.d/*ompx* \
+      /var/www /usr/share/nginx /var/log/nginx /var/log/icecast2 /var/log/liquidsoap /var/log/ompx* /var/log/radio-*.log \
+      /opt/mpx-radio /home/ompx /usr/local/bin/ompx* /usr/local/bin/stereo-tool* /usr/local/bin/asound-* \
+      /etc/systemd/system/ompx* /etc/systemd/system/mpx* /etc/systemd/system/rds* /etc/systemd/system/stereo-tool* \
+      /etc/systemd/system/liquidsoap* /etc/systemd/system/icecast2* /etc/systemd/system/nginx* \
+      /var/lib/alsa/asound.state /var/lib/alsa/*ompx* /var/lib/alsa/*mpx* \
+      /etc/default/liquidsoap /etc/default/icecast2 /etc/default/nginx \
+      /etc/init.d/ompx* /etc/init.d/mpx* /etc/init.d/rds* /etc/init.d/stereo-tool* /etc/init.d/liquidsoap* /etc/init.d/icecast2* /etc/init.d/nginx* \
+      /usr/local/share/ompx* /usr/local/share/mpx* /usr/local/share/rds* /usr/local/share/stereo-tool* \
+      /usr/share/ompx* /usr/share/mpx* /usr/share/rds* /usr/share/stereo-tool* \
+      /tmp/ompx* /tmp/mpx* /tmp/rds* /tmp/stereo-tool* \
+      /var/tmp/ompx* /var/tmp/mpx* /var/tmp/rds* /var/tmp/stereo-tool*
+    do
+      if [ -e "$path" ] || [ -L "$path" ]; then
+        rm -rf "$path" 2>/dev/null || { echo "[ERROR] Failed to remove $path"; }
+      fi
+    done
+    # Forceful user/group removal
+    if id -u ompx >/dev/null 2>&1; then
+      pkill -u ompx 2>/dev/null || true
+      userdel -r ompx 2>/dev/null || { echo "[ERROR] Failed to remove user ompx (may be in use, requires reboot)"; }
+    else
+      echo "[WARNING] oMPX user not found."
+    fi
+    if getent group ompx >/dev/null 2>&1; then
+      groupdel ompx 2>/dev/null || { echo "[ERROR] Failed to remove group ompx (may be in use, requires reboot)"; }
+    else
+      echo "[WARNING] oMPX group not found."
+    fi
+    if has_systemd; then
+      systemctl daemon-reload || true
+    else
+      echo "[WARNING] Systemd not available, skipping daemon-reload."
+    fi
+    # Remove crontab for ompx user
+    if command -v crontab >/dev/null 2>&1 && id -u ompx >/dev/null 2>&1; then
+      crontab -u ompx -r 2>/dev/null || { echo "[ERROR] Failed to remove crontab for ompx"; }
+    else
+      echo "[WARNING] crontab command not found or user missing; skipping cron cleanup."
+    fi
+    echo "[SUCCESS] --scorch: All traces of oMPX and related stack removed."
+    echo "[INFO] A REBOOT IS REQUIRED to complete cleanup. Please run: sudo reboot"
+    exit 0
+  fi
+
+  if [ "$NUKE_PACKAGES" = true ]; then
+    echo "[INFO] --nuke-packages specified: purging all oMPX-related apt packages..."
+    apt-get purge --auto-remove -y liquidsoap nginx icecast2 curl wget alsa-utils ffmpeg sox ladspa-sdk swh-plugins cron python3 chromium x11-xserver-utils x11-utils xinit
+    if [ -n "${KERNEL_HELPER_PACKAGE}" ]; then
+      apt-get purge --auto-remove -y "${KERNEL_HELPER_PACKAGE}"
+    fi
+    apt-get autoremove -y
+    echo "[SUCCESS] All oMPX-related apt packages purged."
+    echo "[INFO] It is recommended to reboot your system now to ensure all removed services, drivers, and modules are fully unloaded. Run: sudo reboot"
+  fi
+
+  echo "[SUCCESS] Uninstall complete. (--nuke)"
+  exit 0
+fi
+
 # --- Service management abstraction for systemd/Devuan/other ---
 has_systemd(){
   command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]
@@ -43,6 +325,8 @@ service_action() {
 prompt_helper() {
   # Usage: prompt_helper VAR_NAME "Prompt text" [default] [timeout]
   #   VAR_NAME: variable to set
+
+
   #   Prompt text: prompt to display
   #   default: default value if user presses enter or times out
   #   timeout: seconds to wait (ignored in AUTO_MODE or INTERACTIVE_MODE)
@@ -80,6 +364,7 @@ SHOW_HELP=false
 SHOW_VERSION=false
 NUKE_PACKAGES=false
 PARSED_ARGS=()
+SCORCH_MODE=false
 for arg in "$@"; do
   case "$arg" in
     -v|--version)
@@ -99,6 +384,22 @@ for arg in "$@"; do
       ;;
     --nuke-packages)
       NUKE_PACKAGES=true
+      # Always bypass menu for nuke-packages
+      NO_MENU=true
+      INTERACTIVE_MODE=false
+      AUTO_MODE=true
+      ;;
+    --nuke)
+      # Always bypass menu for nuke
+      NO_MENU=true
+      INTERACTIVE_MODE=false
+      AUTO_MODE=true
+      ;;
+    --scorch)
+      SCORCH_MODE=true
+      NO_MENU=true
+      INTERACTIVE_MODE=false
+      AUTO_MODE=true
       ;;
     *)
       PARSED_ARGS+=("$arg")
@@ -111,6 +412,7 @@ if [ "$SHOW_VERSION" = true ]; then
   exit 0
 fi
 if [ "$SHOW_HELP" = true ]; then
+    --scorch           Ultra-aggressive uninstall: removes all oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users, and disables/removes all related services. Leaves no trace.
   cat <<EOF
 oMPX-Encoder-Debian-setup.sh – oMPX Installer v$OMPX_VERSION
 
@@ -133,6 +435,7 @@ Procedure:
   2. Deploys/updates oMPX Web UI and backend
   3. Overwrites all managed files by default (unless --update is used)
   4. Sets up and restarts all oMPX systemd services
+
   5. Web UI is served on port 8082 by default
 
 Examples:
@@ -357,47 +660,105 @@ set -euo pipefail
 # For best results, use a standard Debian kernel (linux-image-amd64) that includes snd_aloop
 # Date: 2026-04-07
 
- # --- Default to whiptail menu unless --nuke or --prompt is specified ---
-if ! command -v whiptail >/dev/null 2>&1; then
-  echo "[INFO] whiptail not found. Installing..."
-  apt-get update && apt-get install -y whiptail
+
+# --- Bypass menu and install logic if destructive uninstall flags are present ---
+if [[ "$*" == *--scorch* || "$*" == *--nuke* || "$*" == *--nuke-packages* ]]; then
+  # Run uninstall logic immediately (confirmation for --scorch is handled below)
+  : # No-op, continue to uninstall logic below
+else
+  # Only show menu if not a destructive uninstall
+  if ! command -v whiptail >/dev/null 2>&1; then
+    echo "[INFO] whiptail not found. Installing..."
+    apt-get update && apt-get install -y whiptail
+  fi
+  whiptail --title "oMPX Installer v$OMPX_VERSION" --msgbox "oMPX Installer\nVersion: $OMPX_VERSION" 8 50
+  CHOICE=$(whiptail --title "oMPX Installer v$OMPX_VERSION" --menu "Choose an action (oMPX $OMPX_VERSION)" 20 70 10 \
+    "install" "Install/Update oMPX" \
+    "reinstall" "Reinstall (clean/fresh)" \
+    "uninstall" "Uninstall (remove all)" \
+    "update" "Update oMPX (git pull + restart)" \
+    "abort" "Abort/Exit" \
+    3>&1 1>&2 2>&3)
+  case "$CHOICE" in
+    install)
+      echo "[INFO] Proceeding with install/update (oMPX version $OMPX_VERSION)..."
+      ;;
+    reinstall)
+      echo "[INFO] Proceeding with reinstall (oMPX version $OMPX_VERSION)..."
+      set -- "$@" --force-reinstall
+      ;;
+    uninstall)
+      # Show uninstall submenu
+      UNINSTALL_CHOICE=$(whiptail --title "oMPX Uninstall Options" --menu "Choose uninstall type" 20 70 10 \
+        "standard" "Standard uninstall (remove oMPX only)" \
+        "nuke" "Full uninstall (remove all oMPX files/services)" \
+        "nuke-packages" "Full uninstall + purge apt packages" \
+        "scorch" "Scorched earth (remove all traces, configs, users, services, and dependencies)" \
+        "abort" "Abort/Go back" \
+        3>&1 1>&2 2>&3)
+      case "$UNINSTALL_CHOICE" in
+        standard)
+          echo "[INFO] Proceeding with standard uninstall (remove oMPX only)..."
+          "$0" --nuke # For now, standard uninstall is equivalent to --nuke (custom logic can be added if needed)
+          exit $?
+          ;;
+        nuke)
+          echo "[INFO] Proceeding with full uninstall (--nuke)..."
+          "$0" --nuke
+          exit $?
+          ;;
+        nuke-packages)
+          echo "[INFO] Proceeding with full uninstall + purge apt packages (--nuke-packages)..."
+          "$0" --nuke-packages
+          exit $?
+          ;;
+        scorch)
+          echo "[INFO] Proceeding with scorched earth uninstall (--scorch)..."
+          "$0" --scorch
+          exit $?
+          ;;
+        abort|*)
+          echo "[INFO] Uninstall aborted by user. Returning to main menu."
+          exec "$0"
+          ;;
+      esac
+      ;;
+    update)
+      whiptail --title "oMPX Updater" --msgbox "Updating oMPX from git and restarting installer..." 8 50
+      cd "$(dirname \"$0\")/.." || cd ..
+      git pull
+      exec "$0" "$@"
+      ;;
+    abort|*)
+      echo "[INFO] Aborted by user."
+      exit 0
+      ;;
+  esac
 fi
-whiptail --title "oMPX Installer v$OMPX_VERSION" --msgbox "oMPX Installer\nVersion: $OMPX_VERSION" 8 50
-CHOICE=$(whiptail --title "oMPX Installer v$OMPX_VERSION" --menu "Choose an action (oMPX $OMPX_VERSION)" 20 70 10 \
-  "install" "Install/Update oMPX" \
-  "reinstall" "Reinstall (clean/fresh)" \
-  "uninstall" "Uninstall (remove all)" \
-  "update" "Update oMPX (git pull + restart)" \
-  "abort" "Abort/Exit" \
-  3>&1 1>&2 2>&3)
-case "$CHOICE" in
-  install)
-    echo "[INFO] Proceeding with install/update (oMPX version $OMPX_VERSION)..."
-    ;;
-  reinstall)
-    echo "[INFO] Proceeding with reinstall (oMPX version $OMPX_VERSION)..."
-    set -- "$@" --force-reinstall
-    ;;
-  uninstall)
-    echo "[INFO] Proceeding with uninstall (--nuke, oMPX version $OMPX_VERSION)..."
-    "$0" --nuke
-    exit $?
-    ;;
-  update)
-    whiptail --title "oMPX Updater" --msgbox "Updating oMPX from git and restarting installer..." 8 50
-    cd "$(dirname \"$0\")/.." || cd ..
-    git pull
-    exec "$0" "$@"
-    ;;
-  abort|*)
-    echo "[INFO] Aborted by user."
-    exit 0
-    ;;
-esac
 
 # --- Command-line argument parsing for --nuke and --menu ---
-if [[ "$*" == *--nuke* || "$*" == *--nuke-packages* ]]; then
-  echo "[INFO] --nuke switch detected: performing full uninstall (no prompts)"
+if [[ "$*" == *--nuke* || "$*" == *--nuke-packages* || "$*" == *--scorch* ]]; then
+  if [ "$SCORCH_MODE" = true ]; then
+    # Red whiptail warning or fallback prompt
+    if command -v whiptail >/dev/null 2>&1; then
+      # Red background: whiptail --backtitle doesn't set color, but --title and --msgbox can be styled with --colors
+      whiptail --title "\Zb\Z1 DANGER: oMPX --scorch" --backtitle "oMPX SCORCH MODE" --msgbox "\Z1\ZbWARNING:\Zn\n\nThis will PERMANENTLY and IRREVERSIBLY DELETE ALL oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users, and services.\n\nIt may also remove shared dependencies.\n\nThere is NO UNDO.\n\nPress <OK> to continue, or <Cancel> to abort." 16 70 --colors || exit 1
+      whiptail --title "\Zb\Z1 FINAL CONFIRMATION" --yesno "\Z1\ZbAre you absolutely sure you want to OBLITERATE all traces of oMPX and related stack?\Zn\n\nType 'YES' in the next box to confirm." 12 70 --colors || exit 1
+      CONFIRM=$(whiptail --inputbox "Type YES to confirm destructive removal:" 10 60 "" 3>&1 1>&2 2>&3)
+      [ "$CONFIRM" = "YES" ] || { echo "[ABORTED] --scorch cancelled by user."; exit 1; }
+    else
+      echo ""
+      echo "==================== DANGER: oMPX --scorch ===================="
+      echo "WARNING: This will PERMANENTLY and IRREVERSIBLY DELETE ALL oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users, and services."
+      echo "It may also remove shared dependencies. There is NO UNDO."
+      echo "Type YES to continue, or anything else to abort."
+      read -r CONFIRM
+      [ "$CONFIRM" = "YES" ] || { echo "[ABORTED] --scorch cancelled by user."; exit 1; }
+    fi
+    echo "[INFO] --scorch detected: performing ultra-aggressive uninstall (no prompts, menu bypassed)"
+  else
+    echo "[INFO] --nuke or --nuke-packages detected: performing full uninstall (no prompts, menu bypassed)"
+  fi
   # Uninstall logic (copied from 'U' case in main prompt)
   echo "[INFO] Stopping systemd services..."
   for svc in mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service; do
@@ -428,6 +789,34 @@ if [[ "$*" == *--nuke* || "$*" == *--nuke-packages* ]]; then
   rm -f /var/www/html/index.html /usr/share/nginx/html/index.html
   service_action restart nginx.service
 
+  if [ "$SCORCH_MODE" = true ]; then
+    echo "[INFO] --scorch: Removing all traces of oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related stack..."
+    # Stop and disable all related services
+    for svc in nginx.service icecast2.service liquidsoap.service alsa-restore.service alsa-state.service; do
+      service_action stop "$svc"
+      service_action disable "$svc"
+    done
+    # Remove all related config and log files
+    rm -rf /etc/nginx /etc/icecast2 /etc/liquidsoap /etc/asound.conf /etc/asound.conf.ompx-staged /etc/udev/rules.d/70-ompx-audio.rules
+    rm -rf /var/www /usr/share/nginx /var/log/nginx /var/log/icecast2 /var/log/liquidsoap /var/log/ompx* /var/log/radio-*.log
+    rm -rf /opt/mpx-radio /home/ompx /usr/local/bin/ompx* /usr/local/bin/stereo-tool* /usr/local/bin/asound-*
+    # Remove oMPX user and group
+    if id -u ompx >/dev/null 2>&1; then userdel -r ompx || true; fi
+    if getent group ompx >/dev/null 2>&1; then groupdel ompx || true; fi
+    # Remove any remaining systemd units
+    rm -f /etc/systemd/system/ompx* /etc/systemd/system/mpx* /etc/systemd/system/rds* /etc/systemd/system/stereo-tool* /etc/systemd/system/liquidsoap* /etc/systemd/system/icecast2* /etc/systemd/system/nginx*
+    systemctl daemon-reload || true
+    # Remove ALSA state
+    rm -f /var/lib/alsa/asound.state
+    # Remove any oMPX-related cron jobs
+    if command -v crontab >/dev/null 2>&1 && id -u ompx >/dev/null 2>&1; then
+      crontab -u ompx -r 2>/dev/null || true
+    fi
+    echo "[SUCCESS] --scorch: All traces of oMPX and related stack removed."
+    echo "[INFO] It is strongly recommended to reboot your system now. Run: sudo reboot"
+    exit 0
+  fi
+
   # Remove apt packages if --nuke-packages specified
   if [ "$NUKE_PACKAGES" = true ]; then
     echo "[INFO] --nuke-packages specified: purging all oMPX-related apt packages..."
@@ -438,6 +827,7 @@ if [[ "$*" == *--nuke* || "$*" == *--nuke-packages* ]]; then
     fi
     apt-get autoremove -y
     echo "[SUCCESS] All oMPX-related apt packages purged."
+    echo "[INFO] It is recommended to reboot your system now to ensure all removed services, drivers, and modules are fully unloaded. Run: sudo reboot"
   fi
 
   echo "[SUCCESS] Uninstall complete. (--nuke)"
@@ -3304,6 +3694,10 @@ echo "[INFO] Unloading snd_aloop module..."
 modprobe -r snd_aloop 2>/dev/null || true
 echo "[SUCCESS] Uninstall complete."
 exit 0
+fi
+
+# --- All install/setup/menu logic only runs if no destructive flag is present ---
+else
 ;;
 K)
 echo "[INFO] Keeping existing installation; generated files will be overwritten."
