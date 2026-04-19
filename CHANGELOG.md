@@ -1,3 +1,8 @@
+# 0.2.2k4 (2026-04-19)
+- Feature: Add --nuke-packages flag. When used with --nuke, purges all oMPX-related apt packages (liquidsoap, nginx, icecast2, ffmpeg, etc) on uninstall for a truly clean removal.
+- Uninstall now also removes Nginx configs and static web UI files.
+- Help text updated to document new flag.
+- Version bump: 0.2.2k4 in VERSION file.
 ## 0.2.2k (2026-04-19)
 - Fix version detection for all environments (bare metal, Codespaces, etc.)
 - Add 'Update oMPX (git pull + restart)' option to whiptail menu

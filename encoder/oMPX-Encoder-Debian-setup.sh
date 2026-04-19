@@ -78,6 +78,7 @@ AUTO_MODE=false
 NO_MENU=false
 SHOW_HELP=false
 SHOW_VERSION=false
+NUKE_PACKAGES=false
 PARSED_ARGS=()
 for arg in "$@"; do
   case "$arg" in
@@ -95,6 +96,9 @@ for arg in "$@"; do
       ;;
     --no-menu)
       NO_MENU=true
+      ;;
+    --nuke-packages)
+      NUKE_PACKAGES=true
       ;;
     *)
       PARSED_ARGS+=("$arg")
@@ -117,7 +121,9 @@ Options:
   -v, --version      Show installer version and exit
   --update           Only update files that are newer (preserves user settings)
   --force-update     Overwrite all managed files (default)
+
   --nuke             Uninstall oMPX and remove all files/services
+  --nuke-packages    Uninstall oMPX, remove all files/services, and purge all oMPX-related apt packages (liquidsoap, nginx, icecast2, etc)
   --menu             Launch interactive whiptail menu (if available)
   --interactive      Require explicit answers for all prompts (no timeouts, no defaults)
   --auto             Automated mode: assume all defaults, never prompt
@@ -390,7 +396,7 @@ case "$CHOICE" in
 esac
 
 # --- Command-line argument parsing for --nuke and --menu ---
-if [[ "$*" == *--nuke* ]]; then
+if [[ "$*" == *--nuke* || "$*" == *--nuke-packages* ]]; then
   echo "[INFO] --nuke switch detected: performing full uninstall (no prompts)"
   # Uninstall logic (copied from 'U' case in main prompt)
   echo "[INFO] Stopping systemd services..."
@@ -415,6 +421,25 @@ if [[ "$*" == *--nuke* ]]; then
   if id -u "${OMPX_USER}" >/dev/null 2>&1; then userdel -r "${OMPX_USER}" || true; fi
   echo "[INFO] Unloading snd_aloop module..."
   modprobe -r snd_aloop 2>/dev/null || true
+
+  # Remove Nginx configs and web UI static files
+  echo "[INFO] Removing Nginx configs and static web UI files..."
+  rm -f /etc/nginx/sites-enabled/ompx-web-ui /etc/nginx/sites-available/ompx-web-ui
+  rm -f /var/www/html/index.html /usr/share/nginx/html/index.html
+  service_action restart nginx.service
+
+  # Remove apt packages if --nuke-packages specified
+  if [ "$NUKE_PACKAGES" = true ]; then
+    echo "[INFO] --nuke-packages specified: purging all oMPX-related apt packages..."
+    apt-get purge --auto-remove -y liquidsoap nginx icecast2 curl wget alsa-utils ffmpeg sox ladspa-sdk swh-plugins cron python3 chromium x11-xserver-utils x11-utils xinit
+    # Remove kernel helper package if present
+    if [ -n "${KERNEL_HELPER_PACKAGE}" ]; then
+      apt-get purge --auto-remove -y "${KERNEL_HELPER_PACKAGE}"
+    fi
+    apt-get autoremove -y
+    echo "[SUCCESS] All oMPX-related apt packages purged."
+  fi
+
   echo "[SUCCESS] Uninstall complete. (--nuke)"
   exit 0
 fi
