@@ -465,6 +465,7 @@ rm -f /etc/nginx/sites-enabled/default
 systemctl start nginx
 systemctl reload nginx
 echo "[INFO] oMPX Web UI is now served by Nginx on port ${OMPX_WEB_PORT}."
+cp /workspaces/oMPX/encoder/index.html /var/www/html/index.html
 mkdir -p /workspaces/oMPX/encoder
 cp /var/www/html/index.html /workspaces/oMPX/encoder/ompx-web-ui.html
 ## Removed hardcoded overwrite of ompx-web-ui.html to preserve latest committed UI
