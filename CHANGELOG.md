@@ -1,3 +1,15 @@
+## 0.2.2k (2026-04-19)
+- Fix version detection for all environments (bare metal, Codespaces, etc.)
+- Add 'Update oMPX (git pull + restart)' option to whiptail menu
+- Revision bump: version auto-incremented to 0.2.2k in VERSION file
+## 0.2.2k2 (2026-04-19)
+- Refactor: All user prompts now use prompt_helper for consistent automation, whiptail, and menu-driven input handling
+- Force interactive mode by default for fresh installs unless --auto or --no-interactive is specified
+- Fix: Remove stray numbered lines that caused syntax error in main script
+- Refactor: Web UI and kiosk setup prompts now use prompt_helper
+- Refactor: Stereo Tool and Icecast config prompts now use prompt_helper
+- Refactor: RDS configuration prompts now use prompt_helper
+- Revision bump: version auto-incremented to 0.2.2k2 in VERSION file
 ## 0.2.2j (2026-04-19)
 - Revision j: meta-update, version and changelog only
 - Revision bump: version auto-incremented to 0.2.2j in VERSION file

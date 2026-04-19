@@ -1,18 +1,116 @@
+# --- Prompt helper: respects AUTO_MODE, INTERACTIVE_MODE, and NO_MENU ---
+prompt_helper() {
+  # Usage: prompt_helper VAR_NAME "Prompt text" [default] [timeout]
+  #   VAR_NAME: variable to set
+  #   Prompt text: prompt to display
+  #   default: default value if user presses enter or times out
+  #   timeout: seconds to wait (ignored in AUTO_MODE or INTERACTIVE_MODE)
+  local __var_name="$1"
+  local __prompt="$2"
+  local __default="${3-}"
+  local __timeout="${4-60}"
+  local __input=""
+  if [ "$AUTO_MODE" = true ]; then
+    __input="$__default"
+    echo "$__prompt $__input (auto)"
+  elif [ "$INTERACTIVE_MODE" = true ] && [ "$NO_MENU" = false ] && command -v whiptail >/dev/null 2>&1; then
+    # Use whiptail inputbox for all prompts in interactive mode unless --no-menu
+    __input=$(whiptail --inputbox "$__prompt" 10 70 "$__default" 3>&1 1>&2 2>&3)
+    if [ -z "$__input" ] && [ -n "$__default" ]; then
+      __input="$__default"
+    fi
+  elif [ "$INTERACTIVE_MODE" = true ]; then
+    # Fallback to plain read if whiptail not available or --no-menu
+    read -p "$__prompt" __input
+    if [ -z "$__input" ] && [ -n "$__default" ]; then
+      __input="$__default"
+    fi
 
-#!/usr/bin/env bash
-set -euo pipefail
+  # Default: force INTERACTIVE_MODE unless --auto or --no-interactive is specified
+  AUTO_MODE=false
+  INTERACTIVE_MODE=false
+  NO_MENU=false
 
-# --- Read oMPX version ---
-OMPX_VERSION="$(cat /workspaces/oMPX/encoder/VERSION 2>/dev/null || echo 'unknown')"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --auto)
+        AUTO_MODE=true
+        INTERACTIVE_MODE=false
+        ;;
+      --no-interactive)
+        INTERACTIVE_MODE=false
+        AUTO_MODE=true
+        ;;
+      --interactive)
+        INTERACTIVE_MODE=true
+        AUTO_MODE=false
+        ;;
+      --no-menu)
+        NO_MENU=true
+        ;;
+      --help|-h)
+        show_help
+        exit 0
+        ;;
+      --version|-v)
+        show_version
+        exit 0
+        ;;
+      *)
+        # Accumulate positional args
+        POSITIONAL_ARGS+=("$1")
+        ;;
+    esac
+    shift
+  done
 
-# --- Version/help flag: print version/help and exit ---
-for arg in "$@"; do
-  if [ "$arg" = "-v" ] || [ "$arg" = "--version" ]; then
-    echo "oMPX Installer version: $OMPX_VERSION"
+  # Force INTERACTIVE_MODE by default unless explicitly overridden
+  if [ "$AUTO_MODE" = false ] && [ "$INTERACTIVE_MODE" = false ]; then
+    INTERACTIVE_MODE=true
+  fi
+  sudo ./oMPX-Encoder-Debian-setup.sh --menu    # Launch interactive menu (if whiptail is installed)
+
+EOF
     exit 0
   fi
-  if [ "$arg" = "-h" ] || [ "$arg" = "--help" ]; then
-    cat <<EOF
+done
+# --- Robust flag parsing: allow combining --auto, --interactive, --help, --version ---
+# --- Flag variables ---
+INTERACTIVE_MODE=false
+AUTO_MODE=false
+NO_MENU=false
+SHOW_HELP=false
+SHOW_VERSION=false
+PARSED_ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    -v|--version)
+      SHOW_VERSION=true
+      ;;
+    -h|--help)
+      SHOW_HELP=true
+      ;;
+    --interactive)
+      INTERACTIVE_MODE=true
+      ;;
+    --auto)
+      AUTO_MODE=true
+      ;;
+    --no-menu)
+      NO_MENU=true
+      ;;
+    *)
+      PARSED_ARGS+=("$arg")
+      ;;
+  esac
+done
+# Show help/version and exit if requested
+if [ "$SHOW_VERSION" = true ]; then
+  echo "oMPX Installer version: $OMPX_VERSION"
+  exit 0
+fi
+if [ "$SHOW_HELP" = true ]; then
+  cat <<EOF
 oMPX-Encoder-Debian-setup.sh – oMPX Installer v$OMPX_VERSION
 
 Usage: sudo ./oMPX-Encoder-Debian-setup.sh [OPTIONS]
@@ -24,6 +122,8 @@ Options:
   --force-update     Overwrite all managed files (default)
   --nuke             Uninstall oMPX and remove all files/services
   --menu             Launch interactive whiptail menu (if available)
+  --interactive      Require explicit answers for all prompts (no timeouts, no defaults)
+  --auto             Automated mode: assume all defaults, never prompt
 
 Procedure:
   1. Installs all required dependencies (Liquidsoap, Nginx, etc.)
@@ -37,11 +137,12 @@ Examples:
   sudo ./oMPX-Encoder-Debian-setup.sh --update  # Only update newer files, preserve settings
   sudo ./oMPX-Encoder-Debian-setup.sh --nuke    # Uninstall oMPX completely
   sudo ./oMPX-Encoder-Debian-setup.sh --menu    # Launch interactive menu (if whiptail is installed)
-
+  sudo ./oMPX-Encoder-Debian-setup.sh --auto    # Fully automated, no prompts
 EOF
-    exit 0
-  fi
-done
+  exit 0
+fi
+# Replace positional args with parsed ones (removes --auto/--interactive/--help/--version)
+set -- "${PARSED_ARGS[@]}"
 
 
 echo "[oMPX Installer] Running: $0"
@@ -299,6 +400,7 @@ CHOICE=$(whiptail --title "oMPX Installer v$OMPX_VERSION" --menu "Choose an acti
   "install" "Install/Update oMPX" \
   "reinstall" "Reinstall (clean/fresh)" \
   "uninstall" "Uninstall (remove all)" \
+  "update" "Update oMPX (git pull + restart)" \
   "abort" "Abort/Exit" \
   3>&1 1>&2 2>&3)
 case "$CHOICE" in
@@ -313,6 +415,12 @@ case "$CHOICE" in
     echo "[INFO] Proceeding with uninstall (--nuke, oMPX version $OMPX_VERSION)..."
     "$0" --nuke
     exit $?
+    ;;
+  update)
+    whiptail --title "oMPX Updater" --msgbox "Updating oMPX from git and restarting installer..." 8 50
+    cd "$(dirname \"$0\")/.." || cd ..
+    git pull
+    exec "$0" "$@"
     ;;
   abort|*)
     echo "[INFO] Aborted by user."
@@ -1191,92 +1299,87 @@ apply_stereo_tool_start_limit_preset(){
 }
 
 configure_icecast_dialog(){
-  _ice_mode=$(whiptail --title "Icecast output configuration" --menu "Select Icecast mode:" 15 60 3 \
-    "L" "Local — install Icecast2 on THIS machine" \
-    "R" "Remote — push encoded stream to a remote Icecast server" \
-    "S" "Skip — configure Icecast later" \
-    3>&1 1>&2 2>&3)
-  [ -z "$_ice_mode" ] && _ice_mode="S"
+  prompt_helper _ice_mode "Select Icecast mode: [L=Local, R=Remote, S=Skip] (default S): " S 60
   _ice_mode=${_ice_mode^^}
 
   case "${_ice_mode}" in
     L)
       ICECAST_MODE="local"
       ICECAST_HOST="127.0.0.1"
-      _ice_port=$(whiptail --inputbox "Icecast HTTP port (default 8000):" 8 60 "8000" 3>&1 1>&2 2>&3)
+      prompt_helper _ice_port "Icecast HTTP port (default 8000): " 8000 60
       [[ "${_ice_port}" =~ ^[0-9]+$ ]] && ICECAST_PORT="${_ice_port}" || ICECAST_PORT=8000
-      ICECAST_SOURCE_USER=$(whiptail --inputbox "Icecast source username (default source):" 8 60 "source" 3>&1 1>&2 2>&3)
-      _ice_pass=$(whiptail --passwordbox "Icecast source password (leave blank for auto-generated):" 8 60 3>&1 1>&2 2>&3)
+      prompt_helper ICECAST_SOURCE_USER "Icecast source username (default source): " source 60
+      prompt_helper _ice_pass "Icecast source password (leave blank for auto-generated): " "" 60
       if [ -n "${_ice_pass}" ]; then
         ICECAST_PASSWORD="${_ice_pass}"
       else
         ICECAST_PASSWORD="$(generate_secure_password 24)"
-        whiptail --msgbox "Generated Icecast source password: ${ICECAST_PASSWORD}" 8 60
+        echo "[INFO] Generated Icecast source password: ${ICECAST_PASSWORD}"
       fi
-      _ice_mount=$(whiptail --inputbox "Mount point (default /mpx):" 8 60 "/mpx" 3>&1 1>&2 2>&3)
+      prompt_helper _ice_mount "Mount point (default /mpx): " /mpx 60
       _ice_mount="${_ice_mount:-mpx}"; ICECAST_MOUNT="/${_ice_mount#/}"
-      ICECAST_ADMIN_USER=$(whiptail --inputbox "Icecast admin username (default admin):" 8 60 "admin" 3>&1 1>&2 2>&3)
-      _ice_admin=$(whiptail --passwordbox "Icecast admin password (leave blank for auto-generated):" 8 60 3>&1 1>&2 2>&3)
+      prompt_helper ICECAST_ADMIN_USER "Icecast admin username (default admin): " admin 60
+      prompt_helper _ice_admin "Icecast admin password (leave blank for auto-generated): " "" 60
       if [ -n "${_ice_admin}" ]; then
         _ICE_ADMIN_PASS="${_ice_admin}"
       else
         _ICE_ADMIN_PASS="$(generate_secure_password 24)"
-        whiptail --msgbox "Generated Icecast admin password: ${_ICE_ADMIN_PASS}" 8 60
+        echo "[INFO] Generated Icecast admin password: ${_ICE_ADMIN_PASS}"
       fi
-      _ice_clients=$(whiptail --inputbox "Max simultaneous listeners (default 25):" 8 60 "25" 3>&1 1>&2 2>&3)
+      prompt_helper _ice_clients "Max simultaneous listeners (default 25): " 25 60
       [[ "${_ice_clients}" =~ ^[0-9]+$ ]] && _ICE_MAX_LISTENERS="${_ice_clients}" || _ICE_MAX_LISTENERS=25
-      _ICE_STATION=$(whiptail --inputbox "Station name shown to listeners (default oMPX):" 8 60 "oMPX" 3>&1 1>&2 2>&3)
-      whiptail --msgbox "Local Icecast2 → localhost:${ICECAST_PORT}${ICECAST_MOUNT}" 8 60
+      prompt_helper _ICE_STATION "Station name shown to listeners (default oMPX): " oMPX 60
+      echo "[INFO] Local Icecast2 → localhost:${ICECAST_PORT}${ICECAST_MOUNT}"
       ;;
     R)
       ICECAST_MODE="remote"
-      _ice_host=$(whiptail --inputbox "Remote Icecast hostname or IP:" 8 60 "" 3>&1 1>&2 2>&3)
+      prompt_helper _ice_host "Remote Icecast hostname or IP: " "" 60
       if [ -z "${_ice_host}" ]; then
-        whiptail --msgbox "No host entered — Icecast mode set to disabled" 8 60; ICECAST_MODE="disabled"; return
+        echo "[INFO] No host entered — Icecast mode set to disabled"; ICECAST_MODE="disabled"; return
       fi
       ICECAST_HOST="${_ice_host}"
-      _ice_port=$(whiptail --inputbox "Remote Icecast port (default 8000):" 8 60 "8000" 3>&1 1>&2 2>&3)
+      prompt_helper _ice_port "Remote Icecast port (default 8000): " 8000 60
       [[ "${_ice_port}" =~ ^[0-9]+$ ]] && ICECAST_PORT="${_ice_port}" || ICECAST_PORT=8000
-      ICECAST_SOURCE_USER=$(whiptail --inputbox "Source username (default source):" 8 60 "source" 3>&1 1>&2 2>&3)
-      _ice_pass=$(whiptail --passwordbox "Source password (leave blank for auto-generated):" 8 60 3>&1 1>&2 2>&3)
+      prompt_helper ICECAST_SOURCE_USER "Source username (default source): " source 60
+      prompt_helper _ice_pass "Source password (leave blank for auto-generated): " "" 60
       if [ -n "${_ice_pass}" ]; then
         ICECAST_PASSWORD="${_ice_pass}"
       else
         ICECAST_PASSWORD="$(generate_secure_password 24)"
-        whiptail --msgbox "Generated remote Icecast source password: ${ICECAST_PASSWORD}" 8 60
+        echo "[INFO] Generated remote Icecast source password: ${ICECAST_PASSWORD}"
       fi
-      _ice_mount=$(whiptail --inputbox "Mount point (default /mpx):" 8 60 "/mpx" 3>&1 1>&2 2>&3)
+      prompt_helper _ice_mount "Mount point (default /mpx): " /mpx 60
       _ice_mount="${_ice_mount:-mpx}"; ICECAST_MOUNT="/${_ice_mount#/}"
-      whiptail --msgbox "Remote Icecast push → ${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}" 8 60
+      echo "[INFO] Remote Icecast push → ${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}"
       ;;
     *)
       ICECAST_MODE="disabled"
-      whiptail --msgbox "Icecast skipped — edit /home/ompx/.profile and restart mpx-mix.service later" 8 60
+      echo "[INFO] Icecast skipped — edit /home/ompx/.profile and restart mpx-mix.service later"
       return
       ;;
   esac
 
-  _ice_sr=$(whiptail --inputbox "Output sample rate Hz (default 192000, use 48000 for standard):" 8 60 "192000" 3>&1 1>&2 2>&3)
+  prompt_helper _ice_sr "Output sample rate Hz (default 192000, use 48000 for standard): " 192000 60
   [[ "${_ice_sr}" =~ ^[0-9]+$ ]] && ICECAST_SAMPLE_RATE="${_ice_sr}" || ICECAST_SAMPLE_RATE=192000
-  whiptail --msgbox "Icecast encoder sample rate: ${ICECAST_SAMPLE_RATE} Hz" 8 60
-  _ice_bits=$(whiptail --inputbox "FLAC transport bit depth [16/24] (default 16):" 8 60 "16" 3>&1 1>&2 2>&3)
+  echo "[INFO] Icecast encoder sample rate: ${ICECAST_SAMPLE_RATE} Hz"
+  prompt_helper _ice_bits "FLAC transport bit depth [16/24] (default 16): " 16 60
   if [[ "${_ice_bits}" =~ ^(16|24)$ ]]; then
     ICECAST_BIT_DEPTH="${_ice_bits}"
   else
-    [ -n "${_ice_bits}" ] && whiptail --msgbox "Invalid bit depth '${_ice_bits}', defaulting to 16" 8 60
+    [ -n "${_ice_bits}" ] && echo "[INFO] Invalid bit depth '${_ice_bits}', defaulting to 16"
     ICECAST_BIT_DEPTH="16"
   fi
-  whiptail --msgbox "Icecast FLAC transport bit depth: ${ICECAST_BIT_DEPTH}-bit" 8 60
+  echo "[INFO] Icecast FLAC transport bit depth: ${ICECAST_BIT_DEPTH}-bit"
   ICECAST_CODEC="flac"
   if [ -z "${ICECAST_MOUNT:-}" ]; then
     ICECAST_MOUNT="/mpx"
   fi
-  whiptail --msgbox "Icecast codec fixed to FLAC-in-Ogg for broad player compatibility (${ICECAST_MOUNT})" 8 60
+  echo "[INFO] Icecast codec fixed to FLAC-in-Ogg for broad player compatibility (${ICECAST_MOUNT})"
 
-  whiptail --msgbox "MPX capture endpoints consumed by mpx-mix (read/capture side of ST's MPX output loopbacks):" 10 60
-  _st_p1=$(whiptail --inputbox "Program 1 MPX capture device (default ompx_prg1mpx_cap):" 8 60 "ompx_prg1mpx_cap" 3>&1 1>&2 2>&3)
+  echo "[INFO] MPX capture endpoints consumed by mpx-mix (read/capture side of ST's MPX output loopbacks):"
+  prompt_helper _st_p1 "Program 1 MPX capture device (default ompx_prg1mpx_cap): " ompx_prg1mpx_cap 60
   ST_OUT_P1="${_st_p1:-ompx_prg1mpx_cap}"
-  _st_p2=$(whiptail --inputbox "Program 2 MPX capture device (default ompx_prg2mpx_cap, 'none' to disable):" 8 60 "ompx_prg2mpx_cap" 3>&1 1>&2 2>&3)
+  prompt_helper _st_p2 "Program 2 MPX capture device (default ompx_prg2mpx_cap, 'none' to disable): " ompx_prg2mpx_cap 60
   [ "${_st_p2,,}" = "none" ] && ST_OUT_P2="" || ST_OUT_P2="${_st_p2:-ompx_prg2mpx_cap}"
 }
 
@@ -1288,7 +1391,7 @@ configure_rds_dialog(){
   echo "  Syncs RadioText from a text URL OR from stream metadata"
   echo "  Program 1 output file: ${OMPX_HOME}/rds/prog1/rt.txt"
   echo "  Program 1 sidecar: ${OMPX_HOME}/rds/prog1/rds-info.json"
-  read -t 60 -p "Enable Program 1 RDS text sync? [y/N] (default N): " _rds_enable || _rds_enable="N"
+  prompt_helper _rds_enable "Enable Program 1 RDS text sync? [y/N] (default N): " N 60
   _rds_enable=${_rds_enable^^}
   if [ "${_rds_enable}" != "Y" ]; then
     RDS_PROG1_ENABLE="false"
@@ -1299,7 +1402,7 @@ configure_rds_dialog(){
     RDS_PROG1_ENABLE="true"
     [ "${RDS_PROG1_SOURCE}" = "metadata" ] && _rds_mode_default="M"
     [ "${RDS_PROG1_SOURCE}" = "icecast" ]  && _rds_mode_default="I"
-    read -t 60 -p "Program 1 RDS source [U=url/M=metadata/I=icecast] (default ${_rds_mode_default}): " _rds_mode || _rds_mode="${_rds_mode_default}"
+    prompt_helper _rds_mode "Program 1 RDS source [U=url/M=metadata/I=icecast] (default ${_rds_mode_default}): " "${_rds_mode_default}" 60
     _rds_mode=${_rds_mode^^}
     if [ "${_rds_mode}" = "M" ]; then
       RDS_PROG1_SOURCE="metadata"
@@ -1323,9 +1426,9 @@ configure_rds_dialog(){
       fi
       _p1_stats_default="${RDS_PROG1_ICECAST_STATS_URL:-${_p1_auto_stats}}"
       _p1_mount_default="${RDS_PROG1_ICECAST_MOUNT:-${_p1_auto_mount}}"
-      read -t 180 -p "Icecast stats JSON URL for Program 1 (default ${_p1_stats_default}): " _p1_stats_in || _p1_stats_in=""
+      prompt_helper _p1_stats_in "Icecast stats JSON URL for Program 1 (default ${_p1_stats_default}): " "${_p1_stats_default}" 180
       [ -z "${_p1_stats_in}" ] && _p1_stats_in="${_p1_stats_default}"
-      read -t 60 -p "Icecast mount point for Program 1 (default ${_p1_mount_default}): " _p1_mount_in || _p1_mount_in=""
+      prompt_helper _p1_mount_in "Icecast mount point for Program 1 (default ${_p1_mount_default}): " "${_p1_mount_default}" 60
       [ -z "${_p1_mount_in}" ] && _p1_mount_in="${_p1_mount_default}"
       if [ -z "${_p1_stats_in}" ] || [ -z "${_p1_mount_in}" ]; then
         echo "[WARNING] Icecast stats URL or mount empty; disabling Program 1 RDS sync"
@@ -1341,7 +1444,7 @@ configure_rds_dialog(){
       RDS_PROG1_SOURCE="url"
       RDS_PROG1_ICECAST_STATS_URL=""
       RDS_PROG1_ICECAST_MOUNT=""
-      read -t 180 -p "RDS text URL for Program 1: " _rds_url || _rds_url=""
+      prompt_helper _rds_url "RDS text URL for Program 1: " "" 180
       if [ -z "${_rds_url}" ]; then
         echo "[WARNING] Empty RDS URL; disabling Program 1 RDS sync"
         RDS_PROG1_ENABLE="false"
@@ -1352,35 +1455,35 @@ configure_rds_dialog(){
     fi
 
     if [ "${RDS_PROG1_ENABLE}" = "true" ]; then
-      read -t 60 -p "Refresh interval seconds (default ${RDS_PROG1_INTERVAL_SEC}): " _rds_int || _rds_int=""
+      prompt_helper _rds_int "Refresh interval seconds (default ${RDS_PROG1_INTERVAL_SEC}): " "" 60
       if [[ "${_rds_int}" =~ ^[0-9]+$ ]] && [ "${_rds_int}" -ge 1 ]; then
         RDS_PROG1_INTERVAL_SEC="${_rds_int}"
       fi
 
-      read -t 60 -p "Program 1 RDS PS (max 8 chars, default ${RDS_PROG1_PS}): " _rds1_ps || _rds1_ps=""
+      prompt_helper _rds1_ps "Program 1 RDS PS (max 8 chars, default ${RDS_PROG1_PS}): " "" 60
       [ -n "${_rds1_ps}" ] && RDS_PROG1_PS="${_rds1_ps:0:8}"
-      read -t 60 -p "Program 1 RDS PI hex (4 chars, default ${RDS_PROG1_PI}): " _rds1_pi || _rds1_pi=""
+      prompt_helper _rds1_pi "Program 1 RDS PI hex (4 chars, default ${RDS_PROG1_PI}): " "" 60
       if [ -n "${_rds1_pi}" ] && [[ "${_rds1_pi^^}" =~ ^[0-9A-F]{4}$ ]]; then
         RDS_PROG1_PI="${_rds1_pi^^}"
       fi
-      read -t 60 -p "Program 1 RDS PTY (0-31, default ${RDS_PROG1_PTY}): " _rds1_pty || _rds1_pty=""
+      prompt_helper _rds1_pty "Program 1 RDS PTY (0-31, default ${RDS_PROG1_PTY}): " "" 60
       if [ -n "${_rds1_pty}" ] && [[ "${_rds1_pty}" =~ ^[0-9]+$ ]] && [ "${_rds1_pty}" -ge 0 ] && [ "${_rds1_pty}" -le 31 ]; then
         RDS_PROG1_PTY="${_rds1_pty}"
       fi
-      read -t 60 -p "Program 1 TP flag [y/N] (default $( [ "${RDS_PROG1_TP}" = "true" ] && echo Y || echo N )): " _rds1_tp || _rds1_tp=""
+      prompt_helper _rds1_tp "Program 1 TP flag [y/N] (default $( [ "${RDS_PROG1_TP}" = "true" ] && echo Y || echo N )): " "" 60
       [ "${_rds1_tp^^}" = "Y" ] && RDS_PROG1_TP="true"
       [ "${_rds1_tp^^}" = "N" ] && RDS_PROG1_TP="false"
-      read -t 60 -p "Program 1 TA flag [y/N] (default $( [ "${RDS_PROG1_TA}" = "true" ] && echo Y || echo N )): " _rds1_ta || _rds1_ta=""
+      prompt_helper _rds1_ta "Program 1 TA flag [y/N] (default $( [ "${RDS_PROG1_TA}" = "true" ] && echo Y || echo N )): " "" 60
       [ "${_rds1_ta^^}" = "Y" ] && RDS_PROG1_TA="true"
       [ "${_rds1_ta^^}" = "N" ] && RDS_PROG1_TA="false"
-      read -t 60 -p "Program 1 MS flag [y/N] (default $( [ "${RDS_PROG1_MS}" = "true" ] && echo Y || echo N )): " _rds1_ms || _rds1_ms=""
+      prompt_helper _rds1_ms "Program 1 MS flag [y/N] (default $( [ "${RDS_PROG1_MS}" = "true" ] && echo Y || echo N )): " "" 60
       [ "${_rds1_ms^^}" = "Y" ] && RDS_PROG1_MS="true"
       [ "${_rds1_ms^^}" = "N" ] && RDS_PROG1_MS="false"
-      read -t 60 -p "Program 1 include clock-time (CT) in sidecar output? [Y/n] (default $( [ "${RDS_PROG1_CT_ENABLE}" = "true" ] && echo Y || echo N )): " _rds1_ct || _rds1_ct=""
+      prompt_helper _rds1_ct "Program 1 include clock-time (CT) in sidecar output? [Y/n] (default $( [ "${RDS_PROG1_CT_ENABLE}" = "true" ] && echo Y || echo N )): " "" 60
       [ "${_rds1_ct^^}" = "Y" ] && RDS_PROG1_CT_ENABLE="true"
       [ "${_rds1_ct^^}" = "N" ] && RDS_PROG1_CT_ENABLE="false"
       if [ "${RDS_PROG1_CT_ENABLE}" = "true" ]; then
-        read -t 60 -p "Program 1 CT mode [L=local/U=UTC] (default $( [ "${RDS_PROG1_CT_MODE}" = "utc" ] && echo U || echo L )): " _rds1_ct_mode || _rds1_ct_mode=""
+        prompt_helper _rds1_ct_mode "Program 1 CT mode [L=local/U=UTC] (default $( [ "${RDS_PROG1_CT_MODE}" = "utc" ] && echo U || echo L )): " "" 60
         [ "${_rds1_ct_mode^^}" = "U" ] && RDS_PROG1_CT_MODE="utc"
         [ "${_rds1_ct_mode^^}" = "L" ] && RDS_PROG1_CT_MODE="local"
       fi
@@ -1401,7 +1504,7 @@ configure_rds_dialog(){
   echo ""
   echo "  Program 2 output file: ${OMPX_HOME}/rds/prog2/rt.txt"
   echo "  Program 2 sidecar: ${OMPX_HOME}/rds/prog2/rds-info.json"
-  read -t 60 -p "Enable Program 2 RDS text sync? [y/N] (default N): " _rds2_enable || _rds2_enable="N"
+  prompt_helper _rds2_enable "Enable Program 2 RDS text sync? [y/N] (default N): " N 60
   _rds2_enable=${_rds2_enable^^}
   if [ "${_rds2_enable}" != "Y" ]; then
     RDS_PROG2_ENABLE="false"
@@ -1412,7 +1515,7 @@ configure_rds_dialog(){
     RDS_PROG2_ENABLE="true"
     [ "${RDS_PROG2_SOURCE}" = "metadata" ] && _rds2_mode_default="M"
     [ "${RDS_PROG2_SOURCE}" = "icecast" ]  && _rds2_mode_default="I"
-    read -t 60 -p "Program 2 RDS source [U=url/M=metadata/I=icecast] (default ${_rds2_mode_default}): " _rds2_mode || _rds2_mode="${_rds2_mode_default}"
+    prompt_helper _rds2_mode "Program 2 RDS source [U=url/M=metadata/I=icecast] (default ${_rds2_mode_default}): " "${_rds2_mode_default}" 60
     _rds2_mode=${_rds2_mode^^}
     if [ "${_rds2_mode}" = "M" ]; then
       RDS_PROG2_SOURCE="metadata"
@@ -1436,9 +1539,9 @@ configure_rds_dialog(){
       fi
       _p2_stats_default="${RDS_PROG2_ICECAST_STATS_URL:-${_p2_auto_stats}}"
       _p2_mount_default="${RDS_PROG2_ICECAST_MOUNT:-${_p2_auto_mount}}"
-      read -t 180 -p "Icecast stats JSON URL for Program 2 (default ${_p2_stats_default}): " _p2_stats_in || _p2_stats_in=""
+      prompt_helper _p2_stats_in "Icecast stats JSON URL for Program 2 (default ${_p2_stats_default}): " "${_p2_stats_default}" 180
       [ -z "${_p2_stats_in}" ] && _p2_stats_in="${_p2_stats_default}"
-      read -t 60 -p "Icecast mount point for Program 2 (default ${_p2_mount_default}): " _p2_mount_in || _p2_mount_in=""
+      prompt_helper _p2_mount_in "Icecast mount point for Program 2 (default ${_p2_mount_default}): " "${_p2_mount_default}" 60
       [ -z "${_p2_mount_in}" ] && _p2_mount_in="${_p2_mount_default}"
       if [ -z "${_p2_stats_in}" ] || [ -z "${_p2_mount_in}" ]; then
         echo "[WARNING] Icecast stats URL or mount empty; disabling Program 2 RDS sync"
@@ -1454,7 +1557,7 @@ configure_rds_dialog(){
       RDS_PROG2_SOURCE="url"
       RDS_PROG2_ICECAST_STATS_URL=""
       RDS_PROG2_ICECAST_MOUNT=""
-      read -t 180 -p "RDS text URL for Program 2: " _rds2_url || _rds2_url=""
+      prompt_helper _rds2_url "RDS text URL for Program 2: " "" 180
       if [ -z "${_rds2_url}" ]; then
         echo "[WARNING] Empty RDS URL; disabling Program 2 RDS sync"
         RDS_PROG2_ENABLE="false"
@@ -1465,35 +1568,35 @@ configure_rds_dialog(){
     fi
 
     if [ "${RDS_PROG2_ENABLE}" = "true" ]; then
-      read -t 60 -p "Refresh interval seconds (default ${RDS_PROG2_INTERVAL_SEC}): " _rds2_int || _rds2_int=""
+      prompt_helper _rds2_int "Refresh interval seconds (default ${RDS_PROG2_INTERVAL_SEC}): " "" 60
       if [[ "${_rds2_int}" =~ ^[0-9]+$ ]] && [ "${_rds2_int}" -ge 1 ]; then
         RDS_PROG2_INTERVAL_SEC="${_rds2_int}"
       fi
 
-      read -t 60 -p "Program 2 RDS PS (max 8 chars, default ${RDS_PROG2_PS}): " _rds2_ps || _rds2_ps=""
+      prompt_helper _rds2_ps "Program 2 RDS PS (max 8 chars, default ${RDS_PROG2_PS}): " "" 60
       [ -n "${_rds2_ps}" ] && RDS_PROG2_PS="${_rds2_ps:0:8}"
-      read -t 60 -p "Program 2 RDS PI hex (4 chars, default ${RDS_PROG2_PI}): " _rds2_pi || _rds2_pi=""
+      prompt_helper _rds2_pi "Program 2 RDS PI hex (4 chars, default ${RDS_PROG2_PI}): " "" 60
       if [ -n "${_rds2_pi}" ] && [[ "${_rds2_pi^^}" =~ ^[0-9A-F]{4}$ ]]; then
         RDS_PROG2_PI="${_rds2_pi^^}"
       fi
-      read -t 60 -p "Program 2 RDS PTY (0-31, default ${RDS_PROG2_PTY}): " _rds2_pty || _rds2_pty=""
+      prompt_helper _rds2_pty "Program 2 RDS PTY (0-31, default ${RDS_PROG2_PTY}): " "" 60
       if [ -n "${_rds2_pty}" ] && [[ "${_rds2_pty}" =~ ^[0-9]+$ ]] && [ "${_rds2_pty}" -ge 0 ] && [ "${_rds2_pty}" -le 31 ]; then
         RDS_PROG2_PTY="${_rds2_pty}"
       fi
-      read -t 60 -p "Program 2 TP flag [y/N] (default $( [ "${RDS_PROG2_TP}" = "true" ] && echo Y || echo N )): " _rds2_tp || _rds2_tp=""
+      prompt_helper _rds2_tp "Program 2 TP flag [y/N] (default $( [ "${RDS_PROG2_TP}" = "true" ] && echo Y || echo N )): " "" 60
       [ "${_rds2_tp^^}" = "Y" ] && RDS_PROG2_TP="true"
       [ "${_rds2_tp^^}" = "N" ] && RDS_PROG2_TP="false"
-      read -t 60 -p "Program 2 TA flag [y/N] (default $( [ "${RDS_PROG2_TA}" = "true" ] && echo Y || echo N )): " _rds2_ta || _rds2_ta=""
+      prompt_helper _rds2_ta "Program 2 TA flag [y/N] (default $( [ "${RDS_PROG2_TA}" = "true" ] && echo Y || echo N )): " "" 60
       [ "${_rds2_ta^^}" = "Y" ] && RDS_PROG2_TA="true"
       [ "${_rds2_ta^^}" = "N" ] && RDS_PROG2_TA="false"
-      read -t 60 -p "Program 2 MS flag [y/N] (default $( [ "${RDS_PROG2_MS}" = "true" ] && echo Y || echo N )): " _rds2_ms || _rds2_ms=""
+      prompt_helper _rds2_ms "Program 2 MS flag [y/N] (default $( [ "${RDS_PROG2_MS}" = "true" ] && echo Y || echo N )): " "" 60
       [ "${_rds2_ms^^}" = "Y" ] && RDS_PROG2_MS="true"
       [ "${_rds2_ms^^}" = "N" ] && RDS_PROG2_MS="false"
-      read -t 60 -p "Program 2 include clock-time (CT) in sidecar output? [Y/n] (default $( [ "${RDS_PROG2_CT_ENABLE}" = "true" ] && echo Y || echo N )): " _rds2_ct || _rds2_ct=""
+      prompt_helper _rds2_ct "Program 2 include clock-time (CT) in sidecar output? [Y/n] (default $( [ "${RDS_PROG2_CT_ENABLE}" = "true" ] && echo Y || echo N )): " "" 60
       [ "${_rds2_ct^^}" = "Y" ] && RDS_PROG2_CT_ENABLE="true"
       [ "${_rds2_ct^^}" = "N" ] && RDS_PROG2_CT_ENABLE="false"
       if [ "${RDS_PROG2_CT_ENABLE}" = "true" ]; then
-        read -t 60 -p "Program 2 CT mode [L=local/U=UTC] (default $( [ "${RDS_PROG2_CT_MODE}" = "utc" ] && echo U || echo L )): " _rds2_ct_mode || _rds2_ct_mode=""
+        prompt_helper _rds2_ct_mode "Program 2 CT mode [L=local/U=UTC] (default $( [ "${RDS_PROG2_CT_MODE}" = "utc" ] && echo U || echo L )): " "" 60
         [ "${_rds2_ct_mode^^}" = "U" ] && RDS_PROG2_CT_MODE="utc"
         [ "${_rds2_ct_mode^^}" = "L" ] && RDS_PROG2_CT_MODE="local"
       fi
@@ -1657,7 +1760,7 @@ prompt_ompx_web_ui_binding(){
 
   echo ""
   echo "oMPX web control UI (live patch preview + waveform/spectrum):"
-  read -t 60 -p "Enable oMPX web UI? [Y/n] (default Y): " cfg_web_enable || cfg_web_enable="Y"
+  prompt_helper cfg_web_enable "Enable oMPX web UI? [Y/n] (default Y): " Y 60
   cfg_web_enable=${cfg_web_enable^^}
   if [ "${cfg_web_enable}" = "N" ]; then
     OMPX_WEB_UI_ENABLE="false"
@@ -1670,12 +1773,12 @@ prompt_ompx_web_ui_binding(){
   echo "  Current web port     : ${OMPX_WEB_PORT}"
   echo "  Current whitelist    : ${OMPX_WEB_WHITELIST}"
 
-  read -t 60 -p "Bind address (IP/host, default ${OMPX_WEB_BIND}): " cfg_web_bind || cfg_web_bind=""
+  prompt_helper cfg_web_bind "Bind address (IP/host, default ${OMPX_WEB_BIND}): " "${OMPX_WEB_BIND}" 60
   if [ -n "${cfg_web_bind}" ]; then
     OMPX_WEB_BIND="${cfg_web_bind}"
   fi
 
-  read -t 60 -p "Web port (1-65535, default ${OMPX_WEB_PORT}): " cfg_web_port || cfg_web_port=""
+  prompt_helper cfg_web_port "Web port (1-65535, default ${OMPX_WEB_PORT}): " "${OMPX_WEB_PORT}" 60
   if [ -n "${cfg_web_port}" ]; then
     if [[ "${cfg_web_port}" =~ ^[0-9]+$ ]] && [ "${cfg_web_port}" -ge 1 ] && [ "${cfg_web_port}" -le 65535 ]; then
       OMPX_WEB_PORT="${cfg_web_port}"
@@ -1684,20 +1787,20 @@ prompt_ompx_web_ui_binding(){
     fi
   fi
 
-  read -t 60 -p "CIDR whitelist (default ${OMPX_WEB_WHITELIST}): " cfg_web_whitelist || cfg_web_whitelist=""
+  prompt_helper cfg_web_whitelist "CIDR whitelist (default ${OMPX_WEB_WHITELIST}): " "${OMPX_WEB_WHITELIST}" 60
   if [ -n "${cfg_web_whitelist}" ]; then
     OMPX_WEB_WHITELIST="${cfg_web_whitelist}"
   fi
 
-  read -t 45 -p "Enable login authentication for web UI? [y/N] (default N): " cfg_web_auth || cfg_web_auth="N"
+  prompt_helper cfg_web_auth "Enable login authentication for web UI? [y/N] (default N): " N 45
   cfg_web_auth=${cfg_web_auth^^}
   if [ "${cfg_web_auth}" = "Y" ]; then
     OMPX_WEB_AUTH_ENABLE="true"
-    read -t 60 -p "Web UI username (default ${OMPX_WEB_AUTH_USER}): " cfg_web_user || cfg_web_user=""
+    prompt_helper cfg_web_user "Web UI username (default ${OMPX_WEB_AUTH_USER}): " "${OMPX_WEB_AUTH_USER}" 60
     if [ -n "${cfg_web_user}" ]; then
       OMPX_WEB_AUTH_USER="${cfg_web_user}"
     fi
-    read -t 60 -p "Web UI password (leave empty to auto-generate): " cfg_web_pass || cfg_web_pass=""
+    prompt_helper cfg_web_pass "Web UI password (leave empty to auto-generate): " "" 60
     if [ -n "${cfg_web_pass}" ]; then
       OMPX_WEB_AUTH_PASSWORD="${cfg_web_pass}"
     else
@@ -1727,7 +1830,7 @@ prompt_ompx_web_kiosk(){
   local cfg_kiosk_url=""
   local missing_components=""
 
-  read -t 45 -p "Enable local Chromium kiosk mode for oMPX UI (non-headless only)? [y/N] (default N): " cfg_kiosk_enable || cfg_kiosk_enable="N"
+  prompt_helper cfg_kiosk_enable "Enable local Chromium kiosk mode for oMPX UI (non-headless only)? [y/N] (default N): " N 45
   cfg_kiosk_enable=${cfg_kiosk_enable^^}
   if [ "${cfg_kiosk_enable}" != "Y" ]; then
     OMPX_WEB_KIOSK_ENABLE="false"
@@ -1746,7 +1849,7 @@ prompt_ompx_web_kiosk(){
 
   if [ -n "${missing_components}" ]; then
     echo "[INFO] Kiosk prerequisites missing: ${missing_components}"
-    read -t 45 -p "Install and configure missing kiosk dependencies now? [Y/n] (default Y): " cfg_kiosk_install || cfg_kiosk_install="Y"
+    prompt_helper cfg_kiosk_install "Install and configure missing kiosk dependencies now? [Y/n] (default Y): " Y 45
     cfg_kiosk_install=${cfg_kiosk_install^^}
     if [ "${cfg_kiosk_install}" = "N" ]; then
       echo "[INFO] Skipping kiosk dependency installation by user choice; kiosk mode disabled"
@@ -1757,11 +1860,11 @@ prompt_ompx_web_kiosk(){
     OMPX_WEB_KIOSK_INSTALL_MISSING="true"
   fi
 
-  read -t 45 -p "X11 display for kiosk (default ${OMPX_WEB_KIOSK_DISPLAY}): " cfg_kiosk_display || cfg_kiosk_display=""
+  prompt_helper cfg_kiosk_display "X11 display for kiosk (default ${OMPX_WEB_KIOSK_DISPLAY}): " "${OMPX_WEB_KIOSK_DISPLAY}" 45
   if [ -n "${cfg_kiosk_display}" ]; then
     OMPX_WEB_KIOSK_DISPLAY="${cfg_kiosk_display}"
   fi
-  read -t 60 -p "Kiosk URL (default ${OMPX_WEB_KIOSK_URL:-http://127.0.0.1:${OMPX_WEB_PORT}/}): " cfg_kiosk_url || cfg_kiosk_url=""
+  prompt_helper cfg_kiosk_url "Kiosk URL (default ${OMPX_WEB_KIOSK_URL:-http://127.0.0.1:${OMPX_WEB_PORT}/}): " "${OMPX_WEB_KIOSK_URL:-http://127.0.0.1:${OMPX_WEB_PORT}/}" 60
   if [ -n "${cfg_kiosk_url}" ]; then
     OMPX_WEB_KIOSK_URL="${cfg_kiosk_url}"
   elif [ -z "${OMPX_WEB_KIOSK_URL}" ]; then
@@ -1772,7 +1875,7 @@ prompt_ompx_web_kiosk(){
 
   # Prompt to start kiosk at boot
   local cfg_kiosk_boot=""
-  read -t 45 -p "Start oMPX kiosk mode automatically at boot? [Y/n] (default Y): " cfg_kiosk_boot || cfg_kiosk_boot="Y"
+  prompt_helper cfg_kiosk_boot "Start oMPX kiosk mode automatically at boot? [Y/n] (default Y): " Y 45
   cfg_kiosk_boot=${cfg_kiosk_boot^^}
   if [ "${cfg_kiosk_boot}" = "N" ]; then
     if has_systemd; then
@@ -3157,7 +3260,7 @@ echo "  R) Reinstall (clean -> fresh install)  *recommended for broken installs*
 echo "  U) Uninstall (remove all oMPX components)"
 echo "  A) Abort (do nothing)"
 echo ""
-read -t 30 -p "Select [K/R/U/A] (default A): " choice || choice="A"
+prompt_helper choice "Select [K/R/U/A] (default K): " K 30
 choice=${choice^^}
 echo "[INFO] User selected: $choice"
 case "$choice" in
@@ -3610,70 +3713,76 @@ done
 echo "[INFO] Creating wrapper scripts..."
 
 for n in 1 2; do
-cat > "${SYS_SCRIPTS_DIR}/source${n}.sh" <<WRAP
+cat > "${SYS_SCRIPTS_DIR}/source${n}.sh" <<'WRAP'
 #!/usr/bin/env bash
 set -euo pipefail
+# Prevent multiple instances (one ffmpeg per program source)
+SCRIPT_NAME="$(basename "$0")"
+if pgrep -f "${SCRIPT_NAME}" | grep -v "^$$$" | grep -q .; then
+  echo "[$(date +'%F %T')] ${SCRIPT_NAME}: Another instance is already running. Exiting to prevent duplicate ffmpeg connections."
+  exit 0
+fi
 PROFILE="${OMPX_HOME}/.profile"
-[ -f "\$PROFILE" ] && . "\$PROFILE"
+[ -f "$PROFILE" ] && . "$PROFILE"
 RADIO_VAR_NAME="RADIO${n}_URL"
-RADIO_URL_VALUE="\${!RADIO_VAR_NAME:-}"
-INGEST_DELAY_SEC="\${INGEST_DELAY_SEC:-10}"
-P1_INGEST_DELAY_SEC="\${P1_INGEST_DELAY_SEC:-}"
-P2_INGEST_DELAY_SEC="\${P2_INGEST_DELAY_SEC:-}"
-NON_MPX_SAMPLE_RATE="\${NON_MPX_SAMPLE_RATE:-48000}"
-PROGRAM2_ENABLED="\${PROGRAM2_ENABLED:-false}"
-if ! [[ "\${INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
+RADIO_URL_VALUE="${!RADIO_VAR_NAME:-}"
+INGEST_DELAY_SEC="${INGEST_DELAY_SEC:-10}"
+P1_INGEST_DELAY_SEC="${P1_INGEST_DELAY_SEC:-}"
+P2_INGEST_DELAY_SEC="${P2_INGEST_DELAY_SEC:-}"
+NON_MPX_SAMPLE_RATE="${NON_MPX_SAMPLE_RATE:-48000}"
+PROGRAM2_ENABLED="${PROGRAM2_ENABLED:-false}"
+if ! [[ "${INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
   INGEST_DELAY_SEC=10
 fi
-if [ -n "\${P1_INGEST_DELAY_SEC}" ] && ! [[ "\${P1_INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
+if [ -n "${P1_INGEST_DELAY_SEC}" ] && ! [[ "${P1_INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
   P1_INGEST_DELAY_SEC=""
 fi
-if [ -n "\${P2_INGEST_DELAY_SEC}" ] && ! [[ "\${P2_INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
+if [ -n "${P2_INGEST_DELAY_SEC}" ] && ! [[ "${P2_INGEST_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
   P2_INGEST_DELAY_SEC=""
 fi
-if ! [[ "\${NON_MPX_SAMPLE_RATE}" =~ ^[0-9]+$ ]]; then
+if ! [[ "${NON_MPX_SAMPLE_RATE}" =~ ^[0-9]+$ ]]; then
   NON_MPX_SAMPLE_RATE=48000
 fi
-PROGRAM2_ENABLED="\${PROGRAM2_ENABLED,,}"
+PROGRAM2_ENABLED="${PROGRAM2_ENABLED,,}"
 if [ "${n}" = "1" ]; then
   SINK_NAME="ompx_prg1in"
-  CHANNEL_DELAY_SEC="\${P1_INGEST_DELAY_SEC:-\${INGEST_DELAY_SEC}}"
+  CHANNEL_DELAY_SEC="${P1_INGEST_DELAY_SEC:-${INGEST_DELAY_SEC}}"
 else
   SINK_NAME="ompx_prg2in"
-  CHANNEL_DELAY_SEC="\${P2_INGEST_DELAY_SEC:-\${INGEST_DELAY_SEC}}"
-  if [ "\${PROGRAM2_ENABLED}" != "true" ]; then
-    echo "[\$(date +'%F %T')] source${n}: PROGRAM2_ENABLED=false; exiting"
+  CHANNEL_DELAY_SEC="${P2_INGEST_DELAY_SEC:-${INGEST_DELAY_SEC}}"
+  if [ "${PROGRAM2_ENABLED}" != "true" ]; then
+    echo "[$(date +'%F %T')] source${n}: PROGRAM2_ENABLED=false; exiting"
     exit 0
   fi
 fi
-if ! [[ "\${CHANNEL_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
+if ! [[ "${CHANNEL_DELAY_SEC}" =~ ^[0-9]+$ ]]; then
   CHANNEL_DELAY_SEC=0
 fi
-INGEST_DELAY_MS=\$((CHANNEL_DELAY_SEC * 1000))
-if ! aplay -L 2>/dev/null | grep -q "^\${SINK_NAME}$"; then
+INGEST_DELAY_MS=$((CHANNEL_DELAY_SEC * 1000))
+if ! aplay -L 2>/dev/null | grep -q "^${SINK_NAME}$"; then
   if [ "${n}" = "1" ]; then
     SINK_NAME="plughw:${LOOPBACK_CARD_REF},0,0"
   else
     SINK_NAME="plughw:${LOOPBACK_CARD_REF},0,1"
   fi
-  echo "[\$(date +'%F %T')] source${n}: named sink unavailable; using fallback \${SINK_NAME}"
+  echo "[$(date +'%F %T')] source${n}: named sink unavailable; using fallback ${SINK_NAME}"
 fi
-echo "[\$(date +'%F %T')] source${n}: using ALSA output endpoint \${SINK_NAME}"
-echo "[\$(date +'%F %T')] source${n}: ingest via ffmpeg (input format auto-detected, delay \${CHANNEL_DELAY_SEC}s, sink rate \${NON_MPX_SAMPLE_RATE}Hz)"
+echo "[$(date +'%F %T')] source${n}: using ALSA output endpoint ${SINK_NAME}"
+echo "[$(date +'%F %T')] source${n}: ingest via ffmpeg (input format auto-detected, delay ${CHANNEL_DELAY_SEC}s, sink rate ${NON_MPX_SAMPLE_RATE}Hz)"
 
-if [ -z "\${RADIO_URL_VALUE}" ] || [[ "\${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "\${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
-  echo "[\$(date +'%F %T')] source${n}: RADIO${n}_URL is empty/placeholder; exiting"
+if [ -z "${RADIO_URL_VALUE}" ] || [[ "${RADIO_URL_VALUE}" == *"example-icecast.local"* ]] || [[ "${RADIO_URL_VALUE}" == *"your.stream/url"* ]]; then
+  echo "[$(date +'%F %T')] source${n}: RADIO${n}_URL is empty/placeholder; exiting"
   exit 0
 fi
 
 while true :
 do
   sleep 5
-  ffmpeg -nostdin -reconnect 1 -reconnect_streamed 1 -reconnect_at_eof 1 -reconnect_delay_max 5 -thread_queue_size 10240 -i "\${RADIO_URL_VALUE}" \
+  ffmpeg -nostdin -reconnect 1 -reconnect_streamed 1 -reconnect_at_eof 1 -reconnect_delay_max 5 -thread_queue_size 10240 -i "${RADIO_URL_VALUE}" \
     -vn -sn -dn \
     -max_delay 5000000 \
-    -af "aformat=channel_layouts=stereo,adelay=\${INGEST_DELAY_MS}|\${INGEST_DELAY_MS}" \
-    -ar "\${NON_MPX_SAMPLE_RATE}" -ac 2 -f alsa "\${SINK_NAME}" || true
+    -af "aformat=channel_layouts=stereo,adelay=${INGEST_DELAY_MS}|${INGEST_DELAY_MS}" \
+    -ar "${NON_MPX_SAMPLE_RATE}" -ac 2 -f alsa "${SINK_NAME}" || true
 done
 WRAP
 chown "${OMPX_USER}:${OMPX_USER}" "${SYS_SCRIPTS_DIR}/source${n}.sh"
