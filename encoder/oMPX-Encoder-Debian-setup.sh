@@ -128,16 +128,7 @@ liquidsoap --telnet 127.0.0.1:$LIQ_PORT "help" >/dev/null 2>&1 || true
 liquidsoap --telnet 127.0.0.1:$LIQ_PORT "help" >/dev/null 2>&1 || true
 
 exec ffmpeg -hide_banner -loglevel warning -f s16le -ar "$ICECAST_SAMPLE_RATE" -ac 2 -i - \
-cat > /workspaces/oMPX/encoder/index.html <<'EOF'
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>oMPX Web UI</title>
-  <style>
-    :root {
-      color-scheme: light dark;
-      --bg: Canvas;
+## Removed hardcoded overwrite of index.html to preserve latest committed UI
       --card: Canvas;
       --accent: Highlight;
       --ink: CanvasText;
@@ -475,19 +466,7 @@ systemctl start nginx
 systemctl reload nginx
 echo "[INFO] oMPX Web UI is now served by Nginx on port ${OMPX_WEB_PORT}."
 mkdir -p /workspaces/oMPX/encoder
-cat > /workspaces/oMPX/encoder/ompx-web-ui.html <<'EOF'
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>oMPX Web UI</title>
-  <style>
-    .row { margin-top: 8px; }
-    .program-field { margin-right: 8px; }
-  </style>
-</head>
-<body>
-  <div class="row">
+## Removed hardcoded overwrite of ompx-web-ui.html to preserve latest committed UI
     <button id="test_preview" class="program-field">Test (Preview)</button>
     <button id="undo_btn" class="program-field">Undo</button>
     <button id="apply_mpx_prog1" class="program-field program-1">Apply to MPX (Program 1)</button>
