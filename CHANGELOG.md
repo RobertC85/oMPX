@@ -1,3 +1,6 @@
+# 0.2.2L1 (2026-04-19)
+- Fix: Web UI /api/preview.mp3 now always proxies from /stream.mp3 (Icecast), ensuring audio preview works reliably regardless of program selection. Indentation and syntax errors resolved in backend handler.
+
 # 0.2.2L0 (2026-04-19)
 - Release: L0 milestone. All update menu logic refactored for clarity and safety.
 - Feature: Update menu now offers three options: update from current repo files, bleeding edge (working directory, uncommitted changes), and latest (git pull).

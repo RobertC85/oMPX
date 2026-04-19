@@ -197,12 +197,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         # Audio preview endpoints
         if self.path.startswith("/api/preview.mp3"):
-            # Proxy from Icecast (MP3), support ?program=1 or 2
-            import urllib.parse
-            qs = urllib.parse.urlparse(self.path).query
-            params = urllib.parse.parse_qs(qs)
-            prog = int(params.get("program", [1])[0])
-            mount = f"/mpx{prog}" if prog in (1,2) else "/mpx1"
+            # Proxy from Icecast (MP3) - always use /stream.mp3
+            mount = "/stream.mp3"
             try:
                 resp = requests.get(f"http://127.0.0.1:8000{mount}", stream=True, timeout=5)
                 self.send_response(HTTPStatus.OK)

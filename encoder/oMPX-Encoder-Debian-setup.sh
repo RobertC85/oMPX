@@ -31,7 +31,10 @@ if [ "$AUTO_MODE" = false ] && [ "$NO_MENU" = false ] && [ "$INTERACTIVE_MODE" =
     elif [ "$CHOICE" = "bleeding-edge" ]; then
       echo "[INFO] Running oMPX update (bleeding edge: working directory, includes uncommitted changes, settings preserved)..."
       export OMPX_UPDATE_ONLY=1
-      # Use files as they exist in the working directory, including uncommitted changes
+      # Always copy the current working directory's encoder/index.html to both web roots, regardless of timestamps
+      cp -f ./encoder/index.html /var/www/html/index.html
+      cp -f ./encoder/index.html /usr/share/nginx/html/index.html
+      echo "[INFO] (bleeding edge) Copied encoder/index.html to all web roots."
       # Place update logic here: copy new scripts, restart services, etc.
       echo "[SUCCESS] oMPX update complete from working directory (bleeding edge). All settings preserved."
       exit 0
