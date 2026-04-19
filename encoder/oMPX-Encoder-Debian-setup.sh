@@ -467,14 +467,6 @@ systemctl reload nginx
 echo "[INFO] oMPX Web UI is now served by Nginx on port ${OMPX_WEB_PORT}."
 mkdir -p /workspaces/oMPX/encoder
 ## Removed hardcoded overwrite of ompx-web-ui.html to preserve latest committed UI
-      const r = await fetch('/api/apply_mpx', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-      const j = await r.json();
-      setStatus(j.message || 'Applied to MPX (Program 2).');
-    };
-  </script>
-</body>
-</html>
-EOF
 cat > /usr/local/bin/ompx-icecast-mpx.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
