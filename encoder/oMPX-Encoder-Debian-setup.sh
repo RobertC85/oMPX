@@ -466,6 +466,7 @@ systemctl start nginx
 systemctl reload nginx
 echo "[INFO] oMPX Web UI is now served by Nginx on port ${OMPX_WEB_PORT}."
 mkdir -p /workspaces/oMPX/encoder
+cp /var/www/html/index.html /workspaces/oMPX/encoder/ompx-web-ui.html
 ## Removed hardcoded overwrite of ompx-web-ui.html to preserve latest committed UI
 cat > /usr/local/bin/ompx-icecast-mpx.sh <<'EOF'
 #!/usr/bin/env bash
