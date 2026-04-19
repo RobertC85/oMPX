@@ -1,3 +1,44 @@
+#!/usr/bin/env bash
+# --- oMPX Installer: ensure OMPX_VERSION is always set ---
+OMPX_VERSION="$(cat "$(dirname "$0")/VERSION" 2>/dev/null || echo "dev")"
+
+# --- Service management abstraction for systemd/Devuan/other ---
+has_systemd(){
+  command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]
+}
+
+service_action() {
+  # Usage: service_action <action> <service_name>
+  # action: start|stop|restart|enable|disable|daemon-reload
+  # service_name: without .service for 'service', with .service for systemctl
+  local action="$1"
+  local svc="$2"
+  if has_systemd; then
+    if [ "$action" = "daemon-reload" ]; then
+      systemctl daemon-reload || true
+    else
+      systemctl "$action" "$svc" 2>/dev/null || true
+    fi
+  elif command -v service >/dev/null 2>&1; then
+    # Remove .service suffix for 'service' command
+    local svc_base="${svc%.service}"
+    case "$action" in
+      start|stop|restart)
+        service "$svc_base" "$action" 2>/dev/null || true
+        ;;
+      enable|disable|daemon-reload)
+        # Not supported by 'service', just print info
+        echo "[INFO] Skipping '$action' for $svc_base (no systemd)"
+        ;;
+      *)
+        echo "[WARNING] Unknown service action: $action"
+        ;;
+    esac
+  else
+    echo "[WARNING] No supported service manager (systemd or service) found; skipping $action for $svc"
+  fi
+}
+
 # --- Prompt helper: respects AUTO_MODE, INTERACTIVE_MODE, and NO_MENU ---
 prompt_helper() {
   # Usage: prompt_helper VAR_NAME "Prompt text" [default] [timeout]
@@ -25,55 +66,11 @@ prompt_helper() {
     if [ -z "$__input" ] && [ -n "$__default" ]; then
       __input="$__default"
     fi
-
-  # Default: force INTERACTIVE_MODE unless --auto or --no-interactive is specified
-  AUTO_MODE=false
-  INTERACTIVE_MODE=false
-  NO_MENU=false
-
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --auto)
-        AUTO_MODE=true
-        INTERACTIVE_MODE=false
-        ;;
-      --no-interactive)
-        INTERACTIVE_MODE=false
-        AUTO_MODE=true
-        ;;
-      --interactive)
-        INTERACTIVE_MODE=true
-        AUTO_MODE=false
-        ;;
-      --no-menu)
-        NO_MENU=true
-        ;;
-      --help|-h)
-        show_help
-        exit 0
-        ;;
-      --version|-v)
-        show_version
-        exit 0
-        ;;
-      *)
-        # Accumulate positional args
-        POSITIONAL_ARGS+=("$1")
-        ;;
-    esac
-    shift
-  done
-
-  # Force INTERACTIVE_MODE by default unless explicitly overridden
-  if [ "$AUTO_MODE" = false ] && [ "$INTERACTIVE_MODE" = false ]; then
-    INTERACTIVE_MODE=true
   fi
-  sudo ./oMPX-Encoder-Debian-setup.sh --menu    # Launch interactive menu (if whiptail is installed)
+  # Set the variable by reference
+  printf -v "$__var_name" '%s' "$__input"
+}
 
-EOF
-    exit 0
-  fi
-done
 # --- Robust flag parsing: allow combining --auto, --interactive, --help, --version ---
 # --- Flag variables ---
 INTERACTIVE_MODE=false
@@ -224,7 +221,7 @@ Restart=on-failure
 WantedBy=multi-user.target
 EOF
 chmod 644 /etc/systemd/system/ompx-liquidsoap-preview.service
-systemctl daemon-reload || true
+service_action daemon-reload ompx-liquidsoap-preview.service
 # Preview service is started/stopped by backend on demand
 # --- Liquidsoap processing service ---
 cat > /usr/local/bin/ompx-liquidsoap.sh <<'EOF'
@@ -250,8 +247,9 @@ Restart=on-failure
 WantedBy=multi-user.target
 EOF
 chmod 644 /etc/systemd/system/ompx-liquidsoap.service
-systemctl daemon-reload || true
-systemctl enable --now ompx-liquidsoap.service || true
+service_action daemon-reload ompx-liquidsoap.service
+service_action enable ompx-liquidsoap.service
+service_action start ompx-liquidsoap.service
 
 # --- Update Icecast streaming to use Liquidsoap output ---
 cat > /usr/local/bin/ompx-icecast-mpx.sh <<'EOF'
@@ -268,44 +266,6 @@ ICECAST_CODEC="flac"
 # Ensure ompx-processing.liq is present and up to date
 src_liq=""
 UPDATE_ONLY=false
-# --- Help flag: print usage and exit ---
-for arg in "$@"; do
-  if [ "$arg" = "-h" ] || [ "$arg" = "--help" ]; then
-    cat <<EOF
-oMPX-Encoder-Debian-setup.sh – oMPX Installer v$OMPX_VERSION
-
-Usage: sudo ./oMPX-Encoder-Debian-setup.sh [OPTIONS]
-
-Options:
-  -h, --help         Show this help message and exit
-  --update           Only update files that are newer (preserves user settings)
-  --force-update     Overwrite all managed files (default)
-  --nuke             Uninstall oMPX and remove all files/services
-  --menu             Launch interactive whiptail menu (if available)
-
-Procedure:
-  1. Installs all required dependencies (Liquidsoap, Nginx, etc.)
-  2. Deploys/updates oMPX Web UI and backend
-  3. Overwrites all managed files by default (unless --update is used)
-  4. Sets up and restarts all oMPX systemd services
-  5. Web UI is served on port 8082 by default
-
-Examples:
-  sudo ./oMPX-Encoder-Debian-setup.sh           # Full install/overwrite (recommended)
-  sudo ./oMPX-Encoder-Debian-setup.sh --update  # Only update newer files, preserve settings
-  sudo ./oMPX-Encoder-Debian-setup.sh --nuke    # Uninstall oMPX completely
-  sudo ./oMPX-Encoder-Debian-setup.sh --menu    # Launch interactive menu (if whiptail is installed)
-
-EOF
-    exit 0
-  fi
-done
-for arg in "$@"; do
-  if [ "$arg" = "--update" ]; then
-    UPDATE_ONLY=true
-  fi
-done
-if [ -f /root/ompx/encoder/ompx-processing.liq ]; then
   src_liq="/root/ompx/encoder/ompx-processing.liq"
 fi
 if [ -f "$(pwd)/ompx-processing.liq" ]; then
@@ -381,8 +341,9 @@ Restart=on-failure
 WantedBy=multi-user.target
 EOF
 chmod 644 /etc/systemd/system/ompx-icecast-mpx.service
-systemctl daemon-reload || true
-systemctl enable --now ompx-icecast-mpx.service || true
+service_action daemon-reload ompx-icecast-mpx.service
+service_action enable ompx-icecast-mpx.service
+service_action start ompx-icecast-mpx.service
 #!/usr/bin/env bash
 set -euo pipefail
 # oMPX unified installer + ALSA asound.conf setup (192kHz sample rate, 80kHz subcarrier frequency)
@@ -433,13 +394,12 @@ if [[ "$*" == *--nuke* ]]; then
   echo "[INFO] --nuke switch detected: performing full uninstall (no prompts)"
   # Uninstall logic (copied from 'U' case in main prompt)
   echo "[INFO] Stopping systemd services..."
-  systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
-  systemctl stop stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service 2>/dev/null || true
-  echo "[INFO] Disabling systemd services..."
-  systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
-  systemctl disable stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service 2>/dev/null || true
+  for svc in mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service; do
+    service_action stop "$svc"
+    service_action disable "$svc"
+  done
   rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${RDS_SYNC_PROG1_SERVICE}" "${RDS_SYNC_PROG2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${OMPX_WEB_UI_SERVICE}" "${OMPX_WEB_KIOSK_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" "${SYS_SCRIPTS_DIR}/ompx-web-ui.py" "${SYS_SCRIPTS_DIR}/ompx-web-kiosk.sh"
-  systemctl daemon-reload || true
+  service_action daemon-reload mpx-processing-alsa.service
   echo "[INFO] Removing cron jobs..."
   if command -v crontab >/dev/null 2>&1 && id -u "${OMPX_USER}" >/dev/null 2>&1; then
     crontab -u "${OMPX_USER}" -l 2>/dev/null | grep -v "${SYS_SCRIPTS_DIR}/source" | sed '/^$/d' | crontab -u "${OMPX_USER}" - 2>/dev/null || true
@@ -676,10 +636,10 @@ if [ -f /etc/nginx/sites-enabled/ompx-8082.conf ]; then
   mv /etc/nginx/sites-enabled/ompx-8082.conf /etc/nginx/sites-enabled/ompx-8082.conf.disabled
   echo "[INFO] Disabled conflicting ompx-8082.conf."
 fi
-systemctl start nginx
-systemctl reload nginx
+service_action start nginx.service
+service_action restart nginx.service
 echo "[INFO] oMPX Web UI is now served by Nginx on port ${OMPX_WEB_PORT}."
-systemctl restart nginx
+service_action restart nginx.service
 if [ "${UPDATE_ONLY:-false}" = true ]; then
   if [ ! -f /var/www/html/index.html ] || [ /workspaces/oMPX/encoder/index.html -nt /var/www/html/index.html ]; then
     cp -f /workspaces/oMPX/encoder/index.html /var/www/html/index.html
@@ -736,8 +696,9 @@ Restart=on-failure
 WantedBy=multi-user.target
 EOF
 chmod 644 /etc/systemd/system/ompx-icecast-mpx.service
-systemctl daemon-reload || true
-systemctl enable --now ompx-icecast-mpx.service || true
+service_action daemon-reload ompx-icecast-mpx.service
+service_action enable ompx-icecast-mpx.service
+service_action start ompx-icecast-mpx.service
 # ICECAST_MODE: local | remote | disabled
 ICECAST_MODE="${ICECAST_MODE:-disabled}"
 # ICECAST_INPUT_MODE: auto | alsa | direct_urls
@@ -1669,15 +1630,15 @@ ICEXML
   chmod 640 /etc/icecast2/icecast.xml
   chown root:icecast /etc/icecast2/icecast.xml 2>/dev/null || chown root:root /etc/icecast2/icecast.xml
   sed -i 's/^ENABLE=.*/ENABLE=true/' /etc/default/icecast2 2>/dev/null || true
-  systemctl daemon-reload || true
-  systemctl enable icecast2 || true
-  systemctl restart icecast2 || true
+  service_action daemon-reload icecast2.service
+  service_action enable icecast2.service
+  service_action restart icecast2.service
   echo "[SUCCESS] icecast2 running on port ${port}, mount ${ICECAST_MOUNT}, source user ${source_user}"
 }
 
 remove_stereo_tool_enterprise_service(){
   if has_systemd; then
-    systemctl disable --now stereo-tool-enterprise.service >/dev/null 2>&1 || true
+    service_action disable stereo-tool-enterprise.service
   fi
   rm -f "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" || true
 }
@@ -1879,12 +1840,12 @@ prompt_ompx_web_kiosk(){
   cfg_kiosk_boot=${cfg_kiosk_boot^^}
   if [ "${cfg_kiosk_boot}" = "N" ]; then
     if has_systemd; then
-      systemctl disable ompx-web-kiosk.service 2>/dev/null || true
+      service_action disable ompx-web-kiosk.service
       echo "[INFO] oMPX kiosk systemd service will NOT start at boot."
     fi
   else
     if has_systemd; then
-      systemctl enable ompx-web-kiosk.service 2>/dev/null || true
+      service_action enable ompx-web-kiosk.service
       echo "[INFO] oMPX kiosk systemd service will start at boot."
     fi
   fi
@@ -7275,8 +7236,6 @@ case "$apply_choice" in
     echo "[INFO] Apply later with: sudo ${ASOUND_SWITCH_HELPER}"
     ;;
 esac
-echo ""
-fi
 
 chmod +x "$0" || true
 echo "[SUCCESS] Installation finished successfully!"

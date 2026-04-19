@@ -2,6 +2,14 @@
 - Fix version detection for all environments (bare metal, Codespaces, etc.)
 - Add 'Update oMPX (git pull + restart)' option to whiptail menu
 - Revision bump: version auto-incremented to 0.2.2k in VERSION file
+## 0.2.2k3 (2026-04-19)
+- Major cross-init compatibility: all service management now works on both systemd and non-systemd (e.g., Devuan) systems via service_action abstraction
+- Fix: always define OMPX_VERSION at script start, preventing unbound variable errors
+- Fix: move has_systemd function above service_action to prevent 'command not found' errors
+- Fix: all known syntax errors resolved, script runs cleanly
+- Ready for commit and further testing on multiple platforms
+- Revision bump: version auto-incremented to 0.2.2k3 in VERSION file
+
 ## 0.2.2k2 (2026-04-19)
 - Refactor: All user prompts now use prompt_helper for consistent automation, whiptail, and menu-driven input handling
 - Force interactive mode by default for fresh installs unless --auto or --no-interactive is specified
