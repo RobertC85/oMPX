@@ -3,6 +3,7 @@
 - Uninstall now also removes Nginx configs and static web UI files.
 - Help text updated to document new flag.
 - Version bump: 0.2.2k4 in VERSION file.
+- Ultra-aggressive uninstall: --scorch and --nuke now attempt to remove all possible oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users, groups, and binaries. Any failure to remove is logged as an error. User/group removal is forced (with pkill), and a reboot is now required to complete cleanup.
 ## 0.2.2k (2026-04-19)
 - Fix version detection for all environments (bare metal, Codespaces, etc.)
 - Add 'Update oMPX (git pull + restart)' option to whiptail menu
