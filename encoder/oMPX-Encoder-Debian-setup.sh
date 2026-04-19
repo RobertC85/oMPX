@@ -1,3 +1,10 @@
+# --- Version flag: print version and exit ---
+for arg in "$@"; do
+  if [ "$arg" = "-v" ] || [ "$arg" = "--version" ]; then
+    echo "oMPX Installer version: $OMPX_VERSION"
+    exit 0
+  fi
+done
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -126,6 +133,38 @@ ICECAST_CODEC="flac"
 # Ensure ompx-processing.liq is present and up to date
 src_liq=""
 UPDATE_ONLY=false
+# --- Help flag: print usage and exit ---
+for arg in "$@"; do
+  if [ "$arg" = "-h" ] || [ "$arg" = "--help" ]; then
+    cat <<EOF
+oMPX-Encoder-Debian-setup.sh – oMPX Installer v$OMPX_VERSION
+
+Usage: sudo ./oMPX-Encoder-Debian-setup.sh [OPTIONS]
+
+Options:
+  -h, --help         Show this help message and exit
+  --update           Only update files that are newer (preserves user settings)
+  --force-update     Overwrite all managed files (default)
+  --nuke             Uninstall oMPX and remove all files/services
+  --menu             Launch interactive whiptail menu (if available)
+
+Procedure:
+  1. Installs all required dependencies (Liquidsoap, Nginx, etc.)
+  2. Deploys/updates oMPX Web UI and backend
+  3. Overwrites all managed files by default (unless --update is used)
+  4. Sets up and restarts all oMPX systemd services
+  5. Web UI is served on port 8082 by default
+
+Examples:
+  sudo ./oMPX-Encoder-Debian-setup.sh           # Full install/overwrite (recommended)
+  sudo ./oMPX-Encoder-Debian-setup.sh --update  # Only update newer files, preserve settings
+  sudo ./oMPX-Encoder-Debian-setup.sh --nuke    # Uninstall oMPX completely
+  sudo ./oMPX-Encoder-Debian-setup.sh --menu    # Launch interactive menu (if whiptail is installed)
+
+EOF
+    exit 0
+  fi
+done
 for arg in "$@"; do
   if [ "$arg" = "--update" ]; then
     UPDATE_ONLY=true

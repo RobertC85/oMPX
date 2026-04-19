@@ -1,3 +1,9 @@
+## 0.2.2i2 (2026-04-19)
+- Add -v/--version flag to installer: prints version and exits
+- Revision bump: version auto-incremented to 0.2.2i2 in VERSION file
+## 0.2.2i (2026-04-19)
+- Add -h/--help flag to installer: prints usage, syntax, and procedure, then exits
+- Revision bump: version auto-incremented to 0.2.2i in VERSION file
 # oMPX Changelog
 
 ## 0.2.2h (2026-04-19)
