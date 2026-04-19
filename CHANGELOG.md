@@ -1,3 +1,9 @@
+## 0.2.2j (2026-04-19)
+- Revision j: meta-update, version and changelog only
+- Revision bump: version auto-incremented to 0.2.2j in VERSION file
+## 0.2.2i4 (2026-04-19)
+- Hotfix: Move shebang to first line, place flag parsing after. Script now executes correctly and supports -v/-h flags.
+- Revision bump: version auto-incremented to 0.2.2i4 in VERSION file
 ## 0.2.2i3 (2026-04-19)
 - Finalize for commit: version and changelog updated, ready for release
 - Revision bump: version auto-incremented to 0.2.2i3 in VERSION file
