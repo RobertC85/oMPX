@@ -1,5 +1,9 @@
 # oMPX Changelog
 
+## 0.2.2g (2026-04-19)
+- Installer and CLI now echo the current version in the whiptail menu and at startup, for clear user visibility
+- Revision bump: version auto-incremented to 0.2.2g in VERSION file
+
 ## 0.2.2f (2026-04-19)
 - Installer now checks both /root/ompx/encoder/ and the current working directory for ompx-processing.liq, always copying the newest to /workspaces/oMPX/encoder/
 - Revision bump: version auto-incremented to 0.2.2f in VERSION file

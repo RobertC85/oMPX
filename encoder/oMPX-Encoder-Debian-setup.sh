@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# --- Read oMPX version ---
+OMPX_VERSION="$(cat /workspaces/oMPX/encoder/VERSION 2>/dev/null || echo 'unknown')"
+
 # --- Install required dependencies ---
 echo "Installing required dependencies (including Liquidsoap)..."
 sudo apt-get update
@@ -120,6 +123,12 @@ ICECAST_BIT_DEPTH="${ICECAST_BIT_DEPTH:-16}"
 ICECAST_CODEC="flac"
 # Ensure ompx-processing.liq is present and up to date
 src_liq=""
+UPDATE_ONLY=false
+for arg in "$@"; do
+  if [ "$arg" = "--update" ]; then
+    UPDATE_ONLY=true
+  fi
+done
 if [ -f /root/ompx/encoder/ompx-processing.liq ]; then
   src_liq="/root/ompx/encoder/ompx-processing.liq"
 fi
@@ -129,9 +138,14 @@ if [ -f "$(pwd)/ompx-processing.liq" ]; then
   fi
 fi
 if [ -n "$src_liq" ]; then
-  if [ ! -f /workspaces/oMPX/encoder/ompx-processing.liq ] || [ "$src_liq" -nt /workspaces/oMPX/encoder/ompx-processing.liq ]; then
-    cp "$src_liq" /workspaces/oMPX/encoder/ompx-processing.liq
-    echo "[INFO] Copied ompx-processing.liq from $src_liq to /workspaces/oMPX/encoder/."
+  if [ "$UPDATE_ONLY" = true ]; then
+    if [ ! -f /workspaces/oMPX/encoder/ompx-processing.liq ] || [ "$src_liq" -nt /workspaces/oMPX/encoder/ompx-processing.liq ]; then
+      cp -f "$src_liq" /workspaces/oMPX/encoder/ompx-processing.liq
+      echo "[INFO] (update) Copied ompx-processing.liq from $src_liq to /workspaces/oMPX/encoder/."
+    fi
+  else
+    cp -f "$src_liq" /workspaces/oMPX/encoder/ompx-processing.liq
+    echo "[INFO] (overwrite) Copied ompx-processing.liq from $src_liq to /workspaces/oMPX/encoder/."
   fi
 fi
 LIQ_PORT=1234
@@ -205,7 +219,8 @@ if ! command -v whiptail >/dev/null 2>&1; then
   echo "[INFO] whiptail not found. Installing..."
   apt-get update && apt-get install -y whiptail
 fi
-CHOICE=$(whiptail --title "oMPX Installer Menu" --menu "Choose an action" 20 70 10 \
+whiptail --title "oMPX Installer v$OMPX_VERSION" --msgbox "oMPX Installer\nVersion: $OMPX_VERSION" 8 50
+CHOICE=$(whiptail --title "oMPX Installer v$OMPX_VERSION" --menu "Choose an action (oMPX $OMPX_VERSION)" 20 70 10 \
   "install" "Install/Update oMPX" \
   "reinstall" "Reinstall (clean/fresh)" \
   "uninstall" "Uninstall (remove all)" \
@@ -213,13 +228,14 @@ CHOICE=$(whiptail --title "oMPX Installer Menu" --menu "Choose an action" 20 70 
   3>&1 1>&2 2>&3)
 case "$CHOICE" in
   install)
-    echo "[INFO] Proceeding with install/update..."
+    echo "[INFO] Proceeding with install/update (oMPX version $OMPX_VERSION)..."
     ;;
   reinstall)
+    echo "[INFO] Proceeding with reinstall (oMPX version $OMPX_VERSION)..."
     set -- "$@" --force-reinstall
     ;;
   uninstall)
-    echo "[INFO] Proceeding with uninstall (--nuke)..."
+    echo "[INFO] Proceeding with uninstall (--nuke, oMPX version $OMPX_VERSION)..."
     "$0" --nuke
     exit $?
     ;;
@@ -481,10 +497,22 @@ systemctl start nginx
 systemctl reload nginx
 echo "[INFO] oMPX Web UI is now served by Nginx on port ${OMPX_WEB_PORT}."
 systemctl restart nginx
-cp /workspaces/oMPX/encoder/index.html /var/www/html/index.html
-cp /workspaces/oMPX/encoder/index.html /usr/share/nginx/html/index.html
-cp /workspaces/oMPX/encoder/index.html /var/www/html/index.html
-cp /workspaces/oMPX/encoder/index.html /var/www/html/index.html
+if [ "$UPDATE_ONLY" = true ]; then
+  if [ ! -f /var/www/html/index.html ] || [ /workspaces/oMPX/encoder/index.html -nt /var/www/html/index.html ]; then
+    cp -f /workspaces/oMPX/encoder/index.html /var/www/html/index.html
+    echo "[INFO] (update) Copied index.html to /var/www/html/index.html."
+  fi
+  if [ ! -f /usr/share/nginx/html/index.html ] || [ /workspaces/oMPX/encoder/index.html -nt /usr/share/nginx/html/index.html ]; then
+    cp -f /workspaces/oMPX/encoder/index.html /usr/share/nginx/html/index.html
+    echo "[INFO] (update) Copied index.html to /usr/share/nginx/html/index.html."
+  fi
+else
+  cp -f /workspaces/oMPX/encoder/index.html /var/www/html/index.html
+  cp -f /workspaces/oMPX/encoder/index.html /usr/share/nginx/html/index.html
+  cp -f /workspaces/oMPX/encoder/index.html /var/www/html/index.html
+  cp -f /workspaces/oMPX/encoder/index.html /var/www/html/index.html
+  echo "[INFO] (overwrite) Copied index.html to all web roots."
+fi
 mkdir -p /workspaces/oMPX/encoder
 cp /var/www/html/index.html /workspaces/oMPX/encoder/ompx-web-ui.html
 ## Removed hardcoded overwrite of ompx-web-ui.html to preserve latest committed UI
