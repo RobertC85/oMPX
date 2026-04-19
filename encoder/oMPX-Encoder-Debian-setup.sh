@@ -27,6 +27,66 @@ if [ "$AUTO_MODE" = false ] && [ "$NO_MENU" = false ] && [ "$INTERACTIVE_MODE" =
     fi
   fi
 fi
+# --- Modular prompt and menu abstraction functions ---
+# Usage: prompt_helper VAR_NAME "Prompt text" [default] [timeout]
+prompt_helper() {
+  local __var_name="$1"
+  local __prompt="$2"
+  local __default="${3-}"
+  local __timeout="${4-60}"
+  local __input=""
+  if [ "$AUTO_MODE" = true ]; then
+    __input="$__default"
+    echo "$__prompt $__input (auto)"
+  else
+    while true; do
+      if command -v whiptail >/dev/null 2>&1 && [ "$NO_MENU" = false ]; then
+        __input=$(whiptail --inputbox "$__prompt" 10 70 "$__default" 3>&1 1>&2 2>&3)
+      else
+        read -p "$__prompt" __input
+      fi
+      if [ -n "$__input" ]; then
+        break
+      else
+        echo "Input required. Please enter a value."
+      fi
+    done
+  fi
+  printf -v "$__var_name" '%s' "$__input"
+}
+
+# Usage: menu_helper VAR_NAME "Menu title" "Menu prompt" HEIGHT WIDTH MENU_HEIGHT "key1" "desc1" ...
+menu_helper() {
+  local __var_name="$1"
+  local __title="$2"
+  local __prompt="$3"
+  local __height="$4"
+  local __width="$5"
+  local __menu_height="$6"
+  shift 6
+  local __choice=""
+  if command -v whiptail >/dev/null 2>&1 && [ "$NO_MENU" = false ]; then
+    __choice=$(whiptail --title "$__title" --menu "$__prompt" "$__height" "$__width" "$__menu_height" "$@" 3>&1 1>&2 2>&3)
+  else
+    echo "$__title"
+    echo "$__prompt"
+    local i=1
+    local options=()
+    while [ "$#" -gt 1 ]; do
+      echo "  $i) $1 - $2"
+      options+=("$1")
+      shift 2
+      i=$((i+1))
+    done
+    local sel=""
+    read -p "Enter choice [1-${#options[@]}]: " sel
+    if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le "${#options[@]}" ]; then
+      __choice="${options[$((sel-1))]}"
+    fi
+  fi
+  printf -v "$__var_name" '%s' "$__choice"
+}
+# --- End modular prompt/menu abstraction ---
 #!/usr/bin/env bash
 # --- oMPX Installer: ensure OMPX_VERSION is always set ---
 OMPX_VERSION="$(cat "$(dirname "$0")/VERSION" 2>/dev/null || echo "dev")"
@@ -2120,7 +2180,7 @@ prompt_stereo_tool_limit_preset(){
   echo "    B) Balanced - 10 failures in 60s, then stop retrying"
   echo "    L) Lenient  - 20 failures in 120s, then stop retrying"
   echo "    C) Custom   - set your own window and failure count"
-  read -t 60 -p "Choose Stereo Tool crash-limit preset [S/B/L/C] (default B): " cfg_st_limit || cfg_st_limit="B"
+  prompt_helper cfg_st_limit "Choose Stereo Tool crash-limit preset [S/B/L/C] (default B):" "B" 60
   cfg_st_limit=${cfg_st_limit^^}
   case "${cfg_st_limit}" in
     S)
@@ -2131,8 +2191,8 @@ prompt_stereo_tool_limit_preset(){
       ;;
     C)
       STEREO_TOOL_START_LIMIT_PRESET="custom"
-      read -t 60 -p "Custom start-limit interval (seconds, default ${STEREO_TOOL_START_LIMIT_INTERVAL_SEC}): " cfg_st_interval || cfg_st_interval=""
-      read -t 60 -p "Custom start-limit burst (failures, default ${STEREO_TOOL_START_LIMIT_BURST}): " cfg_st_burst || cfg_st_burst=""
+      prompt_helper cfg_st_interval "Custom start-limit interval (seconds, default ${STEREO_TOOL_START_LIMIT_INTERVAL_SEC}):" "${STEREO_TOOL_START_LIMIT_INTERVAL_SEC}" 60
+      prompt_helper cfg_st_burst "Custom start-limit burst (failures, default ${STEREO_TOOL_START_LIMIT_BURST}):" "${STEREO_TOOL_START_LIMIT_BURST}" 60
       if [[ "${cfg_st_interval}" =~ ^[0-9]+$ ]] && [ "${cfg_st_interval}" -gt 0 ]; then
         STEREO_TOOL_START_LIMIT_INTERVAL_SEC="${cfg_st_interval}"
       fi
@@ -2156,12 +2216,12 @@ prompt_stereo_tool_web_binding(){
   echo "    Current web port     : ${STEREO_TOOL_WEB_PORT}"
   echo "    Current whitelist    : ${STEREO_TOOL_WEB_WHITELIST}"
 
-  read -t 60 -p "Bind address (IP/host, default ${STEREO_TOOL_WEB_BIND}): " cfg_st_bind || cfg_st_bind=""
+  prompt_helper cfg_st_bind "Bind address (IP/host, default ${STEREO_TOOL_WEB_BIND}):" "${STEREO_TOOL_WEB_BIND}" 60
   if [ -n "${cfg_st_bind}" ]; then
     STEREO_TOOL_WEB_BIND="${cfg_st_bind}"
   fi
 
-  read -t 60 -p "Web port (1-65535, default ${STEREO_TOOL_WEB_PORT}): " cfg_st_port || cfg_st_port=""
+  prompt_helper cfg_st_port "Web port (1-65535, default ${STEREO_TOOL_WEB_PORT}):" "${STEREO_TOOL_WEB_PORT}" 60
   if [ -n "${cfg_st_port}" ]; then
     if [[ "${cfg_st_port}" =~ ^[0-9]+$ ]] && [ "${cfg_st_port}" -ge 1 ] && [ "${cfg_st_port}" -le 65535 ]; then
       STEREO_TOOL_WEB_PORT="${cfg_st_port}"
@@ -2170,7 +2230,7 @@ prompt_stereo_tool_web_binding(){
     fi
   fi
 
-  read -t 60 -p "CIDR whitelist (default ${STEREO_TOOL_WEB_WHITELIST}): " cfg_st_whitelist || cfg_st_whitelist=""
+  prompt_helper cfg_st_whitelist "CIDR whitelist (default ${STEREO_TOOL_WEB_WHITELIST}):" "${STEREO_TOOL_WEB_WHITELIST}" 60
   if [ -n "${cfg_st_whitelist}" ]; then
     STEREO_TOOL_WEB_WHITELIST="${cfg_st_whitelist}"
   fi
@@ -3681,16 +3741,15 @@ if has_systemd && systemctl list-unit-files | grep -q '^mpx-processing-alsa.serv
 [ "$found" -eq 0 ] && echo "[INFO] No existing installation detected (fresh install)" || echo "[WARNING] Existing installation found: $msg"
 
 if [ "$found" -eq 1 ]; then
-  echo ""
-  echo "Existing oMPX installation detected (${msg})."
-  echo "Choose action:"
-  echo "  K) Keep existing (overwrite generated files only)"
-  echo "  R) Reinstall (clean -> fresh install)  *recommended for broken installs*"
-  echo "  U) Uninstall (remove all oMPX components)"
-  echo "  A) Abort (do nothing)"
-  echo ""
-  prompt_helper choice "Select [K/R/U/A] (default K): " K 30
-  choice=${choice^^}
+  menu_helper choice "Existing oMPX installation detected" "Choose action:" 15 70 6 \
+    K "Keep existing (overwrite generated files only)" \
+    R "Reinstall (clean -> fresh install)" \
+    U "Uninstall (remove all oMPX components)" \
+    A "Abort (do nothing)"
+  # If user cancels, menu_helper returns empty, treat as Abort
+  if [ -z "$choice" ]; then
+    choice="A"
+  fi
   echo "[INFO] User selected: $choice"
   case "$choice" in
     R)
@@ -7706,6 +7765,7 @@ case "$apply_choice" in
     ;;
 esac
 
-chmod +x "$0" || true
-echo "[SUCCESS] Installation finished successfully!"
-exit 0
+  chmod +x "$0" || true
+  echo "[SUCCESS] Installation finished successfully!"
+  exit 0
+fi

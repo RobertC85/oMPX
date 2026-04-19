@@ -1,3 +1,10 @@
+# 0.2.2k7 (2026-04-19)
+- Refactor: Modularize all prompt and menu logic in the installer, enforcing whiptail dialogs for all user input and menus.
+- Fix: All prompts now require explicit user input; empty or cancelled prompts will re-prompt or map Cancel to Abort, preventing accidental aborts or infinite loops.
+- Fix: "Existing oMPX installation detected" menu now uses menu_helper for robust, safe selection (no infinite loop on Cancel).
+- Fix: Syntax error at end of installer script resolved (missing fi).
+- Confirmed: Web UI interface and all prompt logic match previous stable release (no UI changes).
+- Version bump: 0.2.2k7 in VERSION file.
 # 0.2.2k6 (2026-04-19)
 - Documented --kill-ompx-user flag and user/home deletion logic in README, changelog, and CLI help output.
 - Safety logic: uninstall as ompx user is blocked unless --scorch and --kill-ompx-user are both specified.
