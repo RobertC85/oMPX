@@ -48,6 +48,17 @@
       <button class="top-tab" data-tab="program2" style="flex:1;">Program 2</button>
       <button class="top-tab" data-tab="global" style="flex:1;">Global Settings</button>
     </div>
+    <div id="audio-preview" style="margin-bottom:2em;text-align:center;">
+      <label for="program-select" style="font-weight:bold;">Patch Audio Preview:</label>
+      <select id="program-select" style="margin:0 0.5em;">
+        <option value="1">Program 1</option>
+        <option value="2">Program 2</option>
+      </select>
+      <audio id="patch-audio" controls style="vertical-align:middle;width:80%;max-width:400px;">
+        <source id="audio-source" src="/api/preview.mp3?program=1" type="audio/mpeg">
+        Your browser does not support the audio element.
+      </audio>
+    </div>
       <footer style="margin:2em auto 0 auto;text-align:center;color:#888;font-size:1em;">
         oMPX Web UI – Version 0.2.2h2
       </footer>
@@ -63,6 +74,17 @@
     </div>
   </div>
   <script>
+        // Patch audio preview logic
+        const programSelect = document.getElementById('program-select');
+        const patchAudio = document.getElementById('patch-audio');
+        const audioSource = document.getElementById('audio-source');
+        if (programSelect && patchAudio && audioSource) {
+          programSelect.addEventListener('change', function() {
+            const prog = programSelect.value;
+            audioSource.src = `/api/preview.mp3?program=${prog}`;
+            patchAudio.load();
+          });
+        }
     const categories = [
       { name: 'Dynamics', features: [
         'Noise gate',

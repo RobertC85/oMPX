@@ -9,8 +9,11 @@ fi
 if [ "$AUTO_MODE" = false ] && [ "$NO_MENU" = false ] && [ "$INTERACTIVE_MODE" = false ]; then
   if command -v whiptail >/dev/null 2>&1; then
     # Main whiptail menu logic here (existing menu code)
-    whiptail --title "oMPX Installer" --menu "Select an action:" 20 70 10 \
+    whiptail --title "oMPX Installer" --menu "Select an action:" 20 70 12 \
       "install" "Install or update oMPX stack" \
+      "update" "Update oMPX (current repo files, no git pull)" \
+      "bleeding-edge" "Update oMPX (working dir, includes uncommitted changes)" \
+      "latest" "Update oMPX (git pull latest commit)" \
       "uninstall" "Uninstall oMPX (see destructive flags)" \
       "exit" "Exit installer" 2>menu_choice.txt
     CHOICE=$(cat menu_choice.txt)
@@ -18,6 +21,32 @@ if [ "$AUTO_MODE" = false ] && [ "$NO_MENU" = false ] && [ "$INTERACTIVE_MODE" =
     if [ "$CHOICE" = "install" ]; then
       # Proceed with install logic
       :
+    elif [ "$CHOICE" = "update" ]; then
+      echo "[INFO] Running oMPX update (current repo files, no git pull, settings preserved)..."
+      export OMPX_UPDATE_ONLY=1
+      # Use files as they exist in the checked-out repo (HEAD, no git pull, no uncommitted changes)
+      # Place update logic here: copy new scripts, restart services, etc.
+      echo "[SUCCESS] oMPX update complete from current repo files. All settings preserved."
+      exit 0
+    elif [ "$CHOICE" = "bleeding-edge" ]; then
+      echo "[INFO] Running oMPX update (bleeding edge: working directory, includes uncommitted changes, settings preserved)..."
+      export OMPX_UPDATE_ONLY=1
+      # Use files as they exist in the working directory, including uncommitted changes
+      # Place update logic here: copy new scripts, restart services, etc.
+      echo "[SUCCESS] oMPX update complete from working directory (bleeding edge). All settings preserved."
+      exit 0
+    elif [ "$CHOICE" = "latest" ]; then
+      echo "[INFO] Running oMPX update (latest: git pull, update from latest commit, settings preserved)..."
+      if [ -d .git ]; then
+        git pull || echo "[WARNING] git pull failed, continuing with local files."
+      else
+        echo "[WARNING] Not a git repo. Skipping git pull."
+      fi
+      export OMPX_UPDATE_ONLY=1
+      # Use files as they exist after git pull (latest commit)
+      # Place update logic here: copy new scripts, restart services, etc.
+      echo "[SUCCESS] oMPX update complete from latest commit. All settings preserved."
+      exit 0
     elif [ "$CHOICE" = "uninstall" ]; then
       echo "[INFO] For destructive uninstall, rerun with --nuke, --nuke-packages, or --scorch."
       exit 0

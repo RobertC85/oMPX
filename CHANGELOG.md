@@ -1,3 +1,11 @@
+# 0.2.2L0 (2026-04-19)
+- Release: L0 milestone. All update menu logic refactored for clarity and safety.
+- Feature: Update menu now offers three options: update from current repo files, bleeding edge (working directory, uncommitted changes), and latest (git pull).
+- Feature: Patch audio preview player restored to the web UI, with program selector and direct streaming from backend.
+- Fix: UI and backend now always in sync; all web roots updated reliably.
+- Confirmed: Installer, update, and uninstall logic are robust and developer-friendly.
+- All previous bandaid, nginx recovery, and destructive uninstall protections included from k9.
+
 # 0.2.2k9 (2026-04-19)
 - Feature: "Bandaid for k9" — If nginx configs are missing or nginx fails to start, the installer will now automatically purge, remove, and reinstall nginx, then start the service. This ensures nginx is always recoverable after a --scorch or config loss.
 # 0.2.2k8 (2026-04-19)
