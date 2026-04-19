@@ -442,7 +442,7 @@ git show HEAD:encoder/index.html > /var/www/html/index.html
 cp /var/www/html/index.html /workspaces/oMPX/encoder/ompx-web-ui.html
 # Allow port override via OMPX_WEB_PORT, default 8083
 OMPX_WEB_PORT="${OMPX_WEB_PORT:-8083}"
-cat > /etc/nginx/sites-available/ompx-web-ui <<EOF
+cat > /etc/nginx/sites-available/ompx-web-ui <<'EOF'
 server {
   listen ${OMPX_WEB_PORT} default_server;
   listen [::]:${OMPX_WEB_PORT} default_server;
