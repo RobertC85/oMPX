@@ -130,7 +130,44 @@
       </div>
       <div id="section-global" class="section" style="display:none;">
         <div class="category-title">Global Settings</div>
-        <!-- Add global settings here -->
+        <div style="margin-bottom:1.5em;">
+          <label for="layout-select" style="font-weight:bold;">Layout:</label>
+          <select id="layout-select" style="margin-left:0.5em;">
+            <option value="sidebar">Sidebar Menu</option>
+            <option value="topbar">Top Bar Menu (Wax Dreams)</option>
+            <option value="original">Original</option>
+          </select>
+        </div>
+        <div id="theme-selectors">
+          <div id="theme-sidebar" class="theme-group">
+            <label for="theme-sidebar-select" style="font-weight:bold;">Theme:</label>
+            <select id="theme-sidebar-select" style="margin-left:0.5em;">
+              <option value="forest">Forest (default)</option>
+              <option value="system">System</option>
+              <option value="midnight">Midnight</option>
+              <option value="amber">Amber Scope</option>
+            </select>
+          </div>
+          <div id="theme-topbar" class="theme-group" style="display:none;">
+            <label for="theme-topbar-select" style="font-weight:bold;">Theme:</label>
+            <select id="theme-topbar-select" style="margin-left:0.5em;">
+              <option value="forest">Forest (default)</option>
+              <option value="system">System</option>
+              <option value="midnight">Midnight</option>
+              <option value="amber">Amber Scope</option>
+            </select>
+          </div>
+          <div id="theme-original" class="theme-group" style="display:none;">
+            <label for="theme-original-select" style="font-weight:bold;">Theme:</label>
+            <select id="theme-original-select" style="margin-left:0.5em;">
+              <option value="forest">Forest (default)</option>
+              <option value="daylight">Daylight</option>
+              <option value="system">System</option>
+              <option value="midnight">Midnight</option>
+              <option value="amber">Amber Scope</option>
+            </select>
+          </div>
+        </div>
       </div>
       <div id="section-about" class="section" style="display:none;">
         <div class="category-title">About</div>
@@ -177,6 +214,36 @@
     </div>
   </div>
   <script>
+            // Layout and theme switching logic
+            const layoutSelect = document.getElementById('layout-select');
+            const themeGroups = document.querySelectorAll('.theme-group');
+            const themeSidebar = document.getElementById('theme-sidebar');
+            const themeTopbar = document.getElementById('theme-topbar');
+            const themeOriginal = document.getElementById('theme-original');
+            const sidebarNav = document.getElementById('sidebar');
+            // For demonstration, topbar and original layouts are toggled by hiding/showing navs/containers
+            function setLayout(layout) {
+              sidebarNav.style.display = (layout === 'sidebar') ? '' : 'none';
+              // Topbar and original layouts would have their own navs/containers (not fully implemented here)
+              themeGroups.forEach(g => g.style.display = 'none');
+              if (layout === 'sidebar') themeSidebar.style.display = '';
+              if (layout === 'topbar') themeTopbar.style.display = '';
+              if (layout === 'original') themeOriginal.style.display = '';
+              // TODO: Show/hide topbar/original navs and containers as needed
+            }
+            layoutSelect.addEventListener('change', e => setLayout(e.target.value));
+            setLayout('sidebar'); // Default
+            // Daylight theme dropdown text color fix
+            const themeOriginalSelect = document.getElementById('theme-original-select');
+            themeOriginalSelect.addEventListener('change', function() {
+              if (this.value === 'daylight') {
+                this.style.color = '#fff';
+                this.style.background = '#e0e0e0';
+              } else {
+                this.style.color = '';
+                this.style.background = '';
+              }
+            });
         // Patch audio preview logic
         const programSelect = document.getElementById('program-select');
         const patchAudio = document.getElementById('patch-audio');

@@ -1,3 +1,6 @@
+# 0.2.2L2 (2026-04-19)
+- Feature: Added layout selector (Sidebar, Top Bar Menu, Original) with per-layout theme selectors in Global Settings. Daylight theme dropdown text is now white for readability. UI structure ready for further layout/theme expansion.
+
 # 0.2.2L1 (2026-04-19)
 - Fix: Web UI /api/preview.mp3 now always proxies from /stream.mp3 (Icecast), ensuring audio preview works reliably regardless of program selection. Indentation and syntax errors resolved in backend handler.
 
