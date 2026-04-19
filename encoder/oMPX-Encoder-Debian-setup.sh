@@ -1,9 +1,31 @@
-### --- SAFETY CHECK: Prevent uninstall as ompx user ---
+# --- SAFETY CHECK: Prevent uninstall as ompx user ---
 if [ "$(id -un)" = "ompx" ]; then
   echo "[ERROR] You are running this script as the 'ompx' user."
   echo "Uninstalling oMPX as this user will log you out and may leave you unable to recover the system without root/sudo access."
   echo "Please run this script as root or with sudo from a different user account."
   exit 1
+fi
+# --- Default to whiptail menu unless --auto, --no-menu, or --interactive is specified ---
+if [ "$AUTO_MODE" = false ] && [ "$NO_MENU" = false ] && [ "$INTERACTIVE_MODE" = false ]; then
+  if command -v whiptail >/dev/null 2>&1; then
+    # Main whiptail menu logic here (existing menu code)
+    whiptail --title "oMPX Installer" --menu "Select an action:" 20 70 10 \
+      "install" "Install or update oMPX stack" \
+      "uninstall" "Uninstall oMPX (see destructive flags)" \
+      "exit" "Exit installer" 2>menu_choice.txt
+    CHOICE=$(cat menu_choice.txt)
+    rm -f menu_choice.txt
+    if [ "$CHOICE" = "install" ]; then
+      # Proceed with install logic
+      :
+    elif [ "$CHOICE" = "uninstall" ]; then
+      echo "[INFO] For destructive uninstall, rerun with --nuke, --nuke-packages, or --scorch."
+      exit 0
+    else
+      echo "[INFO] Exiting installer."
+      exit 0
+    fi
+  fi
 fi
 #!/usr/bin/env bash
 # --- oMPX Installer: ensure OMPX_VERSION is always set ---
@@ -1055,10 +1077,14 @@ ICECAST_CODEC="flac"
 # Deploy latest committed index.html from git
 echo "[INFO] Installing Nginx and deploying oMPX Web UI..."
 apt-get update && apt-get install -y nginx
+mkdir -p /var/www/html
+mkdir -p /usr/share/nginx/html
 git show HEAD:encoder/index.html > /var/www/html/index.html
 cp /var/www/html/index.html /workspaces/oMPX/encoder/ompx-web-ui.html
 # Allow port override via OMPX_WEB_PORT, default 8083
 OMPX_WEB_PORT="${OMPX_WEB_PORT:-8083}"
+mkdir -p /etc/nginx/sites-available
+mkdir -p /etc/nginx/sites-enabled
 cat > /etc/nginx/sites-available/ompx-web-ui <<EOF
 server {
   listen ${OMPX_WEB_PORT} default_server;
@@ -3655,84 +3681,81 @@ if has_systemd && systemctl list-unit-files | grep -q '^mpx-processing-alsa.serv
 [ "$found" -eq 0 ] && echo "[INFO] No existing installation detected (fresh install)" || echo "[WARNING] Existing installation found: $msg"
 
 if [ "$found" -eq 1 ]; then
-echo ""
-echo "Existing oMPX installation detected (${msg})."
-echo "Choose action:"
-echo "  K) Keep existing (overwrite generated files only)"
-echo "  R) Reinstall (clean -> fresh install)  *recommended for broken installs*"
-echo "  U) Uninstall (remove all oMPX components)"
-echo "  A) Abort (do nothing)"
-echo ""
-prompt_helper choice "Select [K/R/U/A] (default K): " K 30
-choice=${choice^^}
-echo "[INFO] User selected: $choice"
-case "$choice" in
-R)
-echo "[INFO] Performing full cleanup before reinstall..."
-echo "[INFO] Stopping systemd services..."
-systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
-systemctl stop stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service 2>/dev/null || true
-echo "[INFO] Disabling systemd services..."
-systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
-systemctl disable stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service 2>/dev/null || true
-rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${RDS_SYNC_PROG1_SERVICE}" "${RDS_SYNC_PROG2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${OMPX_WEB_UI_SERVICE}" "${OMPX_WEB_KIOSK_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" "${SYS_SCRIPTS_DIR}/ompx-web-ui.py" "${SYS_SCRIPTS_DIR}/ompx-web-kiosk.sh"
-systemctl daemon-reload || true
-echo "[INFO] Removing old cron jobs..."
-if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
-crontab -u "${OMPX_USER}" -l 2>/dev/null | grep -v "${SYS_SCRIPTS_DIR}/source" | sed '/^$/d' | crontab -u "${OMPX_USER}" - 2>/dev/null || true
-else
-echo "[WARNING] crontab command not found; skipping cron cleanup"
-fi
-echo "[INFO] Removing old files and directories..."
-rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
-rm -rf "${SYS_SCRIPTS_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log /var/log/radio-source1.log /var/log/radio-source2.log
-rm -f "${OMPX_AUDIO_UDEV_RULE}" || true
-rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
-echo "[INFO] Removing oMPX user..."
-if id -u "${OMPX_USER}" >/dev/null 2>&1; then userdel -r "${OMPX_USER}" || true; fi
-echo "[INFO] Unloading snd_aloop module..."
-modprobe -r snd_aloop 2>/dev/null || true
-echo "[SUCCESS] Cleanup complete, ready for fresh install"
-;;
-U)
-echo "[INFO] Performing full uninstall..."
-echo "[INFO] Stopping systemd services..."
-systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
-systemctl stop stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service 2>/dev/null || true
-echo "[INFO] Disabling systemd services..."
-systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
-systemctl disable stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service 2>/dev/null || true
-rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${RDS_SYNC_PROG1_SERVICE}" "${RDS_SYNC_PROG2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${OMPX_WEB_UI_SERVICE}" "${OMPX_WEB_KIOSK_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" "${SYS_SCRIPTS_DIR}/ompx-web-ui.py" "${SYS_SCRIPTS_DIR}/ompx-web-kiosk.sh"
-systemctl daemon-reload || true
-echo "[INFO] Removing cron jobs..."
-if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
-crontab -u "${OMPX_USER}" -l 2>/dev/null | grep -v "${SYS_SCRIPTS_DIR}/source" | sed '/^$/d' | crontab -u "${OMPX_USER}" - 2>/dev/null || true
-else
-echo "[WARNING] crontab command not found; skipping cron cleanup"
-fi
-echo "[INFO] Removing files and directories..."
-rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
-rm -rf "${SYS_SCRIPTS_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log /var/log/radio-source1.log /var/log/radio-source2.log
-rm -f "${OMPX_AUDIO_UDEV_RULE}" || true
-rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
-echo "[INFO] Removing oMPX user..."
-if id -u "${OMPX_USER}" >/dev/null 2>&1; then userdel -r "${OMPX_USER}" || true; fi
-echo "[INFO] Unloading snd_aloop module..."
-modprobe -r snd_aloop 2>/dev/null || true
-echo "[SUCCESS] Uninstall complete."
-exit 0
-fi
-
-# --- All install/setup/menu logic only runs if no destructive flag is present ---
-else
-;;
-K)
-echo "[INFO] Keeping existing installation; generated files will be overwritten."
-;;
-*)
-echo "[INFO] Aborting installation (user selected option)."
-exit 0;;
-esac
+  echo ""
+  echo "Existing oMPX installation detected (${msg})."
+  echo "Choose action:"
+  echo "  K) Keep existing (overwrite generated files only)"
+  echo "  R) Reinstall (clean -> fresh install)  *recommended for broken installs*"
+  echo "  U) Uninstall (remove all oMPX components)"
+  echo "  A) Abort (do nothing)"
+  echo ""
+  prompt_helper choice "Select [K/R/U/A] (default K): " K 30
+  choice=${choice^^}
+  echo "[INFO] User selected: $choice"
+  case "$choice" in
+    R)
+      echo "[INFO] Performing full cleanup before reinstall..."
+      echo "[INFO] Stopping systemd services..."
+      systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
+      systemctl stop stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service 2>/dev/null || true
+      echo "[INFO] Disabling systemd services..."
+      systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
+      systemctl disable stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service 2>/dev/null || true
+      rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${RDS_SYNC_PROG1_SERVICE}" "${RDS_SYNC_PROG2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${OMPX_WEB_UI_SERVICE}" "${OMPX_WEB_KIOSK_SERVICE}" "${STEREO_TOOL_ENTERPRISE_LAUNCHER}" "${SYS_SCRIPTS_DIR}/ompx-web-ui.py" "${SYS_SCRIPTS_DIR}/ompx-web-kiosk.sh"
+      systemctl daemon-reload || true
+      echo "[INFO] Removing old cron jobs..."
+      if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
+        crontab -u "${OMPX_USER}" -l 2>/dev/null | grep -v "${SYS_SCRIPTS_DIR}/source" | sed '/^$/d' | crontab -u "${OMPX_USER}" - 2>/dev/null || true
+      else
+        echo "[WARNING] crontab command not found; skipping cron cleanup"
+      fi
+      echo "[INFO] Removing old files and directories..."
+      rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
+      rm -rf "${SYS_SCRIPTS_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log /var/log/radio-source1.log /var/log/radio-source2.log
+      rm -f "${OMPX_AUDIO_UDEV_RULE}" || true
+      rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
+      echo "[INFO] Removing oMPX user..."
+      if id -u "${OMPX_USER}" >/dev/null 2>&1; then userdel -r "${OMPX_USER}" || true; fi
+      echo "[INFO] Unloading snd_aloop module..."
+      modprobe -r snd_aloop 2>/dev/null || true
+      echo "[SUCCESS] Cleanup complete, ready for fresh install"
+      ;;
+    U)
+      echo "[INFO] Performing full uninstall..."
+      echo "[INFO] Stopping systemd services..."
+      systemctl stop mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
+      systemctl stop stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service 2>/dev/null || true
+      echo "[INFO] Disabling systemd services..."
+      systemctl disable mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service 2>/dev/null || true
+      systemctl disable stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service 2>/dev/null || true
+      rm -f "${SYSTEMD_DIR}/mpx-processing-alsa.service" "${SYSTEMD_DIR}/mpx-watchdog.service" "${OMPX_STREAM_PULL_SERVICE}" "${OMPX_SOURCE1_SERVICE}" "${OMPX_SOURCE2_SERVICE}" "${RDS_SYNC_PROG1_SERVICE}" "${RDS_SYNC_PROG2_SERVICE}" "${STEREO_TOOL_ENTERPRISE_SERVICE}" "${OMPX_WEB_UI_SERVICE}" "${OMPX_WEB_KIOSK_SERVICE}" "${OMPX_WEB_KIOSK_SERVICE}" "${SYS_SCRIPTS_DIR}/ompx-web-ui.py" "${SYS_SCRIPTS_DIR}/ompx-web-kiosk.sh"
+      systemctl daemon-reload || true
+      echo "[INFO] Removing cron jobs..."
+      if have_crontab && id -u "${OMPX_USER}" >/dev/null 2>&1; then
+        crontab -u "${OMPX_USER}" -l 2>/dev/null | grep -v "${SYS_SCRIPTS_DIR}/source" | sed '/^$/d' | crontab -u "${OMPX_USER}" - 2>/dev/null || true
+      else
+        echo "[WARNING] crontab command not found; skipping cron cleanup"
+      fi
+      echo "[INFO] Removing files and directories..."
+      rm -f "${STEREO_TOOL_WRAPPER}" "${STEREO_TOOL_WRAPPER}.real-check" "${OMPX_ADD}"
+      rm -rf "${SYS_SCRIPTS_DIR}" "${OMPX_LOG_DIR}" /var/log/radio-opus1.log /var/log/radio-opus2.log /var/log/radio-source1.log /var/log/radio-source2.log
+      rm -f "${OMPX_AUDIO_UDEV_RULE}" || true
+      rm -f "${OMPX_HOME}/.profile" "${OMPX_HOME}/.profile".bak.* || true
+      echo "[INFO] Removing oMPX user..."
+      if id -u "${OMPX_USER}" >/dev/null 2>&1; then userdel -r "${OMPX_USER}" || true; fi
+      echo "[INFO] Unloading snd_aloop module..."
+      modprobe -r snd_aloop 2>/dev/null || true
+      echo "[SUCCESS] Uninstall complete."
+      exit 0
+      ;;
+    K)
+      echo "[INFO] Keeping existing installation; generated files will be overwritten."
+      ;;
+    *)
+      echo "[INFO] Aborting installation (user selected option)."
+      exit 0
+      ;;
+  esac
 fi
 echo "[INFO] Setting up oMPX system user..."
 
