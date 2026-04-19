@@ -1,3 +1,6 @@
+## 0.2.2i3 (2026-04-19)
+- Finalize for commit: version and changelog updated, ready for release
+- Revision bump: version auto-incremented to 0.2.2i3 in VERSION file
 ## 0.2.2i2 (2026-04-19)
 - Add -v/--version flag to installer: prints version and exits
 - Revision bump: version auto-incremented to 0.2.2i2 in VERSION file
