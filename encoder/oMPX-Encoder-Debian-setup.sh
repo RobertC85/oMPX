@@ -3,6 +3,8 @@ set -euo pipefail
 
 # --- Read oMPX version ---
 OMPX_VERSION="$(cat /workspaces/oMPX/encoder/VERSION 2>/dev/null || echo 'unknown')"
+echo "[oMPX Installer] Running: $0"
+echo "[oMPX Installer] Version: $OMPX_VERSION"
 
 # --- Install required dependencies ---
 echo "Installing required dependencies (including Liquidsoap)..."
@@ -138,7 +140,7 @@ if [ -f "$(pwd)/ompx-processing.liq" ]; then
   fi
 fi
 if [ -n "$src_liq" ]; then
-  if [ "$UPDATE_ONLY" = true ]; then
+  if [ "${UPDATE_ONLY:-false}" = true ]; then
     if [ ! -f /workspaces/oMPX/encoder/ompx-processing.liq ] || [ "$src_liq" -nt /workspaces/oMPX/encoder/ompx-processing.liq ]; then
       cp -f "$src_liq" /workspaces/oMPX/encoder/ompx-processing.liq
       echo "[INFO] (update) Copied ompx-processing.liq from $src_liq to /workspaces/oMPX/encoder/."
@@ -497,7 +499,7 @@ systemctl start nginx
 systemctl reload nginx
 echo "[INFO] oMPX Web UI is now served by Nginx on port ${OMPX_WEB_PORT}."
 systemctl restart nginx
-if [ "$UPDATE_ONLY" = true ]; then
+if [ "${UPDATE_ONLY:-false}" = true ]; then
   if [ ! -f /var/www/html/index.html ] || [ /workspaces/oMPX/encoder/index.html -nt /var/www/html/index.html ]; then
     cp -f /workspaces/oMPX/encoder/index.html /var/www/html/index.html
     echo "[INFO] (update) Copied index.html to /var/www/html/index.html."
