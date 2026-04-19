@@ -1,3 +1,10 @@
+# 0.2.2k6 (2026-04-19)
+- Documented --kill-ompx-user flag and user/home deletion logic in README, changelog, and CLI help output.
+- Safety logic: uninstall as ompx user is blocked unless --scorch and --kill-ompx-user are both specified.
+- With --scorch (as ompx), only home directory is deleted; user account remains, so SSH is still possible but without a home directory.
+- With --scorch --kill-ompx-user (as ompx), both home directory and user account are deleted, fully disabling SSH for ompx.
+- All destructive uninstall logic, user protections, and documentation are now complete and robust.
+
 # 0.2.2k5 (2026-04-19)
 - Remove --colors flag from all whiptail dialogs for compatibility on all systems.
 - Clarify destructive confirmation: menu now explicitly states 'YES' must be typed in all caps.
@@ -7,6 +14,9 @@
 - Help text updated to document new flag.
 - Version bump: 0.2.2k5 in VERSION file.
 - Ultra-aggressive uninstall: --scorch and --nuke now attempt to remove all possible oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users, groups, and binaries. Any failure to remove is logged as an error. User/group removal is forced (with pkill), and a reboot is now required to complete cleanup.
+- Add --kill-ompx-user flag: allows ompx user to self-destruct their own account, but only with --scorch. Otherwise, uninstall as ompx is blocked for safety.
+- If only --scorch is used as ompx, only the home directory is deleted; the user account remains, so SSH is still possible but without a home directory.
+- Behavior and safety logic now documented in README and CLI help.
 ## 0.2.2k (2026-04-19)
 - Fix version detection for all environments (bare metal, Codespaces, etc.)
 - Add 'Update oMPX (git pull + restart)' option to whiptail menu

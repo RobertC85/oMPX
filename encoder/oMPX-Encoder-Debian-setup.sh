@@ -1,3 +1,10 @@
+### --- SAFETY CHECK: Prevent uninstall as ompx user ---
+if [ "$(id -un)" = "ompx" ]; then
+  echo "[ERROR] You are running this script as the 'ompx' user."
+  echo "Uninstalling oMPX as this user will log you out and may leave you unable to recover the system without root/sudo access."
+  echo "Please run this script as root or with sudo from a different user account."
+  exit 1
+fi
 #!/usr/bin/env bash
 # --- oMPX Installer: ensure OMPX_VERSION is always set ---
 OMPX_VERSION="$(cat "$(dirname "$0")/VERSION" 2>/dev/null || echo "dev")"
@@ -75,6 +82,7 @@ SHOW_HELP=false
 SHOW_VERSION=false
 NUKE_PACKAGES=false
 SCORCH_MODE=false
+KILL_OMPX_USER=false
 PARSED_ARGS=()
 for arg in "$@"; do
   case "$arg" in
@@ -110,6 +118,9 @@ for arg in "$@"; do
       INTERACTIVE_MODE=false
       AUTO_MODE=true
       ;;
+    --kill-ompx-user)
+      KILL_OMPX_USER=true
+      ;;
     *)
       PARSED_ARGS+=("$arg")
       ;;
@@ -134,14 +145,31 @@ Options:
   --nuke             Uninstall oMPX and remove all files/services
   --nuke-packages    Uninstall oMPX, remove all files/services, and purge all oMPX-related apt packages (liquidsoap, nginx, icecast2, etc)
   --scorch           Ultra-aggressive uninstall: removes all oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users, and disables/removes all related services. Leaves no trace.
+  --kill-ompx-user   (Only with --scorch, as ompx) Also deletes the ompx user account itself. Without this, only the home directory is deleted and SSH remains possible for ompx, but with no home directory.
   --menu             Launch interactive whiptail menu (if available)
   --interactive      Require explicit answers for all prompts (no timeouts, no defaults)
   --auto             Automated mode: assume all defaults, never prompt
+
+Uninstall as ompx user is blocked for safety unless --scorch and --kill-ompx-user are both specified. This prevents accidental lockout. See README for details.
 EOF
   exit 0
 fi
 # Replace positional args with parsed ones (removes --auto/--interactive/--help/--version)
 set -- "${PARSED_ARGS[@]}"
+
+# --- SAFETY CHECK: Prevent uninstall as ompx user unless --kill-ompx-user is used with --scorch ---
+if [ "$(id -un)" = "ompx" ]; then
+  if [ "$SCORCH_MODE" = true ] && [ "$KILL_OMPX_USER" = true ]; then
+    echo "[WARNING] --kill-ompx-user flag detected. Proceeding to delete the ompx user from within their own session. This will log you out and may leave the system in an unstable state."
+    sleep 2
+  else
+    echo "[ERROR] You are running this script as the 'ompx' user."
+    echo "Uninstalling oMPX as this user will log you out and may leave you unable to recover the system without root/sudo access."
+    echo "If you really want to proceed, re-run with BOTH --scorch and --kill-ompx-user flags."
+    echo "Please run this script as root or with sudo from a different user account."
+    exit 1
+  fi
+fi
 
 ### --- IMMEDIATE UNINSTALL LOGIC: If any destructive flag is present, run uninstall and exit ---
 if [ "$SCORCH_MODE" = true ] || [ "$NUKE_PACKAGES" = true ] || [[ "$*" == *--nuke* ]]; then

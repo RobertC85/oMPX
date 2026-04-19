@@ -51,3 +51,11 @@ Each sidecar includes adjustable RDS fields:
 
 These values are configured in the installer RDS dialog and persisted in `/home/ompx/.profile`.
 
+## Uninstall and User Deletion Behavior
+
+- The uninstall script supports destructive flags: --nuke, --nuke-packages, and --scorch.
+- If run as the ompx user, uninstall is blocked for safety unless --scorch and --kill-ompx-user are both specified.
+- With --scorch (as ompx), only the home directory is deleted; the user account remains, so SSH is still possible but without a home directory.
+- With --scorch --kill-ompx-user (as ompx), both the home directory and the user account are deleted, fully disabling SSH for ompx.
+- This prevents accidental lockout and ensures you can only self-destruct the ompx user with explicit intent.
+
