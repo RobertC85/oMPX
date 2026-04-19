@@ -234,11 +234,11 @@ class Handler(BaseHTTPRequestHandler):
 def run():
     # Recreate RDS JSON files on every launch
     recreate_rds_json()
-    # Default port is 5000 for nginx proxy, but can be overridden by OMPX_WEB_PORT environment variable.
+    # Default: bind to 127.0.0.1:5000 for Nginx proxying. Can override port with OMPX_WEB_PORT.
     # In the future, allow user to set this via the UI advanced tab.
     port = int(os.environ.get("OMPX_WEB_PORT", 5000))
-    server = HTTPServer(("0.0.0.0", port), Handler)
-    print(f"oMPX Web UI running on port {port}")
+    server = HTTPServer(("127.0.0.1", port), Handler)
+    print(f"oMPX Web UI running on 127.0.0.1:{port} (for Nginx proxy)")
     server.serve_forever()
 
 if __name__ == "__main__":

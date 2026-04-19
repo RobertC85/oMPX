@@ -1,3 +1,9 @@
+# 0.2.2L3 (2026-04-19)
+- Release: Public proxying via Nginx on port 8082, backend now securely bound to 127.0.0.1:5000 by default.
+- Feature: ompx-nginx.conf created for production-ready Nginx reverse proxy setup (8082→5000), ready for SSL and public deployment.
+- Security: Backend port 5000 is no longer exposed; all public access is via Nginx proxy.
+- UI/UX: Layout and theme selectors are now fully independent; Daylight theme readability improved.
+- Docs: Nginx install and activation instructions provided in ompx-nginx.conf and README.
 # 0.2.2L2 (2026-04-19)
 - Feature: Added layout selector (Sidebar, Top Bar Menu, Original) with per-layout theme selectors in Global Settings. Daylight theme dropdown text is now white for readability. UI structure ready for further layout/theme expansion.
 
