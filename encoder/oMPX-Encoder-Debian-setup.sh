@@ -467,17 +467,6 @@ systemctl reload nginx
 echo "[INFO] oMPX Web UI is now served by Nginx on port ${OMPX_WEB_PORT}."
 mkdir -p /workspaces/oMPX/encoder
 ## Removed hardcoded overwrite of ompx-web-ui.html to preserve latest committed UI
-    <button id="test_preview" class="program-field">Test (Preview)</button>
-    <button id="undo_btn" class="program-field">Undo</button>
-    <button id="apply_mpx_prog1" class="program-field program-1">Apply to MPX (Program 1)</button>
-    <button id="apply_mpx_prog2" class="program-field program-2">Apply to MPX (Program 2)</button>
-  </div>
-  <div id="status"></div>
-  <script>
-        document.getElementById('test_preview').onclick = async () => {
-          setStatus('Starting preview...');
-          const payload = collect();
-          const r = await fetch('/api/preview_start', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
           const j = await r.json();
           setStatus(j.message || 'Preview started.');
         };
