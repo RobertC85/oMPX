@@ -1,15 +1,8 @@
 # 0.2.2L3 (2026-04-19)
-- Release: Public proxying via Nginx on port 8082, backend now securely bound to 127.0.0.1:5000 by default.
-- Feature: ompx-nginx.conf created for production-ready Nginx reverse proxy setup (8082→5000), ready for SSL and public deployment.
-- Security: Backend port 5000 is no longer exposed; all public access is via Nginx proxy.
-- UI/UX: Layout and theme selectors are now fully independent; Daylight theme readability improved.
-- Docs: Nginx install and activation instructions provided in ompx-nginx.conf and README.
+# 0.2.2L4 (2026-04-20)
+- Docs: All major scripts, HTML, Liquidsoap, and service files are now thoroughly commented for open source clarity and maintainability. Each processing chain, UI, and module is documented for contributors.
+- Revision: L4 milestone. No functional changes; documentation and comments only.
 # 0.2.2L2 (2026-04-19)
-- Feature: Added layout selector (Sidebar, Top Bar Menu, Original) with per-layout theme selectors in Global Settings. Daylight theme dropdown text is now white for readability. UI structure ready for further layout/theme expansion.
-
-# 0.2.2L1 (2026-04-19)
-- Fix: Web UI /api/preview.mp3 now always proxies from /stream.mp3 (Icecast), ensuring audio preview works reliably regardless of program selection. Indentation and syntax errors resolved in backend handler.
-
 # 0.2.2L0 (2026-04-19)
 - Release: L0 milestone. All update menu logic refactored for clarity and safety.
 - Feature: Update menu now offers three options: update from current repo files, bleeding edge (working directory, uncommitted changes), and latest (git pull).
