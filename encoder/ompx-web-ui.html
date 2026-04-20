@@ -9,193 +9,224 @@
   <title>oMPX Web UI</title>
   <style>
     body {
-      font-family: system-ui, sans-serif;
-      background: #f9f9f9;
-      color: #222;
-      margin: 0;
-      padding: 0;
-    }
-    .container {
-      max-width: 700px;
-      margin: 2em auto;
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px #0001;
-      padding: 2em;
-    }
-    .category-title {
-      font-size: 1.3em;
-      font-weight: 500;
-      margin-bottom: 1em;
-      color: #333;
-    }
-    .feature-list {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-    .feature-list li {
-      margin-bottom: 0.7em;
-      color: #444;
-    }
-  </style>
-</head>
-<body>
-  <div style="background:#ff0;color:#000;padding:8px 0;text-align:center;font-weight:bold;">VERSION TEST – 2026-04-19 – v0.2.2h2</div>
-  <div class="container">
-    <div id="top-tabs" style="display:flex;gap:1em;margin-bottom:1.5em;">
-      <button class="top-tab" data-tab="program1" style="flex:1;">Program 1</button>
-      <button class="top-tab" data-tab="program2" style="flex:1;">Program 2</button>
-      <button class="top-tab" data-tab="global" style="flex:1;">Global Settings</button>
-    </div>
-    <div id="audio-preview" style="margin-bottom:2em;text-align:center;">
-      <label for="program-select" style="font-weight:bold;">Patch Audio Preview:</label>
-      <select id="program-select" style="margin:0 0.5em;">
-        <option value="1">Program 1</option>
-        <option value="2">Program 2</option>
-      </select>
-      <audio id="patch-audio" controls style="vertical-align:middle;width:80%;max-width:400px;">
-        <source id="audio-source" src="/api/preview.mp3?program=1" type="audio/mpeg">
-        Your browser does not support the audio element.
-      </audio>
-    </div>
-      <footer style="margin:2em auto 0 auto;text-align:center;color:#888;font-size:1em;">
-        oMPX Web UI – Version 0.2.2h2
-      </footer>
-    <div id="main"></div>
-    <div id="global-settings" style="display:none;">
-      <h3>Global Settings</h3>
-      <details>
-        <summary style="cursor:pointer;font-size:1em;">Custom CSS (advanced)</summary>
-        <textarea id="custom-css" style="width:100%;height:80px;font-family:monospace;margin-top:0.5em;"></textarea>
-        <div><button id="apply-css-btn" style="margin-top:0.5em;">Apply CSS</button></div>
-        <div id="css-status" style="font-size:0.9em;color:#007700;margin-top:0.5em;"></div>
-      </details>
-    </div>
-  </div>
-  <script>
-        // Patch audio preview logic
-        const programSelect = document.getElementById('program-select');
-        const patchAudio = document.getElementById('patch-audio');
-        const audioSource = document.getElementById('audio-source');
-        if (programSelect && patchAudio && audioSource) {
-          programSelect.addEventListener('change', function() {
-            const prog = programSelect.value;
-            audioSource.src = `/api/preview.mp3?program=${prog}`;
-            patchAudio.load();
-          });
-        }
-    const categories = [
-      { name: 'Dynamics', features: [
-        'Noise gate',
-        'AGC',
-        'Multiband Compressor',
-        'Wideband Compressor',
-        'Limiting & Clipping',
-        'Enhanced Dynamics',
-        'Chain Drive (dB)'
-      ] },
-      { name: 'Equalization', features: [
-        'Bandpass',
-        'Equalizer'
-      ] },
-      { name: 'Phase & Stereo', features: [
-        'Phase',
-        'Phase rotation',
-        'Phase delay',
-        'Stereo',
-        'Stereo Boost',
-        'Stereo Image',
-        'Stereo Phase',
-        'Stereo Delay'
-      ] },
-      { name: 'Other', features: [
-        'Dynamics'
-      ] }
-    ];
 
-    let advancedMode = false;
-    let expanded = {};
-    let activeTab = 'program1';
-    categories.forEach(cat => { expanded[cat.name] = false; });
+      <!--
+        oMPX Web UI (ompx-web-ui.html)
+        Modern, responsive web interface for controlling and previewing the oMPX encoder.
+        Features:
+        - Device/source selection, gain, and processing controls
+        - Audio meters for input/output
+        - Waveform preview canvas
+        - Responsive layout for desktop/mobile
+        - Accessible, open source–friendly design
+        This file is the main user-facing UI for oMPX encoder control.
+      -->
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>oMPX Web UI</title>
+        <!-- Google Fonts for modern look -->
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:400,700&display=swap">
+        <!--
+          CSS: Layout and theme
+          - .container: main wrapper
+          - .card: section containers
+          - .row: responsive flex layout
+          - .meter: audio level meters
+          - .meter-bar: animated level bar
+          - Responsive for mobile/desktop
+        -->
+        <style>
+          body {
+            font-family: 'Roboto', Arial, sans-serif;
+            background: #181f1c;
+            color: #f4f7f5;
+            margin: 0;
+            padding: 0;
+          }
+          .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 24px;
+          }
+          h1 {
+            font-size: 2.2em;
+            margin-bottom: 0.5em;
+          }
+          .card {
+            background: #232e2a;
+            border-radius: 12px;
+            padding: 18px 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+          }
+          label {
+            display: block;
+            margin-top: 12px;
+            color: #9fb8b0;
+            font-size: 1em;
+          }
+          input, select, button {
+            width: 100%;
+            padding: 8px;
+            margin-top: 4px;
+            border-radius: 8px;
+            border: 1px solid #365f55;
+            background: #0d1f1c;
+            color: #f4f7f5;
+            font-size: 1em;
+          }
+          button {
+            background: linear-gradient(180deg, #f2b642, #d99424);
+            color: #1b1406;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+          }
+          .row {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+          }
+          .row > div {
+            flex: 1 1 200px;
+          }
+          .status {
+            font-size: 0.95em;
+            color: #9fb8b0;
+            margin-top: 10px;
+          }
+          .meter {
+            margin-top: 18px;
+          }
+          .meter-bar {
+            height: 12px;
+            background: linear-gradient(90deg, #2fd38a, #f2b642);
+            border-radius: 6px;
+            transition: width 120ms linear;
+          }
+          .meter-label {
+            font-size: 0.95em;
+            color: #9fb8b0;
+            margin-bottom: 2px;
+          }
+          @media (max-width: 700px) {
+            .container {
+              padding: 8px;
+            }
+            .row {
+              flex-direction: column;
+              gap: 8px;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <!-- Main container for all UI content -->
+        <div class="container">
+          <h1>oMPX Web UI</h1>
+          <!-- Settings form: device, gain, processing controls -->
+          <div class="card">
+            <form id="settings-form">
+              <div class="row">
+                <div>
+                  <label for="input_device">Input Device</label>
+                  <select id="input_device" name="input_device">
+                    <option value="radio1_url">Program 1 stream URL</option>
+                    <option value="radio2_url">Program 2 stream URL</option>
+                    <option value="ompx_prg1in_cap">Program 1 input</option>
+                    <option value="ompx_prg2in_cap">Program 2 input</option>
+                    <option value="ompx_prg1mpx_cap">Program 1 MPX path</option>
+                    <option value="ompx_prg2mpx_cap">Program 2 MPX path</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="sample_rate">Sample Rate</label>
+                  <input id="sample_rate" name="sample_rate" type="number" min="8000" max="192000" step="1000" />
+                </div>
+              </div>
+              <div class="row">
+                <div>
+                  <label for="pre_gain_db">Pre Gain (dB)</label>
+                  <input id="pre_gain_db" name="pre_gain_db" type="number" step="0.1" />
+                </div>
+                <div>
+                  <label for="post_gain_db">Post Gain (dB)</label>
+                  <input id="post_gain_db" name="post_gain_db" type="number" step="0.1" />
+                </div>
+              </div>
+              <div class="row">
+                <div>
+                  <label for="processor_input_gain_db">Processor Input Gain (dB)</label>
+                  <input id="processor_input_gain_db" name="processor_input_gain_db" type="number" step="0.1" min="-24" max="24" />
+                </div>
+                <div>
+                  <label for="preview_mode">Preview Decode Mode</label>
+                  <select id="preview_mode" name="preview_mode">
+                    <option value="auto">Auto (decode MPX inputs)</option>
+                    <option value="audio">Audio chain only</option>
+                    <option value="mpx-decode">Force MPX stereo decode</option>
+                  </select>
+                </div>
+              </div>
+              <div class="row">
+                <div>
+                  <label for="wave_window_sec">Waveform Window (seconds)</label>
+                  <input id="wave_window_sec" name="wave_window_sec" type="range" min="0.25" max="10" step="0.25" />
+                  <div class="status" id="wave_window_readout">3.00 s</div>
+                </div>
+                <div>
+                  <label>Scope Capture</label>
+                  <div class="row">
+                    <div><button id="analysis_pause" type="button">Pause Scope</button></div>
+                    <div><button id="analysis_step" type="button">Step Frame</button></div>
+                  </div>
+                </div>
+              </div>
+              <button type="submit">Apply Settings</button>
+            </form>
+          </div>
+          <!-- Audio meters for input/output levels -->
+          <div class="card">
+            <h2>Audio Meters</h2>
+            <div class="meter">
+              <div class="meter-label">Input Level</div>
+              <div class="meter-bar" id="input_meter" style="width: 0%"></div>
+            </div>
+            <div class="meter">
+              <div class="meter-label">Output Level</div>
+              <div class="meter-bar" id="output_meter" style="width: 0%"></div>
+            </div>
+          </div>
+          <!-- Waveform preview canvas -->
+          <div class="card">
+            <h2>Waveform Preview</h2>
+            <canvas id="waveform_canvas" width="800" height="160"></canvas>
+          </div>
+        </div>
+        <!--
+          JavaScript: UI interactivity
+          - Updates waveform window readout
+          - Placeholder for AJAX/backend integration
+        -->
+        <script>
+          // Update waveform window readout for user feedback
+          const waveWindow = document.getElementById('wave_window_sec');
+          const waveReadout = document.getElementById('wave_window_readout');
+          if (waveWindow && waveReadout) {
+            waveWindow.addEventListener('input', function() {
+              waveReadout.textContent = parseFloat(waveWindow.value).toFixed(2) + ' s';
+            });
+          }
 
-    function renderMain() {
-      const main = document.getElementById('main');
-      const globalSettings = document.getElementById('global-settings');
-      // Show/hide tab content
-      if (activeTab === 'global') {
-        main.style.display = 'none';
-        if (globalSettings) globalSettings.style.display = '';
-        return;
-      } else {
-        main.style.display = '';
-        if (globalSettings) globalSettings.style.display = 'none';
-      }
-      // Advanced controls for each category (scaffold)
-      const advancedControls = {
-        'Dynamics': `
-          <label>Pre Gain <input type="number" step="0.01" id="pre_gain" value="0.25"></label><br>
-          <label>Post Gain <input type="number" step="0.01" id="post_gain" value="0.99"></label><br>
-          <label>Gate Threshold (dB) <input type="number" step="1" id="gate_threshold" value="-50"></label><br>
-          <label>Gate Attack (s) <input type="number" step="0.01" id="gate_attack" value="0.01"></label><br>
-          <label>Gate Release (s) <input type="number" step="0.01" id="gate_release" value="0.1"></label><br>
-          <label>AGC Attack (s) <input type="number" step="0.001" id="agc_attack" value="0.005"></label><br>
-          <label>AGC Release (s) <input type="number" step="0.01" id="agc_release" value="0.3"></label><br>
-          <label>AGC Threshold (dB) <input type="number" step="1" id="agc_threshold" value="-18"></label><br>
-          <label>AGC Ratio <input type="number" step="0.1" id="agc_ratio" value="2.0"></label><br>
-        `,
-        'Equalization': `
-          <label>Bass Gain <input type="number" step="0.01" id="eq_bass" value="1.2"></label><br>
-          <label>Mid Gain <input type="number" step="0.01" id="eq_mid" value="1.0"></label><br>
-          <label>Treble Gain <input type="number" step="0.01" id="eq_treble" value="1.1"></label><br>
-        `,
-        'Phase & Stereo': `
-          <label>Stereo Width <input type="number" step="0.01" id="stereo_width" value="1.0"></label><br>
-        `,
-        'Other': ``
-      };
-      // Only show controls for the selected program
-      const progNum = activeTab === 'program1' ? 1 : 2;
-      main.innerHTML = `
-        <div style="margin-bottom:1em;">
-          <label><input type="checkbox" id="advanced-toggle" ${advancedMode ? 'checked' : ''}> Advanced Mode</label>
-        </div>
-        <div style="margin-bottom:1.5em;display:flex;align-items:center;gap:1em;">
-          <button id="listen-btn-main" data-prog="${progNum}">Listen</button>
-          <audio id="audio-player-main-${progNum}" controls style="display:none;width:220px;"></audio>
-          <canvas id="meter-main-${progNum}" width="120" height="20" style="display:none;margin-left:8px;vertical-align:middle;"></canvas>
-          <canvas id="spectrum-main-${progNum}" width="120" height="40" style="display:none;margin-left:8px;vertical-align:middle;"></canvas>
-          <canvas id="waterfall-main-${progNum}" width="120" height="60" style="display:none;margin-left:8px;vertical-align:middle;"></canvas>
-        </div>
-        <div>
-          ${categories.map(cat => `
-            <div class="category-title" style="cursor:pointer;user-select:none;display:flex;align-items:center;" data-cat="${cat.name}">
-              <span style="font-size:1.2em;margin-right:0.5em;">${expanded[cat.name] ? '▼' : '►'}</span>
-              ${cat.name}
-            </div>
-            <div class="category-content" style="margin-left:1.5em;${expanded[cat.name] ? '' : 'display:none;'}">
-              <ul class="feature-list">
-                ${cat.features.map(f => `<li>${f}</li>`).join('')}
-              </ul>
-              <div id="advanced-controls-${cat.name.replace(/\W/g,'_')}-${progNum}" style="margin:1em 0;background:#f3f3f3;padding:1em;border-radius:6px;"${advancedMode ? '' : ' hidden'}>
-                <b>Advanced Controls</b><br>
-                ${advancedControls[cat.name] || ''}
-              </div>
-              <div style="margin-top:2em;">
-                <button class="test-btn" data-cat="${cat.name}" data-prog="${progNum}" style="margin-right:1em;">Test</button>
-                <button class="undo-btn" data-cat="${cat.name}" data-prog="${progNum}" style="margin-right:1em;">Undo</button>
-                <button class="apply-btn" data-cat="${cat.name}" data-prog="${progNum}">Apply</button>
-                <span class="action-result" id="action-result-${cat.name.replace(/\W/g,'_')}-${progNum}" style="margin-left:1em;color:#007700;"></span>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      `;
-      document.getElementById('advanced-toggle').onchange = (e) => {
-        advancedMode = e.target.checked;
-        renderMain();
-      };
-      document.querySelectorAll('.category-title').forEach(el => {
+          // Placeholder: Add AJAX calls to backend for live updates
+          // Example: fetch('/api/state').then(...)
+        </script>
+      </body>
+      </html>
         el.onclick = () => {
           const cat = el.getAttribute('data-cat');
           expanded[cat] = !expanded[cat];

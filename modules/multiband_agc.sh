@@ -47,10 +47,79 @@ OUTPUT_LIMIT="${OUTPUT_LIMIT:-0.96}"
 HPF_FREQ="${HPF_FREQ:-30}"
 LPF_FREQ="${LPF_FREQ:-15000}"
 
-is_safe_profile_name() {
-  [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]
-}
 
+#!/usr/bin/env bash
+# oMPX Multiband AGC/Compressor Module
+# ------------------------------------
+# Standalone FFmpeg-based processing module for oMPX.
+# Features:
+#   - 5-band compression (Stereo Tool-inspired default)
+#   - Wideband AGC (dynaudnorm)
+#   - Output limiter protection
+#   - Output filter shaping (high-pass and low-pass)
+#   - Dry/wet parallel blend
+#   - Stereo width control
+#   - Per-band trim controls
+#   - Profile system for easy tuning (see profiles/)
+#
+# Usage:
+#   ./multiband_agc.sh --input-url ... --output-url ... [options]
+#
+# For more info, see: https://github.com/RobertC85/oMPX
+
+set -euo pipefail
+
+# Script and profile directories
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROFILE_DIR="${PROFILE_DIR:-${SCRIPT_DIR}/profiles}"
+
+# Input/output configuration
+INPUT_URL="${INPUT_URL:-default}"
+OUTPUT_URL="${OUTPUT_URL:-default}"
+INPUT_FORMAT="${INPUT_FORMAT:-alsa}"
+OUTPUT_FORMAT="${OUTPUT_FORMAT:-alsa}"
+SAMPLE_RATE="${SAMPLE_RATE:-48000}"
+CHANNELS="${CHANNELS:-2}"
+PROFILE="${PROFILE:-waxdreams2-5band}"
+DRY_RUN="false"
+SHOW_CONFIG="false"
+PRE_GAIN_DB="${PRE_GAIN_DB:-0}"
+POST_GAIN_DB="${POST_GAIN_DB:-0}"
+PARALLEL_DRY_MIX="${PARALLEL_DRY_MIX:-0}"
+STEREO_WIDTH="${STEREO_WIDTH:-1.0}"
+HF_TAME_DB="${HF_TAME_DB:-0}"
+HF_TAME_FREQ="${HF_TAME_FREQ:-7000}"
+
+# 5-band crossover frequencies in Hz
+XOVER_1="${XOVER_1:-90}"
+XOVER_2="${XOVER_2:-280}"
+XOVER_3="${XOVER_3:-900}"
+XOVER_4="${XOVER_4:-2800}"
+
+# Per-band compander settings
+BAND1_COMPAND="${BAND1_COMPAND:-attacks=0.0018:decays=0.006:points=-80/-80|-30/-30|-18/-10|0/-5}"
+BAND2_COMPAND="${BAND2_COMPAND:-attacks=0.0012:decays=0.005:points=-80/-80|-30/-30|-16/-9|0/-4.5}"
+BAND3_COMPAND="${BAND3_COMPAND:-attacks=0.0009:decays=0.004:points=-80/-80|-28/-28|-14/-8|0/-4}"
+BAND4_COMPAND="${BAND4_COMPAND:-attacks=0.0007:decays=0.003:points=-80/-80|-26/-26|-12/-7|0/-3.5}"
+BAND5_COMPAND="${BAND5_COMPAND:-attacks=0.0006:decays=0.003:points=-80/-80|-24/-24|-10/-6|0/-3}"
+BAND1_TRIM_DB="${BAND1_TRIM_DB:-0}"
+BAND2_TRIM_DB="${BAND2_TRIM_DB:-0}"
+BAND3_TRIM_DB="${BAND3_TRIM_DB:-0}"
+BAND4_TRIM_DB="${BAND4_TRIM_DB:-0}"
+BAND5_TRIM_DB="${BAND5_TRIM_DB:-0}"
+
+# AGC and output protection
+AGC_FILTER="${AGC_FILTER:-dynaudnorm=f=250:g=7:m=15:p=0.95}"
+OUTPUT_LIMIT="${OUTPUT_LIMIT:-0.96}"
+HPF_FREQ="${HPF_FREQ:-30}"
+LPF_FREQ="${LPF_FREQ:-15000}"
+
+# Validate profile name (safe for file loading)
+      BAND1_COMPAND='attacks=0.003:decays=0.25:points=-80/-80|-24/-24|-12/-8|0/-4'
+      BAND2_COMPAND='attacks=0.0025:decays=0.2:points=-80/-80|-24/-24|-11/-7|0/-3.5'
+      BAND3_COMPAND='attacks=0.002:decays=0.18:points=-80/-80|-24/-24|-10/-7|0/-3'
+
+# Apply built-in profile settings (expand as needed)
 apply_builtin_profile() {
   local profile_name="$1"
   case "${profile_name}" in
@@ -58,58 +127,6 @@ apply_builtin_profile() {
       :
       ;;
     waxdreams2-safe)
-      XOVER_1=90
-      XOVER_2=280
-      XOVER_3=900
-      XOVER_4=2800
-      BAND1_COMPAND='attacks=0.0022:decays=0.012:points=-80/-80|-30/-30|-18/-11|0/-5.5'
-      BAND2_COMPAND='attacks=0.0018:decays=0.010:points=-80/-80|-30/-30|-16/-10|0/-5'
-      BAND3_COMPAND='attacks=0.0012:decays=0.008:points=-80/-80|-28/-28|-14/-9|0/-4.5'
-      BAND4_COMPAND='attacks=0.0010:decays=0.007:points=-80/-80|-26/-26|-12/-8|0/-4'
-      BAND5_COMPAND='attacks=0.0009:decays=0.006:points=-80/-80|-24/-24|-10/-7|0/-3.8'
-      AGC_FILTER='dynaudnorm=f=300:g=5:m=18:p=0.95'
-      OUTPUT_LIMIT=0.95
-      HPF_FREQ=30
-      LPF_FREQ=15000
-      ;;
-    fm-loud)
-      XOVER_1=80
-      XOVER_2=220
-      XOVER_3=750
-      XOVER_4=2500
-      BAND1_COMPAND='attacks=0.0015:decays=0.004:points=-80/-80|-32/-32|-20/-9|0/-5'
-      BAND2_COMPAND='attacks=0.0011:decays=0.0035:points=-80/-80|-30/-30|-18/-8|0/-4.3'
-      BAND3_COMPAND='attacks=0.0008:decays=0.003:points=-80/-80|-28/-28|-16/-7.5|0/-3.8'
-      BAND4_COMPAND='attacks=0.0006:decays=0.0027:points=-80/-80|-26/-26|-14/-7|0/-3.4'
-      BAND5_COMPAND='attacks=0.0005:decays=0.0025:points=-80/-80|-24/-24|-12/-6.3|0/-3'
-      AGC_FILTER='dynaudnorm=f=200:g=9:m=12:p=0.95'
-      OUTPUT_LIMIT=0.955
-      HPF_FREQ=30
-      LPF_FREQ=15000
-      ;;
-    voice-safe)
-      XOVER_1=120
-      XOVER_2=350
-      XOVER_3=1400
-      XOVER_4=4500
-      BAND1_COMPAND='attacks=0.003:decays=0.02:points=-80/-80|-30/-30|-18/-13|0/-7'
-      BAND2_COMPAND='attacks=0.0025:decays=0.018:points=-80/-80|-28/-28|-16/-12|0/-6.5'
-      BAND3_COMPAND='attacks=0.0020:decays=0.015:points=-80/-80|-26/-26|-14/-10|0/-5.5'
-      BAND4_COMPAND='attacks=0.0018:decays=0.012:points=-80/-80|-24/-24|-12/-8|0/-4.5'
-      BAND5_COMPAND='attacks=0.0015:decays=0.010:points=-80/-80|-22/-22|-10/-7|0/-4'
-      AGC_FILTER='dynaudnorm=f=350:g=4:m=20:p=0.92'
-      OUTPUT_LIMIT=0.94
-      HPF_FREQ=70
-      LPF_FREQ=13000
-      ;;
-    classic-3band)
-      XOVER_1=250
-      XOVER_2=1000
-      XOVER_3=2500
-      XOVER_4=4000
-      BAND1_COMPAND='attacks=0.003:decays=0.25:points=-80/-80|-24/-24|-12/-8|0/-4'
-      BAND2_COMPAND='attacks=0.0025:decays=0.2:points=-80/-80|-24/-24|-11/-7|0/-3.5'
-      BAND3_COMPAND='attacks=0.002:decays=0.18:points=-80/-80|-24/-24|-10/-7|0/-3'
       BAND4_COMPAND='attacks=0.0018:decays=0.16:points=-80/-80|-24/-24|-10/-6.5|0/-2.8'
       BAND5_COMPAND='attacks=0.0015:decays=0.15:points=-80/-80|-24/-24|-9/-6|0/-2.5'
       AGC_FILTER='dynaudnorm=f=150:g=12:m=9:p=0.9'

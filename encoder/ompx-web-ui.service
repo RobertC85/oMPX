@@ -1,3 +1,17 @@
+
+# oMPX Web UI systemd Service Unit
+# --------------------------------
+# Runs the oMPX Web UI backend as a systemd service.
+#
+# Features:
+#   - Starts after network is up
+#   - Runs as 'ompx' user
+#   - Sets working directory and environment
+#   - Restarts on failure
+#   - Installs for multi-user boot
+#
+# For more info, see: https://github.com/RobertC85/oMPX
+
 [Unit]
 Description=oMPX Web UI Backend
 After=network.target

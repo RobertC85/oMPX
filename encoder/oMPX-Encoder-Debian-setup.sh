@@ -1,14 +1,169 @@
+################################################################################
+# Prompt helper: respects AUTO_MODE, INTERACTIVE_MODE, and NO_MENU
+#
+################################################################################
+################################################################################
+# Robust flag parsing: allow combining --auto, --interactive, --help, --version
+#
+################################################################################
+################################################################################
+# INSTALL/UPDATE LOGIC: Main entry point for install/update actions
+#
+################################################################################
+################################################################################
+# oMPX Web UI manual start helper script
+#
+################################################################################
+################################################################################
+# Liquidsoap preview and processing services
+#
+################################################################################
+################################################################################
+# Icecast streaming integration
+#
+################################################################################
+################################################################################
+# Menu logic: Interactive install/update/uninstall menu
+#
+################################################################################
+################################################################################
+# Command-line argument parsing for --nuke and --menu
+#
+################################################################################
+################################################################################
+# Configurable variables and environment overrides
+#
+################################################################################
+################################################################################
+# Web UI deployment and Nginx configuration
+#
+################################################################################
+################################################################################
+# Ensure processed MPX is streamed to Icecast
+#
+################################################################################
+################################################################################
+# Environment variable overrides
+#
+################################################################################
+################################################################################
+# Configuration validation and normalization
+#
+################################################################################
+################################################################################
+# Utility: Secure password generator
+#
+################################################################################
+generate_secure_password(){
+################################################################################
+# Utility: Set oMPX user password
+#
+################################################################################
+apply_ompx_user_password(){
+################################################################################
+# Utility: Ensure oMPX user has ALSA audio access
+#
+################################################################################
+ensure_ompx_alsa_access(){
+################################################################################
+# Utility: Download Stereo Tool Enterprise binary
+#
+################################################################################
+download_stereo_tool_enterprise(){
+################################################################################
+# Utility: Install Stereo Tool Enterprise systemd service
+#
+################################################################################
+install_stereo_tool_enterprise_service(){
+################################################################################
+# Utility: Apply Stereo Tool start-limit preset
+#
+################################################################################
+apply_stereo_tool_start_limit_preset(){
+################################################################################
+# Interactive configuration: Icecast dialog
+#
+################################################################################
+configure_icecast_dialog(){
+################################################################################
+# Interactive configuration: RDS dialog
+#
+################################################################################
+configure_rds_dialog(){
+################################################################################
+# Utility: Install and configure local Icecast2 server
+#
+################################################################################
+install_icecast_local(){
+################################################################################
+# Utility: Remove Stereo Tool Enterprise systemd service
+#
+################################################################################
+remove_stereo_tool_enterprise_service(){
+################################################################################
+# Interactive configuration: Stereo Tool start-limit preset
+#
+################################################################################
+prompt_stereo_tool_limit_preset(){
+################################################################################
+# Interactive configuration: Stereo Tool web binding
+#
+################################################################################
+prompt_stereo_tool_web_binding(){
+################################################################################
+# Interactive configuration: oMPX web UI binding
+#
+################################################################################
+prompt_ompx_web_ui_binding(){
+################################################################################
+# Utility: Check for Chromium browser binary
+#
+################################################################################
+has_chromium_binary(){
+################################################################################
+# Utility: Check for X11 runtime tools
+#
+################################################################################
+has_x11_runtime_tools(){
+################################################################################
+# Interactive configuration: oMPX web kiosk mode
+#
+################################################################################
+prompt_ompx_web_kiosk(){
+################################################################################
+# Utility: Safe apt update
+#
+################################################################################
+safe_apt_update(){
+################################################################################
+# Utility: Detect ALSA loopback card reference
+#
+################################################################################
+detect_loopback_card_ref(){
+################################################################################
+# Utility: Render ALSA asound.conf configuration
+#
+################################################################################
+render_asound_config(){
+# oMPX-Encoder-Debian-setup.sh
+# Main installer and management script for oMPX stack.
+# Provides a whiptail-based menu for install, update, and uninstall actions.
+# Designed for portability (systemd, Devuan, etc.) and open source clarity.
+
 # --- SAFETY CHECK: Prevent uninstall as ompx user ---
+# This prevents accidental self-lockout by running uninstall as the ompx service user.
 if [ "$(id -un)" = "ompx" ]; then
   echo "[ERROR] You are running this script as the 'ompx' user."
   echo "Uninstalling oMPX as this user will log you out and may leave you unable to recover the system without root/sudo access."
   echo "Please run this script as root or with sudo from a different user account."
   exit 1
 fi
+
 # --- Default to whiptail menu unless --auto, --no-menu, or --interactive is specified ---
+# The menu provides a user-friendly interface for common actions.
 if [ "$AUTO_MODE" = false ] && [ "$NO_MENU" = false ] && [ "$INTERACTIVE_MODE" = false ]; then
   if command -v whiptail >/dev/null 2>&1; then
-    # Main whiptail menu logic here (existing menu code)
+    # Main whiptail menu logic
     whiptail --title "oMPX Installer" --menu "Select an action:" 20 70 12 \
       "install" "Install or update oMPX stack" \
       "update" "Update oMPX (current repo files, no git pull)" \
@@ -19,7 +174,7 @@ if [ "$AUTO_MODE" = false ] && [ "$NO_MENU" = false ] && [ "$INTERACTIVE_MODE" =
     CHOICE=$(cat menu_choice.txt)
     rm -f menu_choice.txt
     if [ "$CHOICE" = "install" ]; then
-      # Proceed with install logic
+      # Proceed with install logic (see below for implementation)
       :
     elif [ "$CHOICE" = "update" ]; then
       echo "[INFO] Running oMPX update (current repo files, no git pull, settings preserved)..."
@@ -59,22 +214,33 @@ if [ "$AUTO_MODE" = false ] && [ "$NO_MENU" = false ] && [ "$INTERACTIVE_MODE" =
     fi
   fi
 fi
-# --- Modular prompt and menu abstraction functions ---
-# Usage: prompt_helper VAR_NAME "Prompt text" [default] [timeout]
-prompt_helper() {
+################################################################################
+# Modular prompt and menu abstraction functions
+# These helpers allow for consistent user input and menu selection, supporting both
+# whiptail (graphical) and fallback to plain text prompts if whiptail is unavailable.
+#
+# Usage:
+#   prompt_helper VAR_NAME "Prompt text" [default] [timeout]
+#   menu_helper VAR_NAME "Menu title" "Menu prompt" HEIGHT WIDTH MENU_HEIGHT "key1" "desc1" ...
+################################################################################
+
+#!/usr/bin/env bash
   local __var_name="$1"
   local __prompt="$2"
   local __default="${3-}"
   local __timeout="${4-60}"
   local __input=""
   if [ "$AUTO_MODE" = true ]; then
+    # In auto mode, use the default value without prompting
     __input="$__default"
     echo "$__prompt $__input (auto)"
   else
     while true; do
       if command -v whiptail >/dev/null 2>&1 && [ "$NO_MENU" = false ]; then
+        # Use whiptail input box for graphical prompt
         __input=$(whiptail --inputbox "$__prompt" 10 70 "$__default" 3>&1 1>&2 2>&3)
       else
+        # Fallback to plain text prompt
         read -p "$__prompt" __input
       fi
       if [ -n "$__input" ]; then
@@ -84,10 +250,10 @@ prompt_helper() {
       fi
     done
   fi
+  # Set the variable by name
   printf -v "$__var_name" '%s' "$__input"
 }
 
-# Usage: menu_helper VAR_NAME "Menu title" "Menu prompt" HEIGHT WIDTH MENU_HEIGHT "key1" "desc1" ...
 menu_helper() {
   local __var_name="$1"
   local __title="$2"
@@ -98,8 +264,10 @@ menu_helper() {
   shift 6
   local __choice=""
   if command -v whiptail >/dev/null 2>&1 && [ "$NO_MENU" = false ]; then
+    # Use whiptail menu for graphical selection
     __choice=$(whiptail --title "$__title" --menu "$__prompt" "$__height" "$__width" "$__menu_height" "$@" 3>&1 1>&2 2>&3)
   else
+    # Fallback to plain text menu
     echo "$__title"
     echo "$__prompt"
     local i=1
@@ -116,10 +284,12 @@ menu_helper() {
       __choice="${options[$((sel-1))]}"
     fi
   fi
+  # Set the variable by name
   printf -v "$__var_name" '%s' "$__choice"
 }
-# --- End modular prompt/menu abstraction ---
-#!/usr/bin/env bash
+################################################################################
+# End modular prompt/menu abstraction
+################################################################################
 # --- oMPX Installer: ensure OMPX_VERSION is always set ---
 OMPX_VERSION="$(cat "$(dirname "$0")/VERSION" 2>/dev/null || echo "dev")"
 
@@ -188,67 +358,84 @@ service_action() {
   fi
 }
 
-# --- Robust flag parsing: allow combining --auto, --interactive, --help, --version ---
-INTERACTIVE_MODE=false
-AUTO_MODE=false
-NO_MENU=false
-SHOW_HELP=false
-SHOW_VERSION=false
-NUKE_PACKAGES=false
-SCORCH_MODE=false
-KILL_OMPX_USER=false
-PARSED_ARGS=()
-for arg in "$@"; do
-  case "$arg" in
-    -v|--version)
-      SHOW_VERSION=true
-      ;;
-    -h|--help)
-      SHOW_HELP=true
-      ;;
-    --interactive)
-      INTERACTIVE_MODE=true
-      ;;
-    --auto)
-      AUTO_MODE=true
-      ;;
-    --no-menu)
-      NO_MENU=true
-      ;;
-    --nuke-packages)
-      NUKE_PACKAGES=true
-      NO_MENU=true
-      INTERACTIVE_MODE=false
-      AUTO_MODE=true
-      ;;
-    --nuke)
-      NO_MENU=true
-      INTERACTIVE_MODE=false
-      AUTO_MODE=true
-      ;;
-    --scorch)
-      SCORCH_MODE=true
-      NO_MENU=true
-      INTERACTIVE_MODE=false
-      AUTO_MODE=true
-      ;;
-    --kill-ompx-user)
-      KILL_OMPX_USER=true
-      ;;
-    *)
-      PARSED_ARGS+=("$arg")
-      ;;
-  esac
-done
-# Show help/version and exit if requested
-if [ "$SHOW_VERSION" = true ]; then
-  echo "oMPX Installer version: $OMPX_VERSION"
-  exit 0
-fi
-if [ "$SHOW_HELP" = true ]; then
-  cat <<EOF
-oMPX-Encoder-Debian-setup.sh – oMPX Installer v$OMPX_VERSION
+################################################################################
+# Robust flag parsing and help output
+#
+# This section parses command-line flags, provides help/version output,
+# and enforces safety checks for uninstall operations.
+################################################################################
+################################################################################
+# oMPX Installer: Variable Initialization and Service Management Abstraction
+#
+# This section defines all critical variables and provides functions to manage
+# services in a portable way (systemd, Devuan, or fallback to 'service').
+################################################################################
 
+#!/usr/bin/env bash
+
+# --- oMPX Installer: ensure OMPX_VERSION is always set ---
+# Reads the version from the VERSION file, or defaults to 'dev' if not found.
+OMPX_VERSION="$(cat "$(dirname "$0")/VERSION" 2>/dev/null || echo "dev")"
+
+# --- Ensure critical variables are defined early for all code paths (including uninstall) ---
+OMPX_USER="ompx"                                 # Service user
+OMPX_HOME="/home/ompx"                          # Home directory for ompx user
+OMPX_LOG_DIR="${OMPX_HOME}/logs"                # Log directory
+OMPX_SHELL="/bin/bash"                          # Default shell
+SYS_SCRIPTS_DIR="/opt/mpx-radio"                # System scripts directory
+FIFOS_DIR="${SYS_SCRIPTS_DIR}/fifos"            # FIFO files directory
+SYSTEMD_DIR="/etc/systemd/system"                # Systemd unit files
+STEREO_TOOL_WRAPPER="/usr/local/bin/stereo-tool" # Stereo Tool wrapper
+STEREO_TOOL_ENTERPRISE_BIN="${OMPX_HOME}/stereo-tool-enterprise/stereo-tool-enterprise" # Stereo Tool Enterprise binary
+STEREO_TOOL_ENTERPRISE_LAUNCHER="/usr/local/bin/stereo-tool-enterprise-launch"          # Stereo Tool Enterprise launcher
+STEREO_TOOL_ENTERPRISE_SERVICE="${SYSTEMD_DIR}/stereo-tool-enterprise.service"          # Stereo Tool Enterprise service
+OMPX_STREAM_PULL_SERVICE="${SYSTEMD_DIR}/mpx-stream-pull.service"                      # Stream pull service
+OMPX_SOURCE1_SERVICE="${SYSTEMD_DIR}/mpx-source1.service"                              # Source 1 service
+OMPX_SOURCE2_SERVICE="${SYSTEMD_DIR}/mpx-source2.service"                              # Source 2 service
+RDS_SYNC_PROG1_SERVICE="${SYSTEMD_DIR}/rds-sync-prog1.service"                         # RDS sync program 1
+RDS_SYNC_PROG2_SERVICE="${SYSTEMD_DIR}/rds-sync-prog2.service"                         # RDS sync program 2
+OMPX_WEB_UI_SERVICE="${SYSTEMD_DIR}/ompx-web-ui.service"                               # Web UI service
+OMPX_WEB_KIOSK_SERVICE="${SYSTEMD_DIR}/ompx-web-kiosk.service"                         # Web kiosk service
+OMPX_ADD="/usr/local/bin/ompx_add_source"                                              # Add source helper
+ASOUND_CONF_PATH="/etc/asound.conf"                                                    # ALSA config
+OMPX_AUDIO_UDEV_RULE="/etc/udev/rules.d/70-ompx-audio.rules"                           # Udev rule for audio
+ASOUND_MAP_HELPER="/usr/local/bin/asound-map"                                          # ALSA map helper
+ASOUND_SWITCH_HELPER="/usr/local/bin/asound-switch"                                    # ALSA switch helper
+SAMPLE_RATE=192000                                                                      # Default sample rate
+NON_MPX_SAMPLE_RATE="${NON_MPX_SAMPLE_RATE:-48000}"                                    # Non-MPX sample rate
+CRON_SLEEP=10                                                                           # Sleep for cron jobs
+
+# --- Service management abstraction for systemd/Devuan/other ---
+# has_systemd: Returns true if systemd is present and active.
+has_systemd(){
+  command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]
+}
+
+# service_action: Portable service management function.
+# Usage: service_action <action> <service_name>
+#   action: start|stop|restart|enable|disable|daemon-reload
+#   service_name: without .service for 'service', with .service for systemctl
+service_action() {
+  local action="$1"
+  local svc="$2"
+  if has_systemd; then
+    if [ "$action" = "daemon-reload" ]; then
+      systemctl daemon-reload || true
+    else
+      systemctl "$action" "$svc" 2>/dev/null || true
+    fi
+  elif command -v service >/dev/null 2>&1; then
+    # Remove .service suffix for 'service' command
+    local svc_base="${svc%.service}"
+    case "$action" in
+      start|stop|restart)
+        service "$svc_base" "$action" 2>/dev/null || true
+        ;;
+      enable|disable|daemon-reload)
+        # Not supported by 'service', just print info
+        echo "[INFO] Skipping '$action' for $svc_base (no systemd)"
+
+cat <<EOF
 Usage: sudo ./oMPX-Encoder-Debian-setup.sh [OPTIONS]
 
 Options:
@@ -268,10 +455,16 @@ Uninstall as ompx user is blocked for safety unless --scorch and --kill-ompx-use
 EOF
   exit 0
 fi
+
 # Replace positional args with parsed ones (removes --auto/--interactive/--help/--version)
 set -- "${PARSED_ARGS[@]}"
 
-# --- SAFETY CHECK: Prevent uninstall as ompx user unless --kill-ompx-user is used with --scorch ---
+################################################################################
+# SAFETY CHECK: Prevent uninstall as ompx user unless --kill-ompx-user is used with --scorch
+#
+# This prevents accidental lockout by requiring explicit flags for destructive
+# uninstall as the ompx user. Only --scorch with --kill-ompx-user will proceed.
+################################################################################
 if [ "$(id -un)" = "ompx" ]; then
   if [ "$SCORCH_MODE" = true ] && [ "$KILL_OMPX_USER" = true ]; then
     echo "[WARNING] --kill-ompx-user flag detected. Proceeding to delete the ompx user from within their own session. This will log you out and may leave the system in an unstable state."
@@ -285,11 +478,15 @@ if [ "$(id -un)" = "ompx" ]; then
   fi
 fi
 
-### --- IMMEDIATE UNINSTALL LOGIC: If any destructive flag is present, run uninstall and exit ---
+################################################################################
+# IMMEDIATE UNINSTALL LOGIC: If any destructive flag is present, run uninstall and exit
+#
+# This block handles all destructive uninstall modes (--scorch, --nuke, --nuke-packages)
+# with clear warnings and confirmations. All uninstall logic is run before any menu or install logic.
+################################################################################
 if [ "$SCORCH_MODE" = true ] || [ "$NUKE_PACKAGES" = true ] || [[ "$*" == *--nuke* ]]; then
-  # Always run uninstall logic and exit before any menu or install logic
   if [ "$SCORCH_MODE" = true ]; then
-    # Red whiptail warning or fallback prompt
+    # Ultra-aggressive uninstall: warn user and require explicit confirmation
     if command -v whiptail >/dev/null 2>&1; then
       whiptail --title "⚠️  DANGER: oMPX --scorch" --backtitle "oMPX SCORCH MODE" --msgbox "⚠️  WARNING:\n\nThis will PERMANENTLY and IRREVERSIBLY DELETE ALL oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related files, configs, logs, users (including home directories), and services.\n\nThis may break logins, remove user data, and leave your system in an unusable state.\n\n**THERE IS NO UNDO.**\n\nPress <OK> to continue, or <Cancel> to abort." 18 70 || exit 1
       whiptail --title "FINAL CONFIRMATION" --yesno "Are you absolutely sure you want to OBLITERATE all traces of oMPX and related stack?\n\nYou MUST type 'YES' (all caps) in the next box to confirm." 12 70 || exit 1
@@ -309,7 +506,13 @@ if [ "$SCORCH_MODE" = true ] || [ "$NUKE_PACKAGES" = true ] || [[ "$*" == *--nuk
   else
     echo "[INFO] --nuke or --nuke-packages detected: performing full uninstall (no prompts, menu bypassed)"
   fi
-  # Uninstall logic (copied from 'U' case in main prompt)
+
+  ################################################################################
+  # UNINSTALL LOGIC: Stop/disable services, remove files, reload systemd if present
+  #
+  # This block performs the actual removal of oMPX services, files, users, and configs.
+  # It is called for all destructive uninstall modes.
+  ################################################################################
   echo "[INFO] Attempting to stop and disable oMPX-related services (if present)..."
   for svc in mpx-processing-alsa.service mpx-watchdog.service mpx-stream-pull.service mpx-source1.service mpx-source2.service rds-sync-prog1.service rds-sync-prog2.service stereo-tool-enterprise.service ompx-web-ui.service ompx-web-kiosk.service; do
     if has_systemd; then
@@ -352,6 +555,13 @@ if [ "$SCORCH_MODE" = true ] || [ "$NUKE_PACKAGES" = true ] || [[ "$*" == *--nuk
     echo "[WARNING] Systemd/service not available, skipping nginx restart."
   fi
 
+
+  ################################################################################
+  # --scorch: Remove all traces of oMPX, Nginx, Icecast, Liquidsoap, ALSA, etc.
+  #
+  # This block performs ultra-aggressive removal of all related configs, logs,
+  # binaries, users, groups, and services. It is only run for --scorch.
+  ################################################################################
   if [ "$SCORCH_MODE" = true ]; then
     echo "[INFO] --scorch: Removing all traces of oMPX, Nginx, Icecast, Liquidsoap, ALSA, and related stack..."
     for svc in nginx.service icecast2.service liquidsoap.service alsa-restore.service alsa-state.service; do
@@ -410,8 +620,14 @@ if [ "$SCORCH_MODE" = true ] || [ "$NUKE_PACKAGES" = true ] || [[ "$*" == *--nuk
     echo "[INFO] A REBOOT IS REQUIRED to complete cleanup. Please run: sudo reboot"
     echo "[INFO] After reboot, you may re-run this installer to automatically repair and reinstall all missing users, packages, and configs."
     exit 0
-  # --- BANDAID REINSTALL LOGIC: Repair missing users, home, and packages after --scorch ---
-  # If ompx user or home is missing, politely notify user and repair
+  fi
+
+  ################################################################################
+  # BANDAID REPAIR LOGIC: Repair missing users, home, and packages after --scorch
+  #
+  # If ompx user, home, or critical packages are missing, this block will
+  # automatically restore them to ensure the system is functional after a destructive uninstall.
+  ################################################################################
   scorched=false
   if ! id -u ompx >/dev/null 2>&1; then
     echo "[NOTICE] oMPX system user was missing. This usually means a destructive uninstall (--scorch) or manual removal was detected."
@@ -454,7 +670,11 @@ if [ "$SCORCH_MODE" = true ] || [ "$NUKE_PACKAGES" = true ] || [[ "$*" == *--nuk
     echo "[NOTICE] If this was unintentional, please review your system for any other missing data or configs."
   fi
   # End bandaid logic
-  # --- NGINX BANDAID LOGIC (k9): If nginx.conf is missing or nginx fails to start, fully purge and reinstall nginx ---
+
+  ################################################################################
+  # NGINX BANDAID LOGIC (k9): If nginx.conf is missing or nginx fails to start,
+  # fully purge and reinstall nginx to ensure web UI is functional.
+  ################################################################################
   if ! [ -f /etc/nginx/nginx.conf ] || ! systemctl start nginx 2>/dev/null; then
     echo "[BANDAID:k9] nginx config missing or nginx failed to start. Purging and reinstalling nginx..."
     apt-get purge --remove -y nginx nginx-common nginx-full || true
@@ -469,8 +689,12 @@ if [ "$SCORCH_MODE" = true ] || [ "$NUKE_PACKAGES" = true ] || [[ "$*" == *--nuk
       echo "[BANDAID:k9] nginx reinstall attempted, but service is not running. Please check manually."
     fi
   fi
-  fi
 
+  ################################################################################
+  # --nuke-packages: Remove all oMPX-related apt packages
+  #
+  # This block purges all related packages and recommends a reboot.
+  ################################################################################
   if [ "$NUKE_PACKAGES" = true ]; then
     echo "[INFO] --nuke-packages specified: purging all oMPX-related apt packages..."
     apt-get purge --auto-remove -y liquidsoap nginx icecast2 curl wget alsa-utils ffmpeg sox ladspa-sdk swh-plugins cron python3 chromium x11-xserver-utils x11-utils xinit

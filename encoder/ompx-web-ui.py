@@ -1,6 +1,19 @@
+
+
 # oMPX Web UI backend (Python HTTP server)
-# Extracted from oMPX-Encoder-Debian-setup.sh for maintainability
-# Place your backend logic here. If you had embedded Python code in the installer, move it here.
+# -------------------------------------------------------------
+# This script implements the backend HTTP API and static file server
+# for the oMPX web UI. It is designed to be run as a service,
+# typically behind an Nginx reverse proxy. All backend logic for
+# state management, profile application, and preview control is here.
+#
+# Key features:
+# - Handles all POST/GET API requests from the web UI
+# - Manages persistent state for audio processing profiles
+# - Proxies audio preview streams from Icecast/Liquidsoap
+# - Controls preview services and applies settings to Liquidsoap
+# - Designed for maintainability and open source clarity
+# -------------------------------------------------------------
 
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from http import HTTPStatus
@@ -11,58 +24,86 @@ import subprocess
 import requests
 from rds_utils import recreate_rds_json
 
+
+# Thread lock for safe concurrent state access (multiple requests may access state)
 STATE_LOCK = threading.Lock()
+# Main state file for persistent UI/backend settings
 STATE_FILE = "/home/ompx/.ompx_web_state.json"
+# Backup state file for undo/revert support
 STATE_FILE_BACKUP = "/home/ompx/.ompx_web_state.prev.json"
 
+
+# Load the persistent state from disk (returns dict, or empty if missing/corrupt)
 def load_state():
     try:
         with open(STATE_FILE, "r") as f:
             return json.load(f)
     except Exception:
+        # If file missing or corrupt, return empty state
         return {}
 
+
+# Save the persistent state to disk, with backup for undo
 def save_state(state):
-    # Backup current state before saving new one
     import shutil
     try:
         shutil.copy2(STATE_FILE, STATE_FILE_BACKUP)
     except Exception:
+        # Ignore if backup fails (e.g., first run)
         pass
     with open(STATE_FILE, "w") as f:
         json.dump(state, f)
 
 
 
+
+
+# Main HTTP handler for oMPX Web UI backend
+# Handles all HTTP requests (GET/POST) for the API and static frontend
 class Handler(BaseHTTPRequestHandler):
 
+
     def _is_local_kiosk(self):
-        # Check if kiosk mode is enabled and request is from localhost
+        """
+        Returns True if kiosk mode is enabled and the request is from localhost.
+        Used to bypass authentication for trusted local kiosk setups.
+        """
         kiosk = os.environ.get("OMPX_WEB_KIOSK_ENABLE", "false").lower() == "true"
-        # Accept both IPv4 and IPv6 loopback
         client = self.client_address[0]
         is_local = client in ("127.0.0.1", "::1", "localhost")
         return kiosk and is_local
 
+
+    # Utility: send a JSON response with given status
     def _send_json(self, obj, status=HTTPStatus.OK):
+        """
+        Utility: Send a JSON response with the given status code.
+        """
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
         self.wfile.write(json.dumps(obj).encode())
 
+
     def do_POST(self):
-        # If UI auth is enabled but this is local kiosk, skip auth
+        """
+        Handle POST requests for all API endpoints.
+        Implements authentication, state management, and control actions.
+        """
+        # If UI auth is enabled but this is not a local kiosk, require password
         if os.environ.get("OMPX_WEB_AUTH_ENABLE", "false").lower() == "true" and not self._is_local_kiosk():
-            # Simple password check (could be improved)
+            # Simple password check (Bearer token)
             auth = self.headers.get("Authorization")
             expected = os.environ.get("OMPX_WEB_AUTH_PASSWORD", "")
             if not auth or auth != f"Bearer {expected}":
                 self._send_json({"ok": False, "message": "Authentication required"}, status=HTTPStatus.UNAUTHORIZED)
                 return
+        # Parse JSON payload (if any)
         length = int(self.headers.get('Content-Length', 0))
         payload = json.loads(self.rfile.read(length)) if length else {}
+
+        # Undo: revert to previous state
         if self.path == "/api/undo":
-            # Restore previous state from backup
             import shutil
             try:
                 shutil.copy2(STATE_FILE_BACKUP, STATE_FILE)
@@ -71,6 +112,8 @@ class Handler(BaseHTTPRequestHandler):
                 msg = f"Failed to revert: {e}"
             self._send_json({"ok": True, "message": msg})
             return
+
+        # Apply MPX settings: update state, persist to .profile, and optionally update Liquidsoap
         if self.path == "/api/apply_mpx":
             prog = int(payload.get("program", 0))
             if prog not in (1, 2):
@@ -80,6 +123,8 @@ class Handler(BaseHTTPRequestHandler):
                 index_path = os.path.join(os.path.dirname(__file__), "index.html")
                 with open(index_path, "r") as f:
                     self.wfile.write(f.read().encode())
+                return
+            # Helper to get option from payload, env, or default
             def get_opt(key, env_key=None, default=None):
                 return (
                     payload.get(key)
@@ -88,6 +133,7 @@ class Handler(BaseHTTPRequestHandler):
                     or (os.environ.get(env_key or key.upper()) if (env_key or key.upper()) in os.environ else None)
                     or default
                 )
+            # Extract all relevant settings
             profile = get_opt("multiband_profile", "MULTIBAND_PROFILE")
             post_gain = get_opt("post_gain_db", "POST_GAIN_DB")
             pre_gain = get_opt("pre_gain_db", "PRE_GAIN_DB")
@@ -96,7 +142,7 @@ class Handler(BaseHTTPRequestHandler):
             output_limit = get_opt("output_limit", "OUTPUT_LIMIT")
             hpf_freq = get_opt("hpf_freq", "HPF_FREQ")
             lpf_freq = get_opt("lpf_freq", "LPF_FREQ")
-            # Save to state
+            # Save to state (thread-safe)
             with STATE_LOCK:
                 state = load_state()
                 prefix = f"P{prog}" if prog in (1,2) else ""
@@ -109,7 +155,7 @@ class Handler(BaseHTTPRequestHandler):
                 if hpf_freq: state[f"HPF_FREQ_{prefix}"] = hpf_freq
                 if lpf_freq: state[f"LPF_FREQ_{prefix}"] = lpf_freq
                 save_state(state)
-            # Write to .profile for persistence
+            # Persist to .profile for system-wide use
             profile_path = "/home/ompx/.profile"
             def replace_or_add_line(lines, key, value):
                 found = False
@@ -141,7 +187,7 @@ class Handler(BaseHTTPRequestHandler):
                     f.writelines(lines)
             except Exception:
                 pass
-            # Apply changes to Liquidsoap via telnet (if possible)
+            # Optionally update Liquidsoap via telnet (if running)
             import socket
             liq_host = "127.0.0.1"
             liq_port = 1234
@@ -164,11 +210,11 @@ class Handler(BaseHTTPRequestHandler):
                 msg = f"Applied to MPX (Program {prog}), but failed to update Liquidsoap: {e}"
             self._send_json({"ok": True, "message": msg})
             return
+
+        # Preview start: restart preview service (Liquidsoap)
         if self.path == "/api/preview_start":
-            # Accept preview options and start preview service
             preview_format = payload.get("preview_format", "mp3")
-            # Optionally apply preview settings (profile, gain, etc.)
-            # For now, just restart preview service
+            # Optionally, could apply preview settings here
             try:
                 subprocess.run(["systemctl", "restart", "ompx-liquidsoap-preview.service"], check=True)
                 msg = "Preview started."
@@ -176,6 +222,8 @@ class Handler(BaseHTTPRequestHandler):
                 msg = f"Failed to start preview: {e}"
             self._send_json({"ok": True, "message": msg, "preview_format": preview_format})
             return
+
+        # Preview stop: stop preview service
         if self.path == "/api/preview_stop":
             try:
                 subprocess.run(["systemctl", "stop", "ompx-liquidsoap-preview.service"], check=True)
@@ -184,10 +232,18 @@ class Handler(BaseHTTPRequestHandler):
                 msg = f"Failed to stop preview: {e}"
             self._send_json({"ok": True, "message": msg})
             return
+
+        # Unknown POST endpoint
         self.send_error(HTTPStatus.NOT_FOUND, "Not found")
 
 
+
     def do_GET(self):
+        """
+        Handle GET requests for the root (serves index.html) and audio preview endpoints.
+        Proxies audio streams from Icecast and Liquidsoap for the web UI preview player.
+        """
+        # Serve the main frontend (index.html) at root
         if self.path == "/":
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "text/html")
@@ -195,9 +251,9 @@ class Handler(BaseHTTPRequestHandler):
             with open(os.path.join(os.path.dirname(__file__), "index.html"), "r") as f:
                 self.wfile.write(f.read().encode())
             return
-        # Audio preview endpoints
+
+        # Audio preview endpoint: MP3 (proxied from Icecast)
         if self.path.startswith("/api/preview.mp3"):
-            # Proxy from Icecast (MP3) - always use /stream.mp3
             mount = "/stream.mp3"
             try:
                 resp = requests.get(f"http://127.0.0.1:8000{mount}", stream=True, timeout=5)
@@ -213,8 +269,9 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_error(HTTPStatus.SERVICE_UNAVAILABLE, f"MP3 preview unavailable: {e}")
                 return
+
+        # Audio preview endpoint: WAV (proxied from Liquidsoap HTTP output)
         if self.path.startswith("/api/preview.wav"):
-            # Proxy from Liquidsoap HTTP output (WAV)
             try:
                 resp = requests.get("http://127.0.0.1:8088/", stream=True, timeout=5)
                 self.send_response(HTTPStatus.OK)
@@ -229,17 +286,23 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_error(HTTPStatus.SERVICE_UNAVAILABLE, f"WAV preview unavailable: {e}")
                 return
+
+        # Unknown GET endpoint
         self.send_error(HTTPStatus.NOT_FOUND, "Not found")
 
+
+# Entrypoint: start the backend server
 def run():
-    # Recreate RDS JSON files on every launch
+    # Always recreate RDS JSON files on launch (ensures defaults exist)
     recreate_rds_json()
-    # Default: bind to 127.0.0.1:5000 for Nginx proxying. Can override port with OMPX_WEB_PORT.
+    # Bind to 127.0.0.1:5000 by default for Nginx proxying (can override with OMPX_WEB_PORT)
     # In the future, allow user to set this via the UI advanced tab.
     port = int(os.environ.get("OMPX_WEB_PORT", 5000))
     server = HTTPServer(("127.0.0.1", port), Handler)
     print(f"oMPX Web UI running on 127.0.0.1:{port} (for Nginx proxy)")
     server.serve_forever()
 
+
+# Standard Python entrypoint
 if __name__ == "__main__":
     run()

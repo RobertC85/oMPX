@@ -36,66 +36,46 @@ wait_for_alsa_endpoint(){
     fi
     sleep 1
     waited=$((waited + 1))
-  done
-  return 1
-}
-mkdir -p "${OMPX_LOG_DIR}" || true
-if [ -z "${LOOPBACK_CARD_REF}" ]; then
-  LOOPBACK_CARD_REF="$(detect_loopback_card)"
-  _log "Auto-detected loopback card: ${LOOPBACK_CARD_REF}"
-fi
-PROGRAM2_ENABLED="${PROGRAM2_ENABLED,,}"
-
-# Start ingest wrappers if needed
-for n in 1 2; do
-  wrapper="${SYS_SCRIPTS_DIR}/source${n}.sh"
-  log_file="${OMPX_LOG_DIR}/radio-source${n}.log"
-  if [ -x "${wrapper}" ] && ! pgrep -f "${wrapper}" >/dev/null 2>&1; then
-    nohup "${wrapper}" >>"${log_file}" 2>&1 &
-    _log "Started ${wrapper} for upstream ingest"
-  fi
-done
-
-wait_for_alsa_endpoint capture "${PROG1_ALSA_IN}" 60 || true
-if ! arecord -L 2>/dev/null | grep -q "^${PROG1_ALSA_IN}$"; then
-  PROG1_ALSA_IN="hw:${LOOPBACK_CARD_REF},1,0"
-  _log "Fallback capture endpoint for Program 1: ${PROG1_ALSA_IN}"
-fi
-if [ "${PROGRAM2_ENABLED}" = "true" ]; then
-  wait_for_alsa_endpoint capture "${PROG2_ALSA_IN}" 60 || true
-  if ! arecord -L 2>/dev/null | grep -q "^${PROG2_ALSA_IN}$"; then
-    PROG2_ALSA_IN="hw:${LOOPBACK_CARD_REF},1,1"
-    _log "Fallback capture endpoint for Program 2: ${PROG2_ALSA_IN}"
-  fi
-else
-  PROG2_ALSA_IN=""
-  _log "PROGRAM2_ENABLED=false; Program 2 capture disabled"
-fi
-_log "Using capture endpoints: PROG1_ALSA_IN=${PROG1_ALSA_IN}, PROG2_ALSA_IN=${PROG2_ALSA_IN}"
-
-# Clean up and create output FIFOs
-for p in "$MPX_LEFT_OUT" "$MPX_RIGHT_OUT" "$MPX_STEREO_FIFO"; do rm -f "$p" || true; mkfifo "$p"; done
-
-# --- Per-program processing using open-source chain ---
-MODULES_DIR="/workspaces/oMPX/modules"
-MULTIBAND_PROFILE_P1="${MULTIBAND_PROFILE_P1:-${MULTIBAND_PROFILE:-waxdreams2-5band}}"
-POST_GAIN_DB_P1="${POST_GAIN_DB_P1:-6}"
-MULTIBAND_PROFILE_P2="${MULTIBAND_PROFILE_P2:-${MULTIBAND_PROFILE:-waxdreams2-5band}}"
-POST_GAIN_DB_P2="${POST_GAIN_DB_P2:-6}"
-
-# Program 1 processing
-(
-  ffmpeg -hide_banner -loglevel warning -f alsa -thread_queue_size 10240 -i "${PROG1_ALSA_IN}" -f s16le -ac 2 -ar ${SAMPLE_RATE} - |
-  "${MODULES_DIR}/multiband_agc.sh" \
-    --profile "${MULTIBAND_PROFILE_P1}" \
-    --post-gain-db "${POST_GAIN_DB_P1}" \
-    --sample-rate "${SAMPLE_RATE}" \
-    --input-format s16le \
-    --output-format s16le \
     --channels 2 \
-    --dry-run false \
-    --show-config false \
-  > "$MPX_LEFT_OUT"
+
+  #!/usr/bin/env bash
+  # oMPX ALSA Processing Chain Runner
+  # ---------------------------------
+  # This script sets up and runs the oMPX audio processing chain using ALSA devices.
+  # Features:
+  #   - Loads user profile for environment variables
+  #   - Detects ALSA loopback card automatically if not set
+  #   - Supports per-program input and gain profiles
+  #   - Starts ingest wrappers for upstream sources if needed
+  #   - Waits for ALSA endpoints to become available
+  #   - Logs all actions to syslog and log files
+  #
+  # Usage: Run as ompx user or with appropriate permissions.
+  #
+  # For more info, see: https://github.com/RobertC85/oMPX
+
+  set -euo pipefail
+
+  # Load user profile if present
+  PROFILE="/home/ompx/.profile"
+  [ -f "${PROFILE}" ] && . "${PROFILE}"
+
+  # --- oMPX open-source chain: per-program profile/gain support ---
+  SAMPLE_RATE=192000
+  PROG1_ALSA_IN="${PROG1_ALSA_IN:-ompx_prg1in_cap}"
+  PROG2_ALSA_IN="${PROG2_ALSA_IN:-ompx_prg2in_cap}"
+  PROGRAM2_ENABLED="${PROGRAM2_ENABLED:-false}"
+  SYS_SCRIPTS_DIR="/opt/mpx-radio"
+  OMPX_LOG_DIR="/home/ompx/logs"
+  LOOPBACK_CARD_REF="${LOOPBACK_CARD_REF:-}"
+  MPX_LEFT_OUT="/tmp/mpx_left_out.pcm"
+  MPX_RIGHT_OUT="/tmp/mpx_right_out.pcm"
+  MPX_STEREO_FIFO="/tmp/mpx_stereo.pcm"
+
+  # Logging helper
+  _log(){ logger -t mpx "$*"; echo "$(date +'%F %T') $*"; }
+
+  # Detect ALSA loopback card (tries aplay, then /proc/asound/cards)
 ) &
 FF_PROG1_PID=$!
 _log "Started Program 1 open-source chain (profile=${MULTIBAND_PROFILE_P1}, gain=${POST_GAIN_DB_P1}, pid=$FF_PROG1_PID)"
@@ -104,6 +84,9 @@ _log "Started Program 1 open-source chain (profile=${MULTIBAND_PROFILE_P1}, gain
 if [ "${PROGRAM2_ENABLED}" = "true" ] && [ -n "${PROG2_ALSA_IN}" ]; then
   (
     ffmpeg -hide_banner -loglevel warning -f alsa -thread_queue_size 10240 -i "${PROG2_ALSA_IN}" -f s16le -ac 2 -ar ${SAMPLE_RATE} - |
+
+  # Wait for ALSA endpoint (capture or playback) to appear, with timeout
+  wait_for_alsa_endpoint(){
     "${MODULES_DIR}/multiband_agc.sh" \
       --profile "${MULTIBAND_PROFILE_P2}" \
       --post-gain-db "${POST_GAIN_DB_P2}" \
@@ -119,9 +102,21 @@ if [ "${PROGRAM2_ENABLED}" = "true" ] && [ -n "${PROG2_ALSA_IN}" ]; then
   _log "Started Program 2 open-source chain (profile=${MULTIBAND_PROFILE_P2}, gain=${POST_GAIN_DB_P2}, pid=$FF_PROG2_PID)"
 else
   # If Program 2 not enabled, inject silence
+
+  # Ensure log directory exists
+  mkdir -p "${OMPX_LOG_DIR}" || true
+
+  # Auto-detect loopback card if not set
+  if [ -z "${LOOPBACK_CARD_REF}" ]; then
   ( while :; do dd if=/dev/zero bs=4096 count=256 status=none; sleep 0.1; done ) > "$MPX_RIGHT_OUT" &
   SILENCE_PID=$!
   _log "Program 2 not active/available; injecting silence on right channel"
+
+  # Normalize PROGRAM2_ENABLED to lowercase
+  PROGRAM2_ENABLED="${PROGRAM2_ENABLED,,}"
+
+  # Start ingest wrappers for upstream sources if needed
+  for n in 1 2; do
 fi
 
 # Merge processed outputs to stereo FIFO
@@ -129,6 +124,10 @@ ffmpeg -hide_banner -loglevel warning \
   -f s16le -ar ${SAMPLE_RATE} -ac 1 -i "$MPX_LEFT_OUT" \
   -f s16le -ar ${SAMPLE_RATE} -ac 1 -i "$MPX_RIGHT_OUT" \
   -filter_complex "[0:a][1:a]join=inputs=2:channel_layout=stereo[aout]" -map "[aout]" \
+
+  # Wait for Program 1 ALSA endpoint to appear (up to 60s)
+  wait_for_alsa_endpoint capture "${PROG1_ALSA_IN}" 60 || true
+  if ! arecord -L 2>/dev/null | grep -q "^${PROG1_ALSA_IN}$"; then
   -f s16le -ar ${SAMPLE_RATE} -ac 2 - > "$MPX_STEREO_FIFO" &
 FF_MERGE_PID=$!
 _log "ffmpeg merge pid $FF_MERGE_PID"
