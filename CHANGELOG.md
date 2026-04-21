@@ -1,15 +1,10 @@
 # 0.2.2L3 (2026-04-19)
 # 0.2.2L4 (2026-04-20)
-- Docs: All major scripts, HTML, Liquidsoap, and service files are now thoroughly commented for open source clarity and maintainability. Each processing chain, UI, and module is documented for contributors.
-- Revision: L4 milestone. No functional changes; documentation and comments only.
+# 0.2.2L5 (2026-04-21)
+- Feature: Robust scorched system repair. After a destructive uninstall (--scorch), the installer will now automatically recreate the ompx user and home, reinstall all required packages, restore critical directories, and ensure the Icecast2 systemd service is present and running. This makes recovery from a scorched or partially removed system seamless and reliable.
+- Ready for next steps: interface refinements and advanced audio processing (e.g., Master Me integration).
 # 0.2.2L2 (2026-04-19)
 # 0.2.2L0 (2026-04-19)
-- Release: L0 milestone. All update menu logic refactored for clarity and safety.
-- Feature: Update menu now offers three options: update from current repo files, bleeding edge (working directory, uncommitted changes), and latest (git pull).
-- Feature: Patch audio preview player restored to the web UI, with program selector and direct streaming from backend.
-- Fix: UI and backend now always in sync; all web roots updated reliably.
-- Confirmed: Installer, update, and uninstall logic are robust and developer-friendly.
-- All previous bandaid, nginx recovery, and destructive uninstall protections included from k9.
 
 # 0.2.2k9 (2026-04-19)
 - Feature: "Bandaid for k9" — If nginx configs are missing or nginx fails to start, the installer will now automatically purge, remove, and reinstall nginx, then start the service. This ensures nginx is always recoverable after a --scorch or config loss.
