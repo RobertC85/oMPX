@@ -1,3 +1,11 @@
+# 0.2.2L6 (2026-04-21)
+- Refactor: Fully modular installer. All install, update, uninstall, and configuration logic is now in sub-scripts for maintainability and portability.
+- Fix: All block structure and syntax errors resolved. No more 'unexpected end of file' or 'unexpected token fi' errors.
+- Feature: Always prompts for Icecast settings on install/update/reinstall, with auto-generated password if left blank.
+- Fix: Installer now always continues to the next step after prompts, with clear progress messages.
+- Robust: Sub-scripts are made executable automatically; permission errors are handled.
+- Debug: Added debug tracing and improved error handling for interactive prompts.
+- Confirmed: Script works on bare metal in a real terminal (not in file managers).
 # 0.2.2L3 (2026-04-19)
 # 0.2.2L4 (2026-04-20)
 # 0.2.2L5 (2026-04-21)

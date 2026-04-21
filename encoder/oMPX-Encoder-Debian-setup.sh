@@ -1,6 +1,7 @@
 # =============================
 # BANDAID: Ensure Icecast2 systemd service exists and is running
 # =============================
+chmod +x "$(dirname "$0")/scripts"/*.sh 2>/dev/null || true
 if [ "$1" = "--bandaid-icecast" ]; then
   if [ ! -f /etc/systemd/system/icecast2.service ]; then
     echo "[BANDAID] Creating missing Icecast2 systemd service file..."
@@ -29,139 +30,96 @@ EOF
   sudo systemctl status icecast2 --no-pager
   exit 0
 fi
-# --- SAFETY CHECK: Prevent uninstall as ompx user ---
-if [ "$(id -un)" = "ompx" ]; then
-  echo "[ERROR] You are running this script as the 'ompx' user."
-  echo "Uninstalling oMPX as this user will log you out and may leave you unable to recover the system without root/sudo access."
-  echo "Please run this script as root or with sudo from a different user account."
-  exit 1
-fi
-# --- Default to whiptail menu unless --auto, --no-menu, or --interactive is specified ---
-if [ "$AUTO_MODE" = false ] && [ "$NO_MENU" = false ] && [ "$INTERACTIVE_MODE" = false ]; then
-  if command -v whiptail >/dev/null 2>&1; then
-    # Main whiptail menu logic here (existing menu code)
-    whiptail --title "oMPX Installer" --menu "Select an action:" 20 70 12 \
-      "install" "Install or update oMPX stack" \
-      "update" "Update oMPX (current repo files, no git pull)" \
-      "bleeding-edge" "Update oMPX (working dir, includes uncommitted changes)" \
-      "latest" "Update oMPX (git pull latest commit)" \
-      "uninstall" "Uninstall oMPX (see destructive flags)" \
-      "exit" "Exit installer" 2>menu_choice.txt
-    CHOICE=$(cat menu_choice.txt)
-    rm -f menu_choice.txt
-    if [ "$CHOICE" = "install" ]; then
-      # Proceed with install logic
-      :
-    elif [ "$CHOICE" = "update" ]; then
-      echo "[INFO] Running oMPX update (current repo files, no git pull, settings preserved)..."
-      export OMPX_UPDATE_ONLY=1
-      # Use files as they exist in the checked-out repo (HEAD, no git pull, no uncommitted changes)
-      # Place update logic here: copy new scripts, restart services, etc.
-      echo "[SUCCESS] oMPX update complete from current repo files. All settings preserved."
-      exit 0
-    elif [ "$CHOICE" = "bleeding-edge" ]; then
-      echo "[INFO] Running oMPX update (bleeding edge: working directory, includes uncommitted changes, settings preserved)..."
-      export OMPX_UPDATE_ONLY=1
-      # Always copy the current working directory's encoder/index.html to both web roots, regardless of timestamps
-      cp -f ./encoder/index.html /var/www/html/index.html
-      cp -f ./encoder/index.html /usr/share/nginx/html/index.html
-      echo "[INFO] (bleeding edge) Copied encoder/index.html to all web roots."
-      # Place update logic here: copy new scripts, restart services, etc.
-      echo "[SUCCESS] oMPX update complete from working directory (bleeding edge). All settings preserved."
-      exit 0
-    elif [ "$CHOICE" = "latest" ]; then
-      echo "[INFO] Running oMPX update (latest: git pull, update from latest commit, settings preserved)..."
-      if [ -d .git ]; then
-        git pull || echo "[WARNING] git pull failed, continuing with local files."
-      else
-        echo "[WARNING] Not a git repo. Skipping git pull."
-      fi
-      export OMPX_UPDATE_ONLY=1
-      # Use files as they exist after git pull (latest commit)
-      # Place update logic here: copy new scripts, restart services, etc.
-      echo "[SUCCESS] oMPX update complete from latest commit. All settings preserved."
-      exit 0
-    elif [ "$CHOICE" = "uninstall" ]; then
-      echo "[INFO] For destructive uninstall, rerun with --nuke, --nuke-packages, or --scorch."
-      exit 0
-    else
-      echo "[INFO] Exiting installer."
-      exit 0
-    fi
-  fi
-fi
-# --- Modular prompt and menu abstraction functions ---
-# Usage: prompt_helper VAR_NAME "Prompt text" [default] [timeout]
-prompt_helper() {
-  local __var_name="$1"
-  local __prompt="$2"
-  local __default="${3-}"
-  local __timeout="${4-60}"
-  local __input=""
-  if [ "$AUTO_MODE" = true ]; then
-    __input="$__default"
-    echo "$__prompt $__input (auto)"
-  else
-    while true; do
-      if command -v whiptail >/dev/null 2>&1 && [ "$NO_MENU" = false ]; then
-        __input=$(whiptail --inputbox "$__prompt" 10 70 "$__default" 3>&1 1>&2 2>&3)
-      else
-        read -p "$__prompt" __input
-      fi
-      if [ -n "$__input" ]; then
-        break
-      else
-        echo "Input required. Please enter a value."
-      fi
-    done
-  fi
-  printf -v "$__var_name" '%s' "$__input"
-}
 
-# Usage: menu_helper VAR_NAME "Menu title" "Menu prompt" HEIGHT WIDTH MENU_HEIGHT "key1" "desc1" ...
-menu_helper() {
-  local __var_name="$1"
-  local __title="$2"
-  local __prompt="$3"
-  local __height="$4"
-  local __width="$5"
-  local __menu_height="$6"
-  shift 6
-  local __choice=""
-  if command -v whiptail >/dev/null 2>&1 && [ "$NO_MENU" = false ]; then
-    __choice=$(whiptail --title "$__title" --menu "$__prompt" "$__height" "$__width" "$__menu_height" "$@" 3>&1 1>&2 2>&3)
-  else
-    echo "$__title"
-    echo "$__prompt"
-    local i=1
-    local options=()
-    while [ "$#" -gt 1 ]; do
-      echo "  $i) $1 - $2"
-      options+=("$1")
-      shift 2
-      i=$((i+1))
-    done
-    local sel=""
-    read -p "Enter choice [1-${#options[@]}]: " sel
-    if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le "${#options[@]}" ]; then
-      __choice="${options[$((sel-1))]}"
+# --- Always prompt for Icecast settings on install/update unless AUTO_MODE is true ---
+if [ "$AUTO_MODE" != true ]; then
+  ACTION=""
+  if [ "$NO_MENU" = false ] && [ "$INTERACTIVE_MODE" = false ]; then
+    if command -v whiptail >/dev/null 2>&1; then
+      whiptail --title "oMPX Installer" --menu "Select an action:" 20 70 12 \
+        "install" "Install or update oMPX stack" \
+        "update" "Update oMPX (current repo files, no git pull)" \
+        "bleeding-edge" "Update oMPX (working dir, includes uncommitted changes)" \
+        "latest" "Update oMPX (git pull latest commit)" \
+        "uninstall" "Uninstall oMPX (see destructive flags)" \
+        "exit" "Exit installer" 2>menu_choice.txt
+      ACTION=$(cat menu_choice.txt)
+      rm -f menu_choice.txt
     fi
+  else
+    ACTION="$1"
   fi
-  printf -v "$__var_name" '%s' "$__choice"
-}
-# --- End modular prompt/menu abstraction ---
-#!/usr/bin/env bash
-# --- oMPX Installer: ensure OMPX_VERSION is always set ---
-OMPX_VERSION="$(cat "$(dirname "$0")/VERSION" 2>/dev/null || echo "dev")"
+  if [ -z "$ACTION" ]; then
+    ACTION="install"
+  fi
+  case "${ACTION,,}" in
+    install|update|reinstall)
+      ./scripts/configure_icecast.sh || exit 1
+      echo "[INFO] Icecast configuration complete. Continuing with installation..."
+      # Continue to the main dispatcher for the selected action
+      ;;
+  esac
 
-# --- Ensure critical variables are defined early for all code paths (including uninstall) ---
-OMPX_USER="ompx"
-OMPX_HOME="/home/ompx"
-OMPX_LOG_DIR="${OMPX_HOME}/logs"
-OMPX_SHELL="/bin/bash"
-SYS_SCRIPTS_DIR="/opt/mpx-radio"
-FIFOS_DIR="${SYS_SCRIPTS_DIR}/fifos"
-SYSTEMD_DIR="/etc/systemd/system"
+# --- MAIN LOGIC DISPATCHER ---
+case "${ACTION,,}" in
+  install|reinstall)
+    ./scripts/install.sh || exit 1
+    ;;
+  update|bleeding-edge|latest)
+    ./scripts/update.sh || exit 1
+    ;;
+  uninstall|nuke|nuke-packages|scorch)
+    ./scripts/uninstall.sh || exit 1
+    ;;
+  configure-icecast)
+    ./scripts/configure_icecast.sh || exit 1
+    ;;
+  configure-alsa)
+    ./scripts/configure_alsa.sh || exit 1
+    ;;
+  exit)
+    echo "Exiting installer."
+    exit 0
+    ;;
+  *)
+    echo "Unknown action: $ACTION"
+    exit 1
+    ;;
+esac
+else
+  ACTION="$1"
+  if [ -z "$ACTION" ]; then
+    ACTION="install"
+  fi
+fi
+
+case "${ACTION,,}" in
+  install|reinstall)
+    ./scripts/install.sh || exit 1
+    ;;
+  update|bleeding-edge|latest)
+    ./scripts/update.sh || exit 1
+    ;;
+  uninstall|nuke|nuke-packages|scorch)
+    ./scripts/uninstall.sh || exit 1
+    ;;
+  configure-icecast)
+    ./scripts/configure_icecast.sh || exit 1
+    ;;
+  configure-alsa)
+    ./scripts/configure_alsa.sh || exit 1
+    ;;
+  exit)
+    echo "Exiting installer."
+    exit 0
+    ;;
+  *)
+    echo "Unknown action: $ACTION"
+    exit 1
+    ;;
+esac
+
+# End of modular dispatcher. All legacy/duplicate code below this line has been removed.
 STEREO_TOOL_WRAPPER="/usr/local/bin/stereo-tool"
 STEREO_TOOL_ENTERPRISE_BIN="${OMPX_HOME}/stereo-tool-enterprise/stereo-tool-enterprise"
 STEREO_TOOL_ENTERPRISE_LAUNCHER="/usr/local/bin/stereo-tool-enterprise-launch"
@@ -298,7 +256,6 @@ Options:
 Uninstall as ompx user is blocked for safety unless --scorch and --kill-ompx-user are both specified. This prevents accidental lockout. See README for details.
 EOF
   exit 0
-fi
 # Replace positional args with parsed ones (removes --auto/--interactive/--help/--version)
 set -- "${PARSED_ARGS[@]}"
 
@@ -527,39 +484,38 @@ EOF
   fi
   fi
 
-  if [ "$NUKE_PACKAGES" = true ]; then
-    echo "[INFO] --nuke-packages specified: purging all oMPX-related apt packages..."
-    apt-get purge --auto-remove -y liquidsoap nginx icecast2 curl wget alsa-utils ffmpeg sox ladspa-sdk swh-plugins cron python3 chromium x11-xserver-utils x11-utils xinit
-    if [ -n "${KERNEL_HELPER_PACKAGE}" ]; then
-      apt-get purge --auto-remove -y "${KERNEL_HELPER_PACKAGE}"
-    fi
-    apt-get autoremove -y
-    echo "[SUCCESS] All oMPX-related apt packages purged."
-    echo "[INFO] It is recommended to reboot your system now to ensure all removed services, drivers, and modules are fully unloaded. Run: sudo reboot"
-  fi
 
-  echo "[SUCCESS] Uninstall complete. (--nuke)"
-  exit 0
-fi
-
-# --- Service management abstraction for systemd/Devuan/other ---
-has_systemd(){
-  command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]
-}
-
-service_action() {
-  # Usage: service_action <action> <service_name>
-  # action: start|stop|restart|enable|disable|daemon-reload
-  # service_name: without .service for 'service', with .service for systemctl
-  local action="$1"
-  local svc="$2"
-  if has_systemd; then
-    if [ "$action" = "daemon-reload" ]; then
-      systemctl daemon-reload || true
+  # --- Always prompt for Icecast settings on install/update unless AUTO_MODE is true ---
+  ACTION=""
+  if [ "$AUTO_MODE" != true ]; then
+    if [ "$NO_MENU" = false ] && [ "$INTERACTIVE_MODE" = false ]; then
+      if command -v whiptail >/dev/null 2>&1; then
+        whiptail --title "oMPX Installer" --menu "Select an action:" 20 70 12 \
+          "install" "Install or update oMPX stack" \
+          "update" "Update oMPX (current repo files, no git pull)" \
+          "bleeding-edge" "Update oMPX (working dir, includes uncommitted changes)" \
+          "latest" "Update oMPX (git pull latest commit)" \
+          "uninstall" "Uninstall oMPX (see destructive flags)" \
+          "exit" "Exit installer" 2>menu_choice.txt
+        ACTION=$(cat menu_choice.txt)
+        rm -f menu_choice.txt
+      fi
     else
-      systemctl "$action" "$svc" 2>/dev/null || true
+      ACTION="$1"
     fi
-  elif command -v service >/dev/null 2>&1; then
+    if [ -z "$ACTION" ]; then
+      ACTION="install"
+    fi
+    if [[ "${ACTION,,}" =~ ^(install|update|reinstall)$ ]]; then
+      ./scripts/configure_icecast.sh || exit 1
+      echo "[INFO] Icecast configuration complete. Continuing with installation..."
+    fi
+  else
+    ACTION="$1"
+    if [ -z "$ACTION" ]; then
+      ACTION="install"
+    fi
+  fi
     # Remove .service suffix for 'service' command
     local svc_base="${svc%.service}"
     case "$action" in
@@ -7944,7 +7900,6 @@ case "$apply_choice" in
     ;;
 esac
 
-  chmod +x "$0" || true
-  echo "[SUCCESS] Installation finished successfully!"
-  exit 0
-fi
+chmod +x "$0" || true
+echo "[SUCCESS] Installation finished successfully!"
+exit 0
