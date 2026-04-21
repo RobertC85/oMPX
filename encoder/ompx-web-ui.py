@@ -252,9 +252,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(f.read().encode())
             return
 
-        # Audio preview endpoint: MP3 (proxied from Icecast)
+        # Audio preview endpoint: MP3 (proxied from Icecast /preview mount)
         if self.path.startswith("/api/preview.mp3"):
-            mount = "/stream.mp3"
+            mount = "/preview"
             try:
                 resp = requests.get(f"http://127.0.0.1:8000{mount}", stream=True, timeout=5)
                 self.send_response(HTTPStatus.OK)

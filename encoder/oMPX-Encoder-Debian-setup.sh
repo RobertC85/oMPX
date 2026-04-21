@@ -1,3 +1,4 @@
+# (Removed stray 'fi' that was accidentally added)
 ################################################################################
 # Prompt helper: respects AUTO_MODE, INTERACTIVE_MODE, and NO_MENU
 #
@@ -454,7 +455,6 @@ Options:
 Uninstall as ompx user is blocked for safety unless --scorch and --kill-ompx-user are both specified. This prevents accidental lockout. See README for details.
 EOF
   exit 0
-fi
 
 # Replace positional args with parsed ones (removes --auto/--interactive/--help/--version)
 set -- "${PARSED_ARGS[@]}"
@@ -8081,8 +8081,6 @@ case "$apply_choice" in
     echo "[INFO] Apply later with: sudo ${ASOUND_SWITCH_HELPER}"
     ;;
 esac
-
   chmod +x "$0" || true
   echo "[SUCCESS] Installation finished successfully!"
   exit 0
-fi
