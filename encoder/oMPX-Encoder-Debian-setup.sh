@@ -60,32 +60,32 @@ if [ "$AUTO_MODE" != true ]; then
       ;;
   esac
 
-# --- MAIN LOGIC DISPATCHER ---
-case "${ACTION,,}" in
-  install|reinstall)
-    ./scripts/install.sh || exit 1
-    ;;
-  update|bleeding-edge|latest)
-    ./scripts/update.sh || exit 1
-    ;;
-  uninstall|nuke|nuke-packages|scorch)
-    ./scripts/uninstall.sh || exit 1
-    ;;
-  configure-icecast)
-    ./scripts/configure_icecast.sh || exit 1
-    ;;
-  configure-alsa)
-    ./scripts/configure_alsa.sh || exit 1
-    ;;
-  exit)
-    echo "Exiting installer."
-    exit 0
-    ;;
-  *)
-    echo "Unknown action: $ACTION"
-    exit 1
-    ;;
-esac
+  # --- MAIN LOGIC DISPATCHER ---
+  case "${ACTION,,}" in
+    install|reinstall)
+      ./scripts/install.sh || exit 1
+      ;;
+    update|bleeding-edge|latest)
+      ./scripts/update.sh || exit 1
+      ;;
+    uninstall|nuke|nuke-packages|scorch)
+      ./scripts/uninstall.sh || exit 1
+      ;;
+    configure-icecast)
+      ./scripts/configure_icecast.sh || exit 1
+      ;;
+    configure-alsa)
+      ./scripts/configure_alsa.sh || exit 1
+      ;;
+    exit)
+      echo "Exiting installer."
+      exit 0
+      ;;
+    *)
+      echo "Unknown action: $ACTION"
+      exit 1
+      ;;
+  esac
 else
   ACTION="$1"
   if [ -z "$ACTION" ]; then

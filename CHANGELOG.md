@@ -1,3 +1,5 @@
+# 0.2.2L7 (2026-04-21)
+- Fix: Installer now always continues to the main dispatcher after Icecast configuration, ensuring install/update logic runs after prompts.
 # 0.2.2L6 (2026-04-21)
 - Refactor: Fully modular installer. All install, update, uninstall, and configuration logic is now in sub-scripts for maintainability and portability.
 - Fix: All block structure and syntax errors resolved. No more 'unexpected end of file' or 'unexpected token fi' errors.
