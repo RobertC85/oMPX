@@ -1,0 +1,13 @@
+[Unit]
+Description=oMPX Liquidsoap Preview Pipeline
+After=network.target
+
+[Service]
+User=ompx
+Group=ompx
+ExecStart=/usr/bin/liquidsoap /opt/mpx-radio/ompx-preview.liq
+Restart=on-failure
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

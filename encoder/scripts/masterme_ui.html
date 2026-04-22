@@ -1,0 +1,64 @@
+<!-- Save this as masterme_ui.html in the same directory as masterme_flask_api.py -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MasterMe Control</title>
+  <style>
+    body { background: #1c3b35; color: #f4f7f5; font-family: sans-serif; margin: 0; padding: 0; }
+    .wrap { max-width: 600px; margin: 40px auto; background: #132825; border-radius: 12px; padding: 24px; box-shadow: 0 2px 12px #0008; }
+    h1 { margin-top: 0; }
+    textarea { width: 100%; min-height: 180px; border-radius: 8px; border: 1px solid #365f55; background: #0d1f1c; color: #f4f7f5; padding: 8px; }
+    button { margin-top: 12px; padding: 10px 18px; border-radius: 8px; border: none; background: #f2b642; color: #1b1406; font-weight: 600; cursor: pointer; }
+    .status { margin-top: 12px; color: #9fb8b0; font-size: 14px; }
+    .row { display: flex; gap: 12px; }
+    .row > * { flex: 1; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>MasterMe Control</h1>
+    <div class="row">
+      <button id="start">Start</button>
+      <button id="stop">Stop</button>
+      <span id="runstatus" class="status">Status: ...</span>
+    </div>
+    <h2>Config</h2>
+    <textarea id="config"></textarea>
+    <button id="save">Save Config</button>
+    <span id="savestatus" class="status"></span>
+    <h2>Live Audio (MPX Stream)</h2>
+    <audio id="audio" controls autoplay style="width:100%; margin-top:10px" src="http://localhost:8000/mpx"></audio>
+  </div>
+  <script>
+    async function updateStatus() {
+      const res = await fetch('/api/status');
+      const data = await res.json();
+      document.getElementById('runstatus').textContent = 'Status: ' + (data.running ? 'Running' : 'Stopped');
+    }
+    document.getElementById('start').onclick = async () => {
+      await fetch('/api/start', {method:'POST'});
+      updateStatus();
+    };
+    document.getElementById('stop').onclick = async () => {
+      await fetch('/api/stop', {method:'POST'});
+      updateStatus();
+    };
+    document.getElementById('save').onclick = async () => {
+      const config = document.getElementById('config').value;
+      await fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({config})});
+      document.getElementById('savestatus').textContent = 'Config saved.';
+      setTimeout(()=>{document.getElementById('savestatus').textContent='';}, 2000);
+    };
+    async function loadConfig() {
+      const res = await fetch('/api/config');
+      const data = await res.json();
+      document.getElementById('config').value = data.config || '';
+    }
+    loadConfig();
+    updateStatus();
+    setInterval(updateStatus, 3000);
+  </script>
+</body>
+</html>

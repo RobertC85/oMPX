@@ -32,67 +32,33 @@ EOF
 fi
 
 # --- Always prompt for Icecast settings on install/update unless AUTO_MODE is true ---
-if [ "$AUTO_MODE" != true ]; then
-  ACTION=""
-  if [ "$NO_MENU" = false ] && [ "$INTERACTIVE_MODE" = false ]; then
-    if command -v whiptail >/dev/null 2>&1; then
-      whiptail --title "oMPX Installer" --menu "Select an action:" 20 70 12 \
-        "install" "Install or update oMPX stack" \
-        "update" "Update oMPX (current repo files, no git pull)" \
-        "bleeding-edge" "Update oMPX (working dir, includes uncommitted changes)" \
-        "latest" "Update oMPX (git pull latest commit)" \
-        "uninstall" "Uninstall oMPX (see destructive flags)" \
-        "exit" "Exit installer" 2>menu_choice.txt
-      ACTION=$(cat menu_choice.txt)
-      rm -f menu_choice.txt
-    fi
-  else
-    ACTION="$1"
+ACTION=""
+if [ "$NO_MENU" = false ] && [ "$INTERACTIVE_MODE" = false ]; then
+  if command -v whiptail >/dev/null 2>&1; then
+    whiptail --title "oMPX Installer" --menu "Select an action:" 20 70 12 \
+      "install" "Install or update oMPX stack" \
+      "update" "Update oMPX (current repo files, no git pull)" \
+      "bleeding-edge" "Update oMPX (working dir, includes uncommitted changes)" \
+      "latest" "Update oMPX (git pull latest commit)" \
+      "uninstall" "Uninstall oMPX (see destructive flags)" \
+      "exit" "Exit installer" 2>menu_choice.txt
+    ACTION=$(cat menu_choice.txt)
+    rm -f menu_choice.txt
   fi
-  if [ -z "$ACTION" ]; then
-    ACTION="install"
-  fi
-  case "${ACTION,,}" in
-    install|update|reinstall)
-      ./scripts/configure_icecast.sh || exit 1
-      echo "[INFO] Icecast configuration complete. Continuing with installation..."
-      # Continue to the main dispatcher for the selected action
-      ;;
-  esac
-
-  # --- MAIN LOGIC DISPATCHER ---
-  case "${ACTION,,}" in
-    install|reinstall)
-      ./scripts/install.sh || exit 1
-      ;;
-    update|bleeding-edge|latest)
-      ./scripts/update.sh || exit 1
-      ;;
-    uninstall|nuke|nuke-packages|scorch)
-      ./scripts/uninstall.sh || exit 1
-      ;;
-    configure-icecast)
-      ./scripts/configure_icecast.sh || exit 1
-      ;;
-    configure-alsa)
-      ./scripts/configure_alsa.sh || exit 1
-      ;;
-    exit)
-      echo "Exiting installer."
-      exit 0
-      ;;
-    *)
-      echo "Unknown action: $ACTION"
-      exit 1
-      ;;
-  esac
 else
   ACTION="$1"
-  if [ -z "$ACTION" ]; then
-    ACTION="install"
-  fi
+fi
+if [ -z "$ACTION" ]; then
+  ACTION="install"
 fi
 
+# Prompt for Icecast config if needed
+if [ "$AUTO_MODE" != true ] && [[ "${ACTION,,}" =~ ^(install|update|reinstall)$ ]]; then
+  ./scripts/configure_icecast.sh || exit 1
+  echo "[INFO] Icecast configuration complete. Continuing with $ACTION..."
+fi
+
+# --- MAIN LOGIC DISPATCHER ---
 case "${ACTION,,}" in
   install|reinstall)
     ./scripts/install.sh || exit 1

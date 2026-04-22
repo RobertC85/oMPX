@@ -1,3 +1,6 @@
+# 0.2.2L8 (2026-04-22)
+- Feature: MasterMe web UI now includes a live audio player for the Icecast /mpx stream, enabling browser-based audio visualization and monitoring.
+
 # 0.2.2L7 (2026-04-21)
 - Fix: Installer now always continues to the main dispatcher after Icecast configuration, ensuring install/update logic runs after prompts.
 # 0.2.2L6 (2026-04-21)
