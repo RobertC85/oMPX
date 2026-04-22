@@ -242,11 +242,16 @@ class Handler(BaseHTTPRequestHandler):
         """
         Handle GET requests for the root (serves index.html) and audio preview endpoints.
         Proxies audio streams from Icecast and Liquidsoap for the web UI preview player.
+        Adds cache-busting to index.html and static assets.
         """
-        # Serve the main frontend (index.html) at root
-        if self.path == "/":
+        import re
+        # Serve the main frontend (index.html) at root or with cache-busting query
+        if self.path == "/" or re.match(r"^/\?v=", self.path):
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "text/html")
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
             self.end_headers()
             with open(os.path.join(os.path.dirname(__file__), "index.html"), "r") as f:
                 self.wfile.write(f.read().encode())
@@ -259,7 +264,9 @@ class Handler(BaseHTTPRequestHandler):
                 resp = requests.get(f"http://127.0.0.1:8000{mount}", stream=True, timeout=5)
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "audio/mpeg")
-                self.send_header("Cache-Control", "no-store")
+                self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+                self.send_header("Pragma", "no-cache")
+                self.send_header("Expires", "0")
                 self.end_headers()
                 for chunk in resp.iter_content(chunk_size=4096):
                     if not chunk:
@@ -276,7 +283,9 @@ class Handler(BaseHTTPRequestHandler):
                 resp = requests.get("http://127.0.0.1:8088/", stream=True, timeout=5)
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "audio/wav")
-                self.send_header("Cache-Control", "no-store")
+                self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+                self.send_header("Pragma", "no-cache")
+                self.send_header("Expires", "0")
                 self.end_headers()
                 for chunk in resp.iter_content(chunk_size=4096):
                     if not chunk:

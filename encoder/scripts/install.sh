@@ -293,7 +293,21 @@ case "$PROCESSOR" in
     fi
     ;;
   ompx|*)
-    whiptail --title "oMPX Processor" --msgbox "Using oMPX built-in processor (default)." 10 60
+    # Prompt for web interface port for oMPX
+    OMPX_WEB_PORT=$(whiptail --title "oMPX Web UI" --inputbox "Enter port for oMPX web interface (default: 8082):" 10 60 8082 3>&1 1>&2 2>&3)
+    if [ -z "$OMPX_WEB_PORT" ]; then
+      OMPX_WEB_PORT=8082
+    fi
+    whiptail --title "oMPX Processor" --msgbox "Using oMPX built-in processor (default).\nWeb interface will run on port $OMPX_WEB_PORT." 10 60
+    # Launch the oMPX profile editor backend (background)
+    if command -v python3 >/dev/null 2>&1; then
+      nohup env OMPX_WEB_PORT="$OMPX_WEB_PORT" python3 "$SCRIPT_DIR/ompx_profiles_api.py" &
+      sleep 2
+      rm -f nohup.out
+      whiptail --title "oMPX Web UI" --msgbox "oMPX Profile Editor started on port $OMPX_WEB_PORT.\nOpen http://localhost:$OMPX_WEB_PORT in your browser." 10 70
+    else
+      whiptail --title "oMPX Web UI" --msgbox "Python3 not found. Cannot start oMPX Profile Editor." 8 60
+    fi
     ;;
 esac
 

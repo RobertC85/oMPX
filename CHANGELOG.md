@@ -1,3 +1,8 @@
+# 0.2.2L9 (2026-04-22)
+- UI/UX: Added cache-busting version query to all audio preview and API URLs in the web UI for reliable updates.
+- Backend: Set strict no-cache headers for all main endpoints (HTML, audio preview) to prevent browser caching issues.
+- Fix: Confirmed full original HTML is present and served as intended; clarified that 'html content omitted' is a viewer/editor artifact, not a runtime problem.
+- Version bump: 0.2.2L9 in VERSION and UI footer/banner.
 # 0.2.2L8 (2026-04-22)
 - Feature: MasterMe web UI now includes a live audio player for the Icecast /mpx stream, enabling browser-based audio visualization and monitoring.
 

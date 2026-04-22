@@ -1,19 +1,53 @@
+
+#!/usr/bin/env bash
+# Install MasterMe audio processor (placeholder logic)
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Ensure build dependencies are present
+ensure_build_tools() {
+       if ! command -v make >/dev/null 2>&1; then
+	       whiptail --title "Dependency Install" --msgbox "'make' not found. Installing build-essential (make, gcc, etc)..." 10 60
+	       if command -v apt-get >/dev/null 2>&1; then
+		       sudo apt-get update && sudo apt-get install -y build-essential
+	       elif command -v apt >/dev/null 2>&1; then
+		       sudo apt update && sudo apt install -y build-essential
+	       else
+		       whiptail --title "Dependency Error" --msgbox "Could not find apt or apt-get. Please install 'make' and build tools manually." 10 60
+		       exit 1
+	       fi
+       fi
+}
+
+# ...existing logic...
+
+# Pre-flight: ensure build tools
+ensure_build_tools
 MASTERME_WEB_PORT="${MASTERME_WEB_PORT:-8082}"
 
 # ...existing logic...
 
 # Launch the web UI after install (background)
 if command -v python3 >/dev/null 2>&1; then
-	nohup env MASTERME_WEB_PORT="$MASTERME_WEB_PORT" python3 "$SCRIPT_DIR/masterme_web_ui.py" &
-	whiptail --title "MasterMe Web UI" --msgbox "MasterMe Web UI started on port $MASTERME_WEB_PORT.\nOpen http://localhost:$MASTERME_WEB_PORT in your browser." 10 70
+       nohup env MASTERME_WEB_PORT="$MASTERME_WEB_PORT" python3 "$SCRIPT_DIR/masterme_flask_api.py" &
+       sleep 2
+       # Check if the server is running
+       if ! lsof -iTCP:"$MASTERME_WEB_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+	       MSG="MasterMe Web UI failed to start on port $MASTERME_WEB_PORT.\n\nLast 20 lines of nohup.out:\n\n"
+	       if [ -f nohup.out ]; then
+		       MSG+="$(tail -n 20 nohup.out)"
+		       rm -f nohup.out
+	       fi
+	       whiptail --title "MasterMe Web UI" --msgbox "$MSG" 20 80
+       else
+	       whiptail --title "MasterMe Web UI" --msgbox "MasterMe Web UI (modern) started on port $MASTERME_WEB_PORT.\nOpen http://localhost:$MASTERME_WEB_PORT in your browser." 10 70
+	       rm -f nohup.out
+       fi
 else
-	whiptail --title "MasterMe Web UI" --msgbox "Python3 not found. Cannot start MasterMe Web UI." 8 60
+       whiptail --title "MasterMe Web UI" --msgbox "Python3 not found. Cannot start MasterMe Web UI." 8 60
 fi
-#!/usr/bin/env bash
-# Install MasterMe audio processor (placeholder logic)
-set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 

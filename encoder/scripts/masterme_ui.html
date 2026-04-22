@@ -27,6 +27,7 @@
     <h2>Config</h2>
     <textarea id="config"></textarea>
     <button id="save">Save Config</button>
+    <button id="apply">Apply & Restart</button>
     <span id="savestatus" class="status"></span>
     <h2>Live Audio (MPX Stream)</h2>
     <audio id="audio" controls autoplay style="width:100%; margin-top:10px" src="http://localhost:8000/mpx"></audio>
@@ -49,6 +50,15 @@
       const config = document.getElementById('config').value;
       await fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({config})});
       document.getElementById('savestatus').textContent = 'Config saved.';
+      setTimeout(()=>{document.getElementById('savestatus').textContent='';}, 2000);
+    };
+    document.getElementById('apply').onclick = async () => {
+      const config = document.getElementById('config').value;
+      await fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({config})});
+      await fetch('/api/stop', {method:'POST'});
+      await fetch('/api/start', {method:'POST'});
+      document.getElementById('savestatus').textContent = 'Config applied and MasterMe restarted.';
+      updateStatus();
       setTimeout(()=>{document.getElementById('savestatus').textContent='';}, 2000);
     };
     async function loadConfig() {
