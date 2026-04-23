@@ -62,7 +62,10 @@ def save_profile():
 
 @app.route('/api/profile/apply', methods=['POST'])
 def apply_profile():
-    # For now, just save and acknowledge; real-time apply logic can be added here
+    # Save profile and attempt to apply live to Liquidsoap
+    # SECURITY WARNING: Telnet is insecure; this only connects to localhost. Do NOT expose Liquidsoap telnet port externally.
+    import socket
+    import subprocess
     data = request.json
     name = data.get('name')
     text = data.get('text')
@@ -71,12 +74,37 @@ def apply_profile():
     path = profile_path(name)
     with open(path, 'w') as f:
         f.write(text)
-    # TODO: trigger live reload if supported
-    return jsonify({'ok': True})
+
+    # Try to update Liquidsoap live via telnet (localhost only)
+    liq_host = "127.0.0.1"
+    liq_port = 1234
+    telnet_success = False
+    telnet_error = None
+    # Example: send a reload or custom command if your Liquidsoap script supports it
+    # You may need to adjust the command below to match your Liquidsoap config
+    try:
+        with socket.create_connection((liq_host, liq_port), timeout=2) as s:
+            # This assumes your Liquidsoap script supports a 'reload' or similar command
+            s.sendall(b"reload\n")
+            resp = s.recv(1024)
+            telnet_success = True
+    except Exception as e:
+        telnet_error = str(e)
+
+    if telnet_success:
+        return jsonify({'ok': True, 'message': 'Profile applied and Liquidsoap reloaded via telnet.'})
+    else:
+        # Fallback: restart the service (may cause brief audio gap)
+        try:
+            subprocess.run(["systemctl", "restart", "ompx-liquidsoap.service"], check=True)
+            return jsonify({'ok': True, 'message': f'Profile applied. Telnet reload failed ({telnet_error}); service restarted.'})
+        except Exception as e:
+            return jsonify({'ok': False, 'message': f'Profile saved, but failed to reload Liquidsoap: {e}'})
 
 @app.route('/')
 def index():
-    html_path = os.path.join(os.path.dirname(__file__), 'ompx_profiles_ui.html')
+    # Serve the main index.html from the parent encoder directory
+    html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../index.html'))
     return send_file(html_path, mimetype='text/html')
 
 if __name__ == '__main__':

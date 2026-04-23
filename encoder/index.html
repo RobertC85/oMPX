@@ -1,37 +1,39 @@
-<!--
-  oMPX Web UI (index.html)
-  Main frontend for the oMPX encoder and processor stack.
-  Provides a modern, responsive UI for controlling and previewing audio processing.
-  Sections:
-    - Sidebar navigation for Program 1, Program 2, Global Settings, About
-    - Main container for controls and preview
-    - Audio preview player for patch monitoring
-    - Responsive design for desktop/mobile
-  Styling uses CSS variables for easy theme changes.
-  All UI logic is handled by the backend and/or JavaScript (not shown here).
--->
+<!-- Modern UI (index.html) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <!-- Prevent caching for live control UI -->
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>oMPX Web UI</title>
-  <!--
-    CSS: Theme variables and responsive layout
-    - :root defines color palette
-    - .container is the main card UI
-    - Sidebar for navigation
-    - Buttons and controls styled for clarity and accessibility
-  -->
+  <title>oMPX Web UI - Modern</title>
+  <script>
+    // Always cache-bust main.js with timestamp
+    var s = document.createElement('script');
+    s.src = 'main.js?v=' + Date.now();
+    s.defer = true;
+    document.head.appendChild(s);
+  </script>
   <style>
+        .btn-inactive {
+          background: #111 !important;
+          color: var(--accent) !important;
+          border: 1px solid var(--accent) !important;
+          pointer-events: none;
+        }
+        .btn-unavailable {
+          background: #111 !important;
+          color: #888 !important;
+          border: 1px solid #222 !important;
+          opacity: 0.7;
+          pointer-events: none;
+        }
     :root {
       --bg: #0f1b1a;
       --card: #132825;
       --accent: #f2b642;
+      --accent-dark: #d99424;
       --ink: #f4f7f5;
       --muted: #9fb8b0;
     }
@@ -51,57 +53,45 @@
       padding: 2em;
       border: 1px solid #2a4f47;
     }
-    .category-title {
-      font-size: 1.3em;
-      font-weight: 500;
-      margin-bottom: 1em;
-      color: var(--accent);
-    }
-    .feature-list {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-    .feature-list li {
-      margin-bottom: 0.7em;
-      color: var(--muted);
-    }
-    .top-tab {
-      background: linear-gradient(180deg, #f2b642, #d99424);
+    button {
+      background: linear-gradient(180deg, var(--accent), var(--accent-dark));
       color: #1b1406;
       font-weight: 600;
-      border: 1px solid #d99424;
-      border-radius: 999px;
-      padding: 8px 0;
+      border: 1px solid var(--accent-dark);
+      border-radius: 8px;
       cursor: pointer;
+      padding: 8px 16px;
+      margin-top: 4px;
       transition: background 0.2s, color 0.2s;
     }
-    .top-tab.active, .top-tab:focus {
-      background: linear-gradient(180deg, #f2b642, #f2b642 80%, #d99424);
-      color: #1b1406;
-      border-color: #f2b642;
+    button:active {
+      background: var(--accent-dark);
     }
-    #audio-preview, audio {
-      background: #0a1412;
-      border-radius: 8px;
-      border: 1px solid #2a4f47;
-      box-shadow: 0 1px 4px #0002;
-      padding: 1em;
-      color: var(--ink);
+    @media (max-width:900px) {
+      .container { padding: 1em; }
+      #top-tabs { flex-direction: column; gap: 0.5em; }
     }
-    label, select, input, button {
-      color: var(--ink);
-    }
-    select, input {
-      background: #0d1f1c;
-      border: 1px solid #365f55;
-      border-radius: 8px;
-      padding: 6px 8px;
-      margin-top: 4px;
-    }
-    button {
-      background: linear-gradient(180deg, #f2b642, #d99424);
-      color: #1b1406;
+  </style>
+</head>
+<body>
+  <div style="background:#ff0;color:#000;padding:8px 0;text-align:center;font-weight:bold;">oMPX Version <span class="ompx-version">...</span></div>
+  <div style="display:flex;min-height:90vh;">
+    <nav id="sidebar" style="width:220px;background:linear-gradient(180deg,#1a322e,#132825);border-right:1px solid #2a4f47;padding:2em 1em 2em 1.5em;display:flex;flex-direction:column;gap:1em;">
+      <div style="font-size:1.2em;font-weight:700;color:var(--accent);margin-bottom:1.5em;">oMPX Menu</div>
+      <button class="menu-btn" data-section="program1">Program 1</button>
+      <button class="menu-btn" data-section="program2">Program 2</button>
+      <button class="menu-btn" data-section="global">Global Settings</button>
+      <button class="menu-btn" data-section="about">About</button>
+    </nav>
+    <div class="container" style="flex:1;">
+      <!-- Modern UI sections (copied from index.html) -->
+      <div id="modern-ui">
+        <!-- ...copy all modern UI content from index.html... -->
+      </div>
+    </div>
+  </div>
+</body>
+</html>
       font-weight: 600;
       border: 1px solid #d99424;
       border-radius: 8px;
@@ -120,7 +110,7 @@
 </head>
 <body>
   <!-- Version banner for quick reference -->
-  <div style="background:#ff0;color:#000;padding:8px 0;text-align:center;font-weight:bold;">VERSION TEST – 2026-04-19 – v0.2.2h2</div>
+  <div style="background:#ff0;color:#000;padding:8px 0;text-align:center;font-weight:bold;">oMPX Version <span class="ompx-version">...</span></div>
   <div style="display:flex;min-height:90vh;">
     <!-- Sidebar navigation for main sections -->
     <nav id="sidebar" style="width:220px;background:linear-gradient(180deg,#1a322e,#132825);border-right:1px solid #2a4f47;padding:2em 1em 2em 1.5em;display:flex;flex-direction:column;gap:1em;">
@@ -129,508 +119,509 @@
       <button class="menu-btn" data-section="program2">Program 2</button>
       <button class="menu-btn" data-section="global">Global Settings</button>
       <button class="menu-btn" data-section="about">About</button>
+      <div style="margin-top:2em;">
+        <label for="theme-select" style="color:var(--muted);font-size:0.95em;">Theme:</label>
+        <select id="theme-select" style="width:100%;margin-top:4px;">
+          <option value="modern" selected>Modern</option>
+          <option value="legacy">Legacy</option>
+        </select>
+      </div>
     </nav>
     <!-- Main container for controls and preview -->
     <div class="container" style="flex:1;">
-      <!-- Section: Program 1 Controls -->
-      <div id="section-program1" class="section" style="display:none;">
-        <div class="category-title">Program 1 Controls</div>
-        <!-- Audio preview player for patch monitoring -->
-        <div id="audio-preview" style="margin-bottom:2em;text-align:center;">
-          <label for="program-select" style="font-weight:bold;">Patch Audio Preview:</label>
-          <select id="program-select" style="margin:0 0.5em;">
-            <option value="1">Program 1</option>
-            <option value="2">Program 2</option>
-          </select>
-          <audio id="patch-audio" controls style="vertical-align:middle;width:80%;max-width:400px;">+
-            <source id="audio-source" src="/api/preview.mp3?program=1" type="audio/mpeg">
-            Your browser does not support the audio element.
-          </audio>
-        </div>
-        <!-- Add more Program 1 controls here -->
-      </div>
-      <div id="section-program2" class="section" style="display:none;">
-        <div class="category-title">Program 2 Controls</div>
-        <!-- Add Program 2 controls here -->
-      </div>
-      <div id="section-global" class="section" style="display:none;">
-        <div class="category-title">Global Settings</div>
-        <div style="margin-bottom:1.5em;">
-          <label for="layout-select" style="font-weight:bold;">Layout:</label>
-          <select id="layout-select" style="margin-left:0.5em;">
-            <option value="sidebar">Sidebar Menu</option>
-            <option value="topbar">Top Bar Menu (Wax Dreams)</option>
-            <option value="original">Original</option>
-          </select>
-        </div>
-        <div id="theme-selectors">
-          <div id="theme-sidebar" class="theme-group">
-            <label for="theme-sidebar-select" style="font-weight:bold;">Theme:</label>
-            <select id="theme-sidebar-select" style="margin-left:0.5em;">
-              <option value="forest">Forest (default)</option>
-              <option value="system">System</option>
-              <option value="midnight">Midnight</option>
-              <option value="amber">Amber Scope</option>
-            </select>
-          </div>
-          <div id="theme-topbar" class="theme-group" style="display:none;">
-            <label for="theme-topbar-select" style="font-weight:bold;">Theme:</label>
-            <select id="theme-topbar-select" style="margin-left:0.5em;">
-              <option value="forest">Forest (default)</option>
-              <option value="system">System</option>
-              <option value="midnight">Midnight</option>
-              <option value="amber">Amber Scope</option>
-            </select>
-          </div>
-          <div id="theme-original" class="theme-group" style="display:none;">
-            <label for="theme-original-select" style="font-weight:bold;">Theme:</label>
-            <select id="theme-original-select" style="margin-left:0.5em;">
-              <option value="forest">Forest (default)</option>
-              <option value="daylight">Daylight</option>
-              <option value="system">System</option>
-              <option value="midnight">Midnight</option>
-              <option value="amber">Amber Scope</option>
-            </select>
-          </div>
-        </div>
-      </div>
-      <div id="section-about" class="section" style="display:none;">
-        <div class="category-title">About</div>
-        <p>oMPX Web UI &copy; 2026. Wax Dreams layout inspired navigation.<br>Version: v0.2.2h2</p>
-      </div>
-    </div>
-  </div>
-        <style>
-          .menu-btn {
-            background: none;
-            color: var(--ink);
-            border: none;
-            text-align: left;
-            font-size: 1em;
-            padding: 0.7em 0.5em;
-            border-radius: 8px;
-            margin-bottom: 0.2em;
-            transition: background 0.2s, color 0.2s;
-            cursor: pointer;
-          }
-          .menu-btn.active, .menu-btn:focus {
-            background: var(--accent);
-            color: #1b1406;
-            font-weight: 600;
-          }
-          .section { min-height: 60vh; }
-          @media (max-width:900px) {
-            #sidebar { display:none; }
-            .container { max-width:100vw; }
-          }
-        </style>
-      <footer style="margin:2em auto 0 auto;text-align:center;color:#888;font-size:1em;">
-        oMPX Web UI – Version 0.2.2h2
-      </footer>
-    <div id="main"></div>
-    <div id="global-settings" style="display:none;">
-      <h3>Global Settings</h3>
-      <details>
-        <summary style="cursor:pointer;font-size:1em;">Custom CSS (advanced)</summary>
-        <textarea id="custom-css" style="width:100%;height:80px;font-family:monospace;margin-top:0.5em;"></textarea>
-        <div><button id="apply-css-btn" style="margin-top:0.5em;">Apply CSS</button></div>
-        <div id="css-status" style="font-size:0.9em;color:#007700;margin-top:0.5em;"></div>
-      </details>
-    </div>
-  </div>
-  <script>
-            // Layout and theme switching logic
-            const layoutSelect = document.getElementById('layout-select');
-            const themeGroups = document.querySelectorAll('.theme-group');
-            const themeSidebar = document.getElementById('theme-sidebar');
-            const themeTopbar = document.getElementById('theme-topbar');
-            const themeOriginal = document.getElementById('theme-original');
-            const sidebarNav = document.getElementById('sidebar');
-            // For demonstration, topbar and original layouts are toggled by hiding/showing navs/containers
-            function setLayout(layout) {
-              sidebarNav.style.display = (layout === 'sidebar') ? '' : 'none';
-              // Topbar and original layouts would have their own navs/containers (not fully implemented here)
-              themeGroups.forEach(g => g.style.display = 'none');
-              if (layout === 'sidebar') themeSidebar.style.display = '';
-              if (layout === 'topbar') themeTopbar.style.display = '';
-              if (layout === 'original') themeOriginal.style.display = '';
-              // TODO: Show/hide topbar/original navs and containers as needed
-            }
-            layoutSelect.addEventListener('change', e => setLayout(e.target.value));
-            setLayout('sidebar'); // Default
-            // Daylight theme dropdown text color fix
-            const themeOriginalSelect = document.getElementById('theme-original-select');
-            themeOriginalSelect.addEventListener('change', function() {
-              if (this.value === 'daylight') {
-                this.style.color = '#fff';
-                this.style.background = '#e0e0e0';
-              } else {
-                this.style.color = '';
-                this.style.background = '';
-              }
-            });
-        // Patch audio preview logic
-        const programSelect = document.getElementById('program-select');
-        const patchAudio = document.getElementById('patch-audio');
-        const audioSource = document.getElementById('audio-source');
-        if (programSelect && patchAudio && audioSource) {
-          programSelect.addEventListener('change', function() {
-            const prog = programSelect.value;
-            audioSource.src = `/api/preview.mp3?program=${prog}`;
-            patchAudio.load();
-          });
-        }
-    const categories = [
-      { name: 'Dynamics', features: [
-        'Noise gate',
-        'AGC',
-        'Multiband Compressor',
-        'Wideband Compressor',
-        'Limiting & Clipping',
-        'Enhanced Dynamics',
-        'Chain Drive (dB)'
-      ] },
-      { name: 'Equalization', features: [
-        <script>
-          // Sidebar menu navigation logic
-          const menuBtns = document.querySelectorAll('.menu-btn');
-          const sections = document.querySelectorAll('.section');
-          function showSection(section) {
-            sections.forEach(s => s.style.display = 'none');
-            document.getElementById('section-' + section).style.display = '';
-            menuBtns.forEach(btn => btn.classList.remove('active'));
-            document.querySelector('.menu-btn[data-section="' + section + '"]').classList.add('active');
-          }
-          menuBtns.forEach(btn => {
-            btn.addEventListener('click', () => showSection(btn.dataset.section));
-          });
-          // Show Program 1 by default
-          showSection('program1');
-          // Audio preview program select logic
-          const programSelect = document.getElementById('program-select');
-          const audioSource = document.getElementById('audio-source');
-          programSelect.addEventListener('change', function() {
-            audioSource.src = '/api/preview.mp3?program=' + this.value;
-            document.getElementById('patch-audio').load();
-          });
-        </script>
-      } else {
-        main.style.display = '';
-        if (globalSettings) globalSettings.style.display = 'none';
-      }
-      // Advanced controls for each category (scaffold)
-      const advancedControls = {
-        'Dynamics': `
-          <label>Pre Gain <input type="number" step="0.01" id="pre_gain" value="0.25"></label><br>
-          <label>Post Gain <input type="number" step="0.01" id="post_gain" value="0.99"></label><br>
-          <label>Gate Threshold (dB) <input type="number" step="1" id="gate_threshold" value="-50"></label><br>
-          <label>Gate Attack (s) <input type="number" step="0.01" id="gate_attack" value="0.01"></label><br>
-          <label>Gate Release (s) <input type="number" step="0.01" id="gate_release" value="0.1"></label><br>
-          <label>AGC Attack (s) <input type="number" step="0.001" id="agc_attack" value="0.005"></label><br>
-          <label>AGC Release (s) <input type="number" step="0.01" id="agc_release" value="0.3"></label><br>
-          <label>AGC Threshold (dB) <input type="number" step="1" id="agc_threshold" value="-18"></label><br>
-          <label>AGC Ratio <input type="number" step="0.1" id="agc_ratio" value="2.0"></label><br>
-        `,
-        'Equalization': `
-          <label>Bass Gain <input type="number" step="0.01" id="eq_bass" value="1.2"></label><br>
-          <label>Mid Gain <input type="number" step="0.01" id="eq_mid" value="1.0"></label><br>
-          <label>Treble Gain <input type="number" step="0.01" id="eq_treble" value="1.1"></label><br>
-        `,
-        'Phase & Stereo': `
-          <label>Stereo Width <input type="number" step="0.01" id="stereo_width" value="1.0"></label><br>
-        `,
-        'Other': ``
-      };
-      // Only show controls for the selected program
-      const progNum = activeTab === 'program1' ? 1 : 2;
-      main.innerHTML = `
-        <div style="margin-bottom:1em;">
-          <label><input type="checkbox" id="advanced-toggle" ${advancedMode ? 'checked' : ''}> Advanced Mode</label>
-        </div>
-        <div style="margin-bottom:1.5em;display:flex;align-items:center;gap:1em;">
-          <button id="listen-btn-main" data-prog="${progNum}">Listen</button>
-          <audio id="audio-player-main-${progNum}" controls style="display:none;width:220px;"></audio>
-          <canvas id="meter-main-${progNum}" width="120" height="20" style="display:none;margin-left:8px;vertical-align:middle;"></canvas>
-          <canvas id="spectrum-main-${progNum}" width="120" height="40" style="display:none;margin-left:8px;vertical-align:middle;"></canvas>
-          <canvas id="waterfall-main-${progNum}" width="120" height="60" style="display:none;margin-left:8px;vertical-align:middle;"></canvas>
-        </div>
-        <div>
-          ${categories.map(cat => `
-            <div class="category-title" style="cursor:pointer;user-select:none;display:flex;align-items:center;" data-cat="${cat.name}">
-              <span style="font-size:1.2em;margin-right:0.5em;">${expanded[cat.name] ? '▼' : '►'}</span>
-              ${cat.name}
-            </div>
-            <div class="category-content" style="margin-left:1.5em;${expanded[cat.name] ? '' : 'display:none;'}">
-              <ul class="feature-list">
-                ${cat.features.map(f => `<li>${f}</li>`).join('')}
-              </ul>
-              <div id="advanced-controls-${cat.name.replace(/\W/g,'_')}-${progNum}" style="margin:1em 0;background:#f3f3f3;padding:1em;border-radius:6px;"${advancedMode ? '' : ' hidden'}>
-                <b>Advanced Controls</b><br>
-                ${advancedControls[cat.name] || ''}
+      <!-- Modern UI sections (default) -->
+      <div id="modern-ui">
+        <div id="section-program1" class="section" style="display:none;">
+          <div class="category-title">Program 1 Controls</div>
+          <div class="feature-list">
+            <li>
+              <label>Input Channel</label><br>
+              <select id="input_device_prg1">
+                <option value="radio1_url">Program 1 stream URL</option>
+                <option value="ompx_prg1in_cap">Program 1 input</option>
+                <option value="ompx_prg1mpx_cap">Program 1 MPX path</option>
+              </select>
+            </li>
+            <li>
+              <label>Sample Rate</label><br>
+              <input id="sample_rate_prg1" type="number" min="8000" max="192000" step="1000" />
+            </li>
+            <li>
+              <label>Waveform Window (seconds)</label><br>
+              <input id="wave_window_sec_prg1" type="range" min="0.25" max="10" step="0.25" />
+              <span id="wave_window_readout_prg1">3.00 s</span>
+            </li>
+            <li>
+              <button id="analysis_pause_prg1" type="button">Pause Scope</button>
+              <button id="analysis_step_prg1" type="button" class="btn-inactive">Step Frame</button> <!-- Remove .btn-inactive when implemented -->
+            </li>
+            <li>
+              <label>HF Tame (dB)</label><br>
+              <input id="hf_tame_db_prg1" type="number" step="0.1" />
+            </li>
+            <li>
+              <label>HF Tame Freq (Hz)</label><br>
+              <input id="hf_tame_freq_prg1" type="number" step="100" />
+            </li>
+            <li>
+              <label>Bypass All Processing</label><br>
+              <input id="processing_bypass_prg1" type="checkbox" />
+              <button id="processing_bypass_toggle_prg1" type="button">Toggle Processing Bypass</button>
+                          <!-- Example: make Apply and Patch buttons inactive by default -->
+            </li>
+            <li>
+              <label>Auto Level Match In Bypass</label><br>
+              <input id="bypass_level_match_enabled_prg1" type="checkbox" />
+              <label>Bypass Level Trim (dB)</label>
+              <input id="bypass_level_match_db_prg1" type="number" step="0.1" min="-24" max="24" />
+            </li>
+            <li>
+              <button id="apply_prg1">Apply and Refresh Preview</button>
+                          <button id="apply_prg1" class="btn-inactive">Apply and Refresh Preview</button> <!-- Remove .btn-inactive when implemented -->
+            </li>
+            <li>
+              <button id="patch_start_prg1">Start Hardware Patch</button>
+              <button id="patch_stop_prg1" class="btn-inactive">Stop Hardware Patch</button> <!-- Remove .btn-inactive when implemented -->
+            </li>
+            <li>
+              <label>Hardware Patch Output Device</label><br>
+              <input id="patch_output_device_prg1" type="text" />
+            </li>
+            <li>
+              <audio id="audio_prg1" controls autoplay style="width:100%; margin-top:10px"></audio>
+            </li>
+            <li>
+              <label>Waveform</label><br>
+              <canvas id="wave_prg1" width="900" height="180"></canvas>
+            </li>
+            <li>
+              <label>Band Spectrum</label><br>
+              <canvas id="spec_prg1" width="900" height="180"></canvas>
+            </li>
+            <li>
+              <label>Processor Band Meters</label>
+              <div class="meter-grid" id="band_meters_prg1">
+                <div class="meter-row"><span class="name">Sub (30-120)</span><div class="meter-track"><div id="meter_sub_prg1" class="meter-fill"></div></div><span id="meter_sub_db_prg1" class="db">-inf dB</span></div>
+                <div class="meter-row"><span class="name">Low (120-400)</span><div class="meter-track"><div id="meter_low_prg1" class="meter-fill"></div></div><span id="meter_low_db_prg1" class="db">-inf dB</span></div>
+                <div class="meter-row"><span class="name">Mid (400-2k)</span><div class="meter-track"><div id="meter_mid_prg1" class="meter-fill"></div></div><span id="meter_mid_db_prg1" class="db">-inf dB</span></div>
+                <div class="meter-row"><span class="name">Presence (2k-6k)</span><div class="meter-track"><div id="meter_pres_prg1" class="meter-fill"></div></div><span id="meter_pres_db_prg1" class="db">-inf dB</span></div>
+                <div class="meter-row"><span class="name">Air (6k-15k)</span><div class="meter-track"><div id="meter_air_prg1" class="meter-fill"></div></div><span id="meter_air_db_prg1" class="db">-inf dB</span></div>
               </div>
-              <div style="margin-top:2em;">
-                <button class="test-btn" data-cat="${cat.name}" data-prog="${progNum}" style="margin-right:1em;">Test</button>
-                <button class="undo-btn" data-cat="${cat.name}" data-prog="${progNum}" style="margin-right:1em;">Undo</button>
-                <button class="apply-btn" data-cat="${cat.name}" data-prog="${progNum}">Apply</button>
-                <span class="action-result" id="action-result-${cat.name.replace(/\W/g,'_')}-${progNum}" style="margin-left:1em;color:#007700;"></span>
+            </li>
+            <li>
+              <label>MPX FFT Snapshot (server-side)</label><br>
+              <img id="fft_img_prg1" alt="MPX FFT" style="display:block; width:100%; height:180px; object-fit:fill;" />
+            </li>
+          </div>
+        </div>
+        <div id="section-program2" class="section" style="display:none;">
+          <div class="category-title">Program 2 Controls</div>
+          <div class="feature-list">
+            <li>
+              <label>Input Channel</label><br>
+              <select id="input_device_prg2">
+                <option value="radio2_url">Program 2 stream URL</option>
+                <option value="ompx_prg2in_cap">Program 2 input</option>
+                <option value="ompx_prg2mpx_cap">Program 2 MPX path</option>
+              </select>
+            </li>
+            <li>
+              <label>Sample Rate</label><br>
+              <input id="sample_rate_prg2" type="number" min="8000" max="192000" step="1000" />
+            </li>
+            <li>
+              <label>Waveform Window (seconds)</label><br>
+              <input id="wave_window_sec_prg2" type="range" min="0.25" max="10" step="0.25" />
+              <span id="wave_window_readout_prg2">3.00 s</span>
+            </li>
+            <li>
+              <button id="analysis_pause_prg2" type="button">Pause Scope</button>
+              <button id="analysis_step_prg2" type="button" class="btn-inactive">Step Frame</button> <!-- Remove .btn-inactive when implemented -->
+            </li>
+            <li>
+              <label>HF Tame (dB)</label><br>
+              <input id="hf_tame_db_prg2" type="number" step="0.1" />
+            </li>
+            <li>
+              <label>HF Tame Freq (Hz)</label><br>
+              <input id="hf_tame_freq_prg2" type="number" step="100" />
+            </li>
+            <li>
+              <label>Bypass All Processing</label><br>
+              <input id="processing_bypass_prg2" type="checkbox" />
+              <button id="processing_bypass_toggle_prg2" type="button">Toggle Processing Bypass</button>
+            </li>
+            <li>
+              <label>Auto Level Match In Bypass</label><br>
+              <input id="bypass_level_match_enabled_prg2" type="checkbox" />
+              <label>Bypass Level Trim (dB)</label>
+              <input id="bypass_level_match_db_prg2" type="number" step="0.1" min="-24" max="24" />
+            </li>
+            <li>
+              <button id="apply_prg2">Apply and Refresh Preview</button>
+                          <button id="apply_prg2" class="btn-inactive">Apply and Refresh Preview</button> <!-- Remove .btn-inactive when implemented -->
+            </li>
+            <li>
+              <button id="patch_start_prg2">Start Hardware Patch</button>
+              <button id="patch_stop_prg2" type="button" class="btn-inactive">Stop Hardware Patch</button> <!-- Remove .btn-inactive when implemented -->
+            </li>
+            <li>
+              <label>Hardware Patch Output Device</label><br>
+              <input id="patch_output_device_prg2" type="text" />
+            </li>
+            <li>
+              <audio id="audio_prg2" controls autoplay style="width:100%; margin-top:10px"></audio>
+            </li>
+            <li>
+              <label>Waveform</label><br>
+              <canvas id="wave_prg2" width="900" height="180"></canvas>
+            </li>
+            <li>
+              <label>Band Spectrum</label><br>
+              <canvas id="spec_prg2" width="900" height="180"></canvas>
+            </li>
+            <li>
+              <label>Processor Band Meters</label>
+              <div class="meter-grid" id="band_meters_prg2">
+                <div class="meter-row"><span class="name">Sub (30-120)</span><div class="meter-track"><div id="meter_sub_prg2" class="meter-fill"></div></div><span id="meter_sub_db_prg2" class="db">-inf dB</span></div>
+                <div class="meter-row"><span class="name">Low (120-400)</span><div class="meter-track"><div id="meter_low_prg2" class="meter-fill"></div></div><span id="meter_low_db_prg2" class="db">-inf dB</span></div>
+                <div class="meter-row"><span class="name">Mid (400-2k)</span><div class="meter-track"><div id="meter_mid_prg2" class="meter-fill"></div></div><span id="meter_mid_db_prg2" class="db">-inf dB</span></div>
+                <div class="meter-row"><span class="name">Presence (2k-6k)</span><div class="meter-track"><div id="meter_pres_prg2" class="meter-fill"></div></div><span id="meter_pres_db_prg2" class="db">-inf dB</span></div>
+                <div class="meter-row"><span class="name">Air (6k-15k)</span><div class="meter-track"><div id="meter_air_prg2" class="meter-fill"></div></div><span id="meter_air_db_prg2" class="db">-inf dB</span></div>
+              </div>
+            </li>
+            <li>
+              <label>MPX FFT Snapshot (server-side)</label><br>
+              <img id="fft_img_prg2" alt="MPX FFT" style="display:block; width:100%; height:180px; object-fit:fill;" />
+            </li>
+          </div>
+        </div>
+        <div id="section-global" class="section" style="display:none;">
+          <div class="category-title">Global Settings</div>
+          <div class="feature-list">
+            <li>
+              <label>Color Theme</label><br>
+              <select id="ui_theme">
+                <option value="forest">Forest (default)</option>
+                <option value="daylight">Daylight</option>
+                <option value="midnight">Midnight</option>
+                <option value="amber">Amber Scope</option>
+                <option value="system">System</option>
+              </select>
+              <button id="theme_apply">Apply Theme</button>
+            </li>
+            <li>
+              <label>Custom CSS (optional)</label><br>
+              <textarea id="ui_custom_css" rows="4" style="width:100%; margin-top:4px; padding:8px; border-radius:8px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink);"></textarea>
+              <button id="css_apply" style="margin-top:8px;">Apply Custom CSS</button>
+            </li>
+            <li>
+              <label>FFT Input Device (MPX)</label><br>
+              <select id="fft_input_device">
+                <option value="radio1_url">Program 1 stream URL</option>
+                <option value="radio2_url">Program 2 stream URL</option>
+                <option value="ompx_prg1mpx_cap">Program 1 MPX capture</option>
+                <option value="ompx_prg2mpx_cap">Program 2 MPX capture</option>
+                <option value="ompx_prg1in_cap">Program 1 audio input</option>
+                <option value="ompx_prg2in_cap">Program 2 audio input</option>
+              </select>
+            </li>
+            <li>
+              <label>FFT Max Hz</label><br>
+              <input id="fft_max_hz" type="number" min="1000" max="96000" step="1000" />
+            </li>
+            <li>
+              <label>FFT Sample Rate</label><br>
+              <input id="fft_sample_rate" type="number" min="32000" max="384000" step="1000" />
+              <button id="fft_refresh">Refresh FFT Now</button>
+            </li>
+            <li>
+              <label>RDS Live Overrides</label><br>
+              <div>
+                <label>P1 PS</label><input id="rds_prog1_ps" type="text" maxlength="8" />
+                <label>P2 PS</label><input id="rds_prog2_ps" type="text" maxlength="8" />
+              </div>
+              <div>
+                <label>P1 PI (hex)</label><input id="rds_prog1_pi" type="text" maxlength="4" />
+                <label>P2 PI (hex)</label><input id="rds_prog2_pi" type="text" maxlength="4" />
+              </div>
+              <div>
+                <label>P1 PTY (0-31)</label><input id="rds_prog1_pty" type="number" min="0" max="31" step="1" />
+                <label>P2 PTY (0-31)</label><input id="rds_prog2_pty" type="number" min="0" max="31" step="1" />
+              </div>
+              <div>
+                <label>P1 RT Text</label><input id="rds_prog1_rt" type="text" />
+                <label>P2 RT Text</label><input id="rds_prog2_rt" type="text" />
+              </div>
+              <div>
+                <label>P1 CT Mode</label>
+                <select id="rds_prog1_ct_mode"><option value="local">Local</option><option value="utc">UTC</option></select>
+                <label>P2 CT Mode</label>
+                <select id="rds_prog2_ct_mode"><option value="local">Local</option><option value="utc">UTC</option></select>
+              </div>
+              <div>
+                <label>P1 Flags</label>
+                <label><input id="rds_prog1_tp" type="checkbox" /> TP</label>
+                <label><input id="rds_prog1_ta" type="checkbox" /> TA</label>
+                <label><input id="rds_prog1_ms" type="checkbox" /> MS</label>
+                <label><input id="rds_prog1_ct_enable" type="checkbox" /> CT</label>
+                <label>P2 Flags</label>
+                <label><input id="rds_prog2_tp" type="checkbox" /> TP</label>
+                <label><input id="rds_prog2_ta" type="checkbox" /> TA</label>
+                <label><input id="rds_prog2_ms" type="checkbox" /> MS</label>
+                <label><input id="rds_prog2_ct_enable" type="checkbox" /> CT</label>
+              </div>
+              <button id="rds_apply" style="margin-top:8px;">Apply RDS Overrides</button>
+              <div style="margin-top:8px">
+                <span>P1 CT: <span id="rds_prog1_ct_current">-</span> | Updated: <span id="rds_prog1_updated_at">-</span></span>
+                <span>P2 CT: <span id="rds_prog2_ct_current">-</span> | Updated: <span id="rds_prog2_updated_at">-</span></span>
+              </div>
+            </li>
+          </div>
+        </div>
+        <div id="section-about" class="section" style="display:none;">
+          <div class="category-title">About</div>
+          <div style="color:var(--muted);padding:2em 0;">oMPX Web UI<br>Version <span class="ompx-version">...</span></div>
+        </div>
+      </div>
+      <!-- Legacy UI section (hidden by default) -->
+      <div id="legacy-ui" style="display:none;">
+        <!-- Begin legacy UI copy from original-ui.html -->
+        <div class="wrap">
+          <h1>oMPX Live Control + Patch Preview</h1>
+          <div class="grid">
+            <div class="card">
+              <div class="tabs">
+                <button type="button" id="tab_prog1" class="tab-btn active">Program 1</button>
+                <button type="button" id="tab_prog2" class="tab-btn">Program 2</button>
+                <button type="button" id="tab_global" class="tab-btn">Global Settings</button>
+              </div>
+              <div class="row">
+                <div><label>Program 1 Tab Name</label><input id="tab_name_prog1" class="tab-name" type="text" maxlength="24" /></div>
+                <div><label>Program 2 Tab Name</label><input id="tab_name_prog2" class="tab-name" type="text" maxlength="24" /></div>
+              </div>
+              <div class="global-field">
+                <label style="margin-top:8px">Global Settings</label>
+                <label><input id="enable_momentary_ab" type="checkbox" /> Enable Momentary A/B Hold (optional)</label>
+                <div class="status">When enabled, hold the A/B button to temporarily bypass processing, then release to return.</div>
+              </div>
+              <div class="row">
+                <div>
+                  <label>Input Channel</label>
+                  <select id="input_device">
+                    <option value="radio1_url">Program 1 stream URL</option>
+                    <option value="radio2_url">Program 2 stream URL</option>
+                    <option value="ompx_prg1in_cap">Program 1 input</option>
+                    <option value="ompx_prg2in_cap">Program 2 input</option>
+                    <option value="ompx_prg1mpx_cap">Program 1 MPX path</option>
+                    <option value="ompx_prg2mpx_cap">Program 2 MPX path</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Sample Rate</label>
+                  <input id="sample_rate" type="number" min="8000" max="192000" step="1000" />
+                </div>
+              </div>
+              <div class="row">
+                <div>
+                  <label>Waveform Window (seconds)</label>
+                  <input id="wave_window_sec" type="range" min="0.25" max="10" step="0.25" />
+                  <div class="status" id="wave_window_readout">3.00 s</div>
+                </div>
+                <div>
+                  <label>Scope Capture</label>
+                  <div class="row">
+                    <div><button id="analysis_pause" type="button">Pause Scope</button></div>
+                    <div><button id="analysis_step" type="button">Step Frame</button></div>
+                  </div>
+                </div>
+              </div>
+              <div class="row">
+                <div>
+                  <label>Preview Decode Mode</label>
+                  <select id="preview_mode">
+                    <option value="auto">Auto (decode MPX inputs)</option>
+                    <option value="audio">Audio chain only</option>
+                    <option value="mpx-decode">Force MPX stereo decode</option>
+                  </select>
+                </div>
+                <div></div>
+              </div>
+              <div class="row">
+                <div><label>Pre Gain (dB)</label><input id="pre_gain_db" type="number" step="0.1" /></div>
+                <div><label>Post Gain (dB)</label><input id="post_gain_db" type="number" step="0.1" /></div>
+              </div>
+              <div class="row">
+                <div><label>Processor Input Gain (dB)</label><input id="processor_input_gain_db" type="number" step="0.1" min="-24" max="24" /></div>
+                <div>
+                  <label>Peak Hold Overlay</label>
+                  <div class="row">
+                    <div><label><input id="peak_hold_enabled" type="checkbox" /> Enable</label></div>
+                    <div><input id="peak_hold_decay" type="number" step="0.01" min="0.50" max="0.999" /></div>
+                  </div>
+                </div>
+              </div>
+              <label style="margin-top:12px">5-Band Processor (Drive / Ratio / Attack / Release / Mix)</label>
+              <div class="row" style="margin-bottom:4px">
+                <div>Band Bypass</div>
+                <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;">
+                  <label><input id="band1_enabled" type="checkbox" checked /> B1</label>
+                  <label><input id="band2_enabled" type="checkbox" checked /> B2</label>
+                  <label><input id="band3_enabled" type="checkbox" checked /> B3</label>
+                  <label><input id="band4_enabled" type="checkbox" checked /> B4</label>
+                  <label><input id="band5_enabled" type="checkbox" checked /> B5</label>
+                </div>
+              </div>
+              <div class="row"><div>Sub 30-120</div><div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;"><input id="band1_drive_db" type="number" step="0.1" placeholder="Drive dB" /><input id="band1_ratio" type="number" step="0.1" placeholder="Ratio" /><input id="band1_attack_ms" type="number" step="0.1" placeholder="Attack ms" /><input id="band1_release_ms" type="number" step="1" placeholder="Release ms" /><input id="band1_mix" type="number" step="0.01" placeholder="Mix" /></div></div>
+              <div class="row"><div>Low 120-400</div><div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;"><input id="band2_drive_db" type="number" step="0.1" placeholder="Drive dB" /><input id="band2_ratio" type="number" step="0.1" placeholder="Ratio" /><input id="band2_attack_ms" type="number" step="0.1" placeholder="Attack ms" /><input id="band2_release_ms" type="number" step="1" placeholder="Release ms" /><input id="band2_mix" type="number" step="0.01" placeholder="Mix" /></div></div>
+              <div class="row"><div>Mid 400-2k</div><div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;"><input id="band3_drive_db" type="number" step="0.1" placeholder="Drive dB" /><input id="band3_ratio" type="number" step="0.1" placeholder="Ratio" /><input id="band3_attack_ms" type="number" step="0.1" placeholder="Attack ms" /><input id="band3_release_ms" type="number" step="1" placeholder="Release ms" /><input id="band3_mix" type="number" step="0.01" placeholder="Mix" /></div></div>
+              <div class="row"><div>Presence 2k-6k</div><div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;"><input id="band4_drive_db" type="number" step="0.1" placeholder="Drive dB" /><input id="band4_ratio" type="number" step="0.1" placeholder="Ratio" /><input id="band4_attack_ms" type="number" step="0.1" placeholder="Attack ms" /><input id="band4_release_ms" type="number" step="1" placeholder="Release ms" /><input id="band4_mix" type="number" step="0.01" placeholder="Mix" /></div></div>
+              <div class="row"><div>Air 6k-15k</div><div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;"><input id="band5_drive_db" type="number" step="0.1" placeholder="Drive dB" /><input id="band5_ratio" type="number" step="0.1" placeholder="Ratio" /><input id="band5_attack_ms" type="number" step="0.1" placeholder="Attack ms" /><input id="band5_release_ms" type="number" step="1" placeholder="Release ms" /><input id="band5_mix" type="number" step="0.01" placeholder="Mix" /></div></div>
+              <div class="row">
+                <div><label>Stereo Width</label><input id="stereo_width" type="number" step="0.01" min="0" max="2" /></div>
+                <div><label>Limiter Ceiling (0..1)</label><input id="output_limit" type="number" step="0.01" min="0.1" max="1" /></div>
+              </div>
+              <div class="row">
+                <div><label>HF Tame (dB)</label><input id="hf_tame_db" type="number" step="0.1" /></div>
+                <div><label>HF Tame Freq (Hz)</label><input id="hf_tame_freq" type="number" step="100" /></div>
+              </div>
+              <div class="row global-field">
+                <div>
+                  <label>Color Theme</label>
+                  <select id="ui_theme">
+                    <option value="forest">Forest (default)</option>
+                    <option value="daylight">Daylight</option>
+                    <option value="midnight">Midnight</option>
+                    <option value="amber">Amber Scope</option>
+                    <option value="system">System</option>
+                  </select>
+                </div>
+                <div>
+                  <label>&nbsp;</label>
+                  <button id="theme_apply">Apply Theme</button>
+                </div>
+              </div>
+              <label class="global-field">Custom CSS (optional)</label>
+              <textarea class="global-field" id="ui_custom_css" rows="4" style="width:100%; margin-top:4px; padding:8px; border-radius:8px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink);"></textarea>
+              <button class="global-field" id="css_apply" style="margin-top:8px;">Apply Custom CSS</button>
+              <div class="row" style="margin-top:8px">
+                <div><label><input id="processing_bypass" type="checkbox" /> Bypass All Processing</label></div>
+                <div><button id="processing_bypass_toggle" type="button">Toggle Processing Bypass</button></div>
+              </div>
+              <div id="momentary_wrap" style="display:none; margin-top:8px"><button id="processing_bypass_hold" type="button">Hold For Bypass A/B</button></div>
+              <div class="row">
+                <div><label><input id="bypass_level_match_enabled" type="checkbox" /> Auto Level Match In Bypass (optional)</label></div>
+                <div><label>Bypass Level Trim (dB)</label><input id="bypass_level_match_db" type="number" step="0.1" min="-24" max="24" /></div>
+              </div>
+              <button id="apply">Apply and Refresh Preview</button>
+              <div class="row" style="margin-top:8px">
+                <div><button id="patch_start">Start Hardware Patch</button></div>
+                <div><button id="patch_stop">Stop Hardware Patch</button></div>
+              </div>
+              <label>Hardware Patch Output Device</label>
+              <input id="patch_output_device" type="text" />
+              <div class="row">
+                <div>
+                  <label>FFT Input Device (MPX)</label>
+                  <select id="fft_input_device">
+                    <option value="radio1_url">Program 1 stream URL</option>
+                    <option value="radio2_url">Program 2 stream URL</option>
+                    <option value="ompx_prg1mpx_cap">Program 1 MPX capture</option>
+                    <option value="ompx_prg2mpx_cap">Program 2 MPX capture</option>
+                    <option value="ompx_prg1in_cap">Program 1 audio input</option>
+                    <option value="ompx_prg2in_cap">Program 2 audio input</option>
+                  </select>
+                </div>
+                <div>
+                  <label>FFT Max Hz</label>
+                  <input id="fft_max_hz" type="number" min="1000" max="96000" step="1000" />
+                </div>
+              </div>
+              <div class="row">
+                <div><label>FFT Sample Rate</label><input id="fft_sample_rate" type="number" min="32000" max="384000" step="1000" /></div>
+                <div><label>&nbsp;</label><button id="fft_refresh">Refresh FFT Now</button></div>
+              </div>
+              <label style="margin-top:12px">RDS Live Overrides</label>
+              <div class="row">
+                <div class="program-field program-1"><label>P1 PS</label><input id="rds_prog1_ps" type="text" maxlength="8" /></div>
+                <div class="program-field program-2"><label>P2 PS</label><input id="rds_prog2_ps" type="text" maxlength="8" /></div>
+              </div>
+              <div class="row">
+                <div class="program-field program-1"><label>P1 PI (hex)</label><input id="rds_prog1_pi" type="text" maxlength="4" /></div>
+                <div class="program-field program-2"><label>P2 PI (hex)</label><input id="rds_prog2_pi" type="text" maxlength="4" /></div>
+              </div>
+              <div class="row">
+                <div class="program-field program-1"><label>P1 PTY (0-31)</label><input id="rds_prog1_pty" type="number" min="0" max="31" step="1" /></div>
+                <div class="program-field program-2"><label>P2 PTY (0-31)</label><input id="rds_prog2_pty" type="number" min="0" max="31" step="1" /></div>
+              </div>
+              <div class="row">
+                <div class="program-field program-1"><label>P1 RT Text</label><input id="rds_prog1_rt" type="text" /></div>
+                <div class="program-field program-2"><label>P2 RT Text</label><input id="rds_prog2_rt" type="text" /></div>
+              </div>
+              <div class="row">
+                <div class="program-field program-1">
+                  <label>P1 CT Mode</label>
+                  <select id="rds_prog1_ct_mode"><option value="local">Local</option><option value="utc">UTC</option></select>
+                </div>
+                <div class="program-field program-2">
+                  <label>P2 CT Mode</label>
+                  <select id="rds_prog2_ct_mode"><option value="local">Local</option><option value="utc">UTC</option></select>
+                </div>
+              </div>
+              <div class="row">
+                <div class="program-field program-1">
+                  <label>P1 Flags</label>
+                  <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px;">
+                    <label><input id="rds_prog1_tp" type="checkbox" /> TP</label>
+                    <label><input id="rds_prog1_ta" type="checkbox" /> TA</label>
+                    <label><input id="rds_prog1_ms" type="checkbox" /> MS</label>
+                    <label><input id="rds_prog1_ct_enable" type="checkbox" /> CT</label>
+                  </div>
+                </div>
+                <div class="program-field program-2">
+                  <label>P2 Flags</label>
+                  <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px;">
+                    <label><input id="rds_prog2_tp" type="checkbox" /> TP</label>
+                    <label><input id="rds_prog2_ta" type="checkbox" /> TA</label>
+                    <label><input id="rds_prog2_ms" type="checkbox" /> MS</label>
+                    <label><input id="rds_prog2_ct_enable" type="checkbox" /> CT</label>
+                  </div>
+                </div>
+              </div>
+              <button id="rds_apply" style="margin-top:8px;">Apply RDS Overrides</button>
+              <div class="row" style="margin-top:8px">
+                <div class="status program-field program-1">P1 CT: <span id="rds_prog1_ct_current">-</span> | Updated: <span id="rds_prog1_updated_at">-</span></div>
+                <div class="status program-field program-2">P2 CT: <span id="rds_prog2_ct_current">-</span> | Updated: <span id="rds_prog2_updated_at">-</span></div>
+              </div>
+              <audio id="audio" controls autoplay style="width:100%; margin-top:10px"></audio>
+              <div class="status" id="status">Ready.</div>
+            </div>
+            <div class="card">
+              <label>Waveform</label>
+              <canvas id="wave" width="900" height="280"></canvas>
+              <label style="margin-top:12px">Band Spectrum</label>
+              <canvas id="spec" width="900" height="280"></canvas>
+              <label style="margin-top:12px">Processor Band Meters</label>
+              <div class="meter-grid" id="band_meters">
+                <div class="meter-row"><span class="name">Sub (30-120)</span><div class="meter-track"><div id="meter_sub" class="meter-fill"></div></div><span id="meter_sub_db" class="db">-inf dB</span></div>
+                <div class="meter-row"><span class="name">Low (120-400)</span><div class="meter-track"><div id="meter_low" class="meter-fill"></div></div><span id="meter_low_db" class="db">-inf dB</span></div>
+                <div class="meter-row"><span class="name">Mid (400-2k)</span><div class="meter-track"><div id="meter_mid" class="meter-fill"></div></div><span id="meter_mid_db" class="db">-inf dB</span></div>
+                <div class="meter-row"><span class="name">Presence (2k-6k)</span><div class="meter-track"><div id="meter_pres" class="meter-fill"></div></div><span id="meter_pres_db" class="db">-inf dB</span></div>
+                <div class="meter-row"><span class="name">Air (6k-15k)</span><div class="meter-track"><div id="meter_air" class="meter-fill"></div></div><span id="meter_air_db" class="db">-inf dB</span></div>
+              </div>
+              <label style="margin-top:12px">MPX FFT Snapshot (server-side)</label>
+              <div style="position:relative; border:1px solid #2a4f47; border-radius:8px; overflow:hidden; background:#0a1412;">
+                <img id="fft_img" alt="MPX FFT" style="display:block; width:100%; height:300px; object-fit:fill;" />
+                <div id="pilot_marker" style="position:absolute; top:0; bottom:0; width:2px; background:#f2b642; opacity:0.9;"></div>
+                <div id="sub_marker" style="position:absolute; top:0; bottom:0; width:2px; background:#52d3c7; opacity:0.9;"></div>
+                <div style="position:absolute; top:6px; left:8px; font-size:11px; color:#f2b642; background:#0008; padding:2px 6px; border-radius:4px;">19 kHz pilot</div>
+                <div style="position:absolute; top:6px; left:120px; font-size:11px; color:#52d3c7; background:#0008; padding:2px 6px; border-radius:4px;">38 kHz L-R DSB</div>
               </div>
             </div>
-          `).join('')}
+          </div>
         </div>
-      `;
-      document.getElementById('advanced-toggle').onchange = (e) => {
-        advancedMode = e.target.checked;
-        renderMain();
-      };
-      document.querySelectorAll('.category-title').forEach(el => {
-        el.onclick = () => {
-          const cat = el.getAttribute('data-cat');
-          expanded[cat] = !expanded[cat];
-          renderMain();
-        };
-      });
-      // Main Listen button logic
-      const listenBtn = document.getElementById('listen-btn-main');
-      const audio = document.getElementById('audio-player-main-' + progNum);
-      const meter = document.getElementById('meter-main-' + progNum);
-      const spectrum = document.getElementById('spectrum-main-' + progNum);
-      const waterfall = document.getElementById('waterfall-main-' + progNum);
-      listenBtn.onclick = () => {
-        audio.src = `/api/preview.mp3?program=${progNum}&v=0.2.2h2&_=${Date.now()}`;
-        audio.style.display = 'inline-block';
-        meter.style.display = 'inline-block';
-        spectrum.style.display = 'inline-block';
-        waterfall.style.display = 'inline-block';
-        audio.load();
-        audio.play();
-        if (!audio._meterSetup) {
-          setupAudioVisualizers(audio, meter, spectrum, waterfall);
-          audio._meterSetup = true;
-        }
-      };
-          // Level meter, spectrum analyzer, and waterfall using Web Audio API
-          function setupAudioVisualizers(audio, meterCanvas, spectrumCanvas, waterfallCanvas) {
-            try {
-              const AudioContext = window.AudioContext || window.webkitAudioContext;
-              const ctx = new AudioContext();
-              const src = ctx.createMediaElementSource(audio);
-              const analyser = ctx.createAnalyser();
-              analyser.fftSize = 256;
-              src.connect(analyser);
-              analyser.connect(ctx.destination);
-              // Level meter
-              const meterCtx = meterCanvas.getContext('2d');
-              // Spectrum analyzer
-              const spectrumCtx = spectrumCanvas.getContext('2d');
-              // Waterfall
-              const waterfallCtx = waterfallCanvas.getContext('2d');
-              const spectrumData = new Uint8Array(analyser.frequencyBinCount);
-              const timeData = new Uint8Array(analyser.frequencyBinCount);
-              function draw() {
-                // Level meter
-                analyser.getByteTimeDomainData(timeData);
-                let peak = 0;
-                for (let i = 0; i < timeData.length; i++) {
-                  const v = Math.abs(timeData[i] - 128) / 128;
-                  if (v > peak) peak = v;
-                }
-                meterCtx.clearRect(0, 0, meterCanvas.width, meterCanvas.height);
-                meterCtx.fillStyle = peak > 0.8 ? '#e22' : '#2c2';
-                meterCtx.fillRect(0, 0, Math.max(1, peak * meterCanvas.width), meterCanvas.height);
-                meterCtx.strokeStyle = '#444';
-                meterCtx.strokeRect(0, 0, meterCanvas.width, meterCanvas.height);
-
-                // Spectrum analyzer (FFT bar graph)
-                analyser.getByteFrequencyData(spectrumData);
-                spectrumCtx.clearRect(0, 0, spectrumCanvas.width, spectrumCanvas.height);
-                const barWidth = spectrumCanvas.width / spectrumData.length;
-                for (let i = 0; i < spectrumData.length; i++) {
-                  const v = spectrumData[i] / 255;
-                  spectrumCtx.fillStyle = `hsl(${120 - v * 120}, 80%, 50%)`;
-                  spectrumCtx.fillRect(i * barWidth, spectrumCanvas.height * (1 - v), barWidth, spectrumCanvas.height * v);
-                }
-                spectrumCtx.strokeStyle = '#444';
-                spectrumCtx.strokeRect(0, 0, spectrumCanvas.width, spectrumCanvas.height);
-
-                // Waterfall (scrolling spectrogram)
-                // Shift image up by 1px
-                const wfImg = waterfallCtx.getImageData(0, 0, waterfallCanvas.width, waterfallCanvas.height);
-                waterfallCtx.putImageData(wfImg, 0, -1);
-                // Draw new spectrum row at bottom
-                for (let i = 0; i < spectrumData.length; i++) {
-                  const v = spectrumData[i] / 255;
-                  const color = `hsl(${240 - v * 240}, 100%, ${v * 60 + 20}%)`;
-                  waterfallCtx.fillStyle = color;
-                  waterfallCtx.fillRect(i * (waterfallCanvas.width / spectrumData.length), waterfallCanvas.height - 1, waterfallCanvas.width / spectrumData.length, 1);
-                }
-                requestAnimationFrame(draw);
-              }
-              draw();
-            } catch (e) {
-              meterCanvas.style.display = 'none';
-              spectrumCanvas.style.display = 'none';
-              waterfallCanvas.style.display = 'none';
-            }
-          }
-      // Test button as toggle
-      document.querySelectorAll('.test-btn').forEach(btn => {
-        let testActive = false;
-        btn.onclick = async () => {
-          const cat = btn.getAttribute('data-cat');
-          const prog = btn.getAttribute('data-prog');
-          const resultEl = document.getElementById('action-result-' + cat.replace(/\W/g,'_') + '-' + prog);
-          if (!testActive) {
-            resultEl.textContent = 'Testing...';
-            btn.textContent = 'Stop Test';
-            const adv = advancedMode ? collectAdvanced(cat) : {};
-            try {
-              const res = await fetch('/api/preview_start?v=0.2.2h2', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ program: parseInt(prog), category: cat, ...adv })
-              });
-              const data = await res.json();
-              resultEl.textContent = data.message || (data.ok ? 'Preview started.' : 'Failed');
-              testActive = true;
-            } catch (e) {
-              resultEl.textContent = 'Error: ' + e;
-            }
-          } else {
-            // Stop test (no backend endpoint, just UI reset)
-            resultEl.textContent = '';
-            btn.textContent = 'Test';
-            testActive = false;
-          }
-        };
-      });
-      // Undo button logic (per category, per program)
-      if (!window._settingsHistory) window._settingsHistory = {};
-      document.querySelectorAll('.undo-btn').forEach(btn => {
-        btn.onclick = () => {
-          const cat = btn.getAttribute('data-cat');
-          const prog = btn.getAttribute('data-prog');
-          const key = cat + '-' + prog;
-          if (!window._settingsHistory[key] || window._settingsHistory[key].length < 2) return;
-          // Remove current, revert to previous
-          window._settingsHistory[key].pop();
-          const prev = window._settingsHistory[key][window._settingsHistory[key].length - 1];
-          // Restore values
-          if (prev) {
-            Object.entries(prev).forEach(([k, v]) => {
-              const el = document.getElementById(k);
-              if (el) el.value = v;
-            });
-          }
-        };
-      });
-      // Save settings to history on Apply
-      document.querySelectorAll('.apply-btn').forEach(btn => {
-        btn.onclick = async () => {
-          const cat = btn.getAttribute('data-cat');
-          const prog = btn.getAttribute('data-prog');
-          const resultEl = document.getElementById('action-result-' + cat.replace(/\W/g,'_') + '-' + prog);
-          resultEl.textContent = 'Applying...';
-          const adv = advancedMode ? collectAdvanced(cat) : {};
-          // Save to history
-          const key = cat + '-' + prog;
-          if (!window._settingsHistory[key]) window._settingsHistory[key] = [];
-          // Save a copy of current values
-          window._settingsHistory[key].push({ ...adv });
-          try {
-            const res = await fetch('/api/apply_mpx?v=0.2.2h2', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ program: parseInt(prog), category: cat, ...adv })
-            });
-            const data = await res.json();
-            resultEl.textContent = data.message || (data.ok ? 'Applied.' : 'Failed');
-          } catch (e) {
-            resultEl.textContent = 'Error: ' + e;
-          }
-        };
-      });
-      document.querySelectorAll('.apply-btn').forEach(btn => {
-        btn.onclick = async () => {
-          const cat = btn.getAttribute('data-cat');
-          const prog = btn.getAttribute('data-prog');
-          document.getElementById('action-result-' + cat.replace(/\W/g,'_') + '-' + prog).textContent = 'Applying...';
-          const adv = advancedMode ? collectAdvanced(cat) : {};
-          try {
-            const res = await fetch('/api/apply_mpx?v=0.2.2h2', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ program: parseInt(prog), category: cat, ...adv })
-            });
-            const data = await res.json();
-            document.getElementById('action-result-' + cat.replace(/\W/g,'_') + '-' + prog).textContent = data.message || (data.ok ? 'Applied.' : 'Failed');
-          } catch (e) {
-            document.getElementById('action-result-' + cat.replace(/\W/g,'_') + '-' + prog).textContent = 'Error: ' + e;
-          }
-        };
-      });
-      // Update audio player stream if program changes
-      // No program selector now; tab controls program
-    }
-    function collectAdvanced(cat) {
-      const vals = {};
-      if (cat === 'Dynamics') {
-        vals.pre_gain = parseFloat(document.getElementById('pre_gain').value);
-        vals.post_gain = parseFloat(document.getElementById('post_gain').value);
-        vals.gate_threshold = parseFloat(document.getElementById('gate_threshold').value);
-        vals.gate_attack = parseFloat(document.getElementById('gate_attack').value);
-        vals.gate_release = parseFloat(document.getElementById('gate_release').value);
-        vals.agc_attack = parseFloat(document.getElementById('agc_attack').value);
-        vals.agc_release = parseFloat(document.getElementById('agc_release').value);
-        vals.agc_threshold = parseFloat(document.getElementById('agc_threshold').value);
-        vals.agc_ratio = parseFloat(document.getElementById('agc_ratio').value);
-      } else if (cat === 'Equalization') {
-        vals.eq_bass = parseFloat(document.getElementById('eq_bass').value);
-        vals.eq_mid = parseFloat(document.getElementById('eq_mid').value);
-        vals.eq_treble = parseFloat(document.getElementById('eq_treble').value);
-      } else if (cat === 'Phase & Stereo') {
-        vals.stereo_width = parseFloat(document.getElementById('stereo_width').value);
-      }
-      return vals;
-    }
-    renderMain();
-    // Top tab switching
-    document.querySelectorAll('.top-tab').forEach(btn => {
-      btn.onclick = () => {
-        activeTab = btn.getAttribute('data-tab');
-        renderMain();
-        // Reselect tab visually
-        document.querySelectorAll('.top-tab').forEach(b => b.style.background = '');
-        btn.style.background = '#e0e0e0';
-      };
-    });
-    // Set initial tab highlight
-    document.querySelector('.top-tab[data-tab="program1"]').style.background = '#e0e0e0';
-
-    // Custom CSS support (now under global settings)
-    const cssKey = 'ompx_custom_css';
-    const cssArea = document.getElementById('custom-css');
-    const cssBtn = document.getElementById('apply-css-btn');
-    const cssStatus = document.getElementById('css-status');
-    if (cssArea && window.localStorage) {
-      cssArea.value = localStorage.getItem(cssKey) || '';
-      applyCustomCSS(cssArea.value);
-      cssBtn.onclick = () => {
-        const val = cssArea.value;
-        localStorage.setItem(cssKey, val);
-        applyCustomCSS(val);
-        cssStatus.textContent = 'Custom CSS applied.';
-        setTimeout(() => { cssStatus.textContent = ''; }, 2000);
-      };
-    }
-    function applyCustomCSS(css) {
-      let styleTag = document.getElementById('custom-css-style');
-      if (!styleTag) {
-        styleTag = document.createElement('style');
-        styleTag.id = 'custom-css-style';
-        document.head.appendChild(styleTag);
-      }
-      styleTag.textContent = css;
-    }
+        <!-- End legacy UI copy -->
+      </div>
   </script>
 </body>
 </html>

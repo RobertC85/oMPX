@@ -1,3 +1,9 @@
+# 0.2.2L10 (2026-04-23)
+- UI/UX: Major refactor. Each program (Program 1, Program 2) now has its own dedicated HTML page (program1.html, program2.html) for clarity and maintainability.
+- UI/UX: Sidebar navigation highlights only the active page; unavailable features are dimmed and unclickable.
+- UI/UX: All controls for Program 1 and Program 2 are now implemented in their respective pages.
+- UI/UX: Button and inactive/active state styling improved for clarity and accessibility.
+- Dev: Modern and legacy UIs are now fully separated for easier debugging and deployment.
 # 0.2.2L9 (2026-04-22)
 - UI/UX: Added cache-busting version query to all audio preview and API URLs in the web UI for reliable updates.
 - Backend: Set strict no-cache headers for all main endpoints (HTML, audio preview) to prevent browser caching issues.

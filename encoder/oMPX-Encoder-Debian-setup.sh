@@ -85,6 +85,7 @@ case "${ACTION,,}" in
     ;;
 esac
 
+OMPX_VERSION="$(cat "$(dirname "$0")/../VERSION" 2>/dev/null || echo 'unknown')"
 # End of modular dispatcher. All legacy/duplicate code below this line has been removed.
 STEREO_TOOL_WRAPPER="/usr/local/bin/stereo-tool"
 STEREO_TOOL_ENTERPRISE_BIN="${OMPX_HOME}/stereo-tool-enterprise/stereo-tool-enterprise"

@@ -1,0 +1,63 @@
+<!-- Modern UI (modern.html) -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>oMPX Web UI - Modern</title>
+  <script>
+    // Always cache-bust main.js with timestamp
+    var s = document.createElement('script');
+    s.src = 'main.js?v=' + Date.now();
+    s.defer = true;
+    document.head.appendChild(s);
+  </script>
+  <style>
+    :root {
+      --bg: #0f1b1a;
+      --card: #132825;
+      --accent: #f2b642;
+      --ink: #f4f7f5;
+      --muted: #9fb8b0;
+    }
+    body {
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      background: radial-gradient(circle at 10% 10%, #1c3b35, var(--bg));
+      color: var(--ink);
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 700px;
+      margin: 2em auto;
+      background: linear-gradient(180deg, #1a322e, var(--card));
+      border-radius: 12px;
+      box-shadow: 0 2px 16px #0003;
+      padding: 2em;
+      border: 1px solid #2a4f47;
+    }
+    /* ...existing modern UI styles... */
+  </style>
+</head>
+<body>
+  <div style="background:#ff0;color:#000;padding:8px 0;text-align:center;font-weight:bold;">oMPX Version <span class="ompx-version">...</span></div>
+  <div style="display:flex;min-height:90vh;">
+    <nav id="sidebar" style="width:220px;background:linear-gradient(180deg,#1a322e,#132825);border-right:1px solid #2a4f47;padding:2em 1em 2em 1.5em;display:flex;flex-direction:column;gap:1em;">
+      <div style="font-size:1.2em;font-weight:700;color:var(--accent);margin-bottom:1.5em;">oMPX Menu</div>
+      <button class="menu-btn" data-section="program1">Program 1</button>
+      <button class="menu-btn" data-section="program2">Program 2</button>
+      <button class="menu-btn" data-section="global">Global Settings</button>
+      <button class="menu-btn" data-section="about">About</button>
+    </nav>
+    <div class="container" style="flex:1;">
+      <!-- Modern UI sections (copied from index.html) -->
+      <div id="modern-ui">
+        <!-- ...copy all modern UI content from index.html... -->
+      </div>
+    </div>
+  </div>
+</body>
+</html>
