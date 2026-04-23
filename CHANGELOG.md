@@ -1,3 +1,10 @@
+# 0.2.2m2 (2026-04-23)
+- Redact all default stream URLs for public/hardware testing safety.
+- Add icecast.xml.example and installer logic to auto-generate working Icecast config.
+- Installer now sets Icecast to run as ompx user, not root.
+- UI: Program 1 audio player always present and wired to default stream.
+- Backend, installer, and config logic robust for scorched/minimal systems and hardware deployment.
+
 # 0.2.2m1 (2026-04-23)
 - Versioning fix: VERSION file is now at repo root, not in encoder/.
 - All static file serving, backend, and UI fixes from 0.2.2L11 included.

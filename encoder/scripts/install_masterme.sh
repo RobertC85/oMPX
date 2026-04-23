@@ -30,20 +30,22 @@ MASTERME_WEB_PORT="${MASTERME_WEB_PORT:-8082}"
 
 # Launch the web UI after install (background)
 if command -v python3 >/dev/null 2>&1; then
-       nohup env MASTERME_WEB_PORT="$MASTERME_WEB_PORT" python3 "$SCRIPT_DIR/masterme_flask_api.py" &
-       sleep 2
-       # Check if the server is running
-       if ! lsof -iTCP:"$MASTERME_WEB_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
-	       MSG="MasterMe Web UI failed to start on port $MASTERME_WEB_PORT.\n\nLast 20 lines of nohup.out:\n\n"
-	       if [ -f nohup.out ]; then
-		       MSG+="$(tail -n 20 nohup.out)"
+	       nohup env MASTERME_WEB_PORT="$MASTERME_WEB_PORT" python3 "$SCRIPT_DIR/masterme_flask_api.py" &
+	       sleep 2
+	       # Check if the server is running
+	       if ! lsof -iTCP:"$MASTERME_WEB_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+		       MSG="MasterMe Web UI failed to start on port $MASTERME_WEB_PORT.\n\nLast 20 lines of nohup.out:\n\n"
+		       if [ -f nohup.out ]; then
+			       MSG+="$(tail -n 20 nohup.out)"
+			       # Remove nohup.out for commit safety
+			       rm -f nohup.out
+		       fi
+		       whiptail --title "MasterMe Web UI" --msgbox "$MSG" 20 80
+	       else
+		       whiptail --title "MasterMe Web UI" --msgbox "MasterMe Web UI (modern) started on port $MASTERME_WEB_PORT.\nOpen http://localhost:$MASTERME_WEB_PORT in your browser." 10 70
+		       # Remove nohup.out for commit safety
 		       rm -f nohup.out
 	       fi
-	       whiptail --title "MasterMe Web UI" --msgbox "$MSG" 20 80
-       else
-	       whiptail --title "MasterMe Web UI" --msgbox "MasterMe Web UI (modern) started on port $MASTERME_WEB_PORT.\nOpen http://localhost:$MASTERME_WEB_PORT in your browser." 10 70
-	       rm -f nohup.out
-       fi
 else
        whiptail --title "MasterMe Web UI" --msgbox "Python3 not found. Cannot start MasterMe Web UI." 8 60
 fi

@@ -17,13 +17,7 @@
       setTimeout(function() { if (pre) pre.remove(); }, 400);
     });
   </script>
-  <script>
-    // Always cache-bust main.js with timestamp
-    var s = document.createElement('script');
-    s.src = 'main.js?v=' + Date.now();
-    s.defer = true;
-    document.head.appendChild(s);
-  </script>
+  <!-- main.js will be loaded at the end of body for proper DOM readiness -->
   <style>
     .btn-inactive {
       background: #111 !important;
@@ -204,6 +198,12 @@
                   <label>Spectrum</label><br>
                   <canvas id="audio_spectrum" width="600" height="120" style="width:100%;background:#181f1c;border-radius:6px;"></canvas>
                 </div>
+              </div>
+              <!-- Program 1 Audio Player -->
+              <div style="margin-top:2em;">
+                <label>Program 1 Audio</label><br>
+                <audio id="audio_prg1" controls autoplay style="width:100%; margin-top:10px"></audio>
+              </div>
               </div>
               <!-- Band Meter Visualizer -->
               <div style="margin-top:2em;">
@@ -413,5 +413,6 @@
       </div>
     </div>
   </div>
+  <script src="main.js?v=auto"></script>
 </body>
 </html>

@@ -2,6 +2,12 @@ console.log('[oMPX] main.js loaded');
 // --- Audio Processing Sliders: Double-click for numeric input ---
 
 document.addEventListener('DOMContentLoaded', function() {
+  // Set Program 1 audio player source
+  var audioPrg1 = document.getElementById('audio_prg1');
+  if (audioPrg1) {
+    // Hardcoded for now; ideally fetch from backend or config
+    audioPrg1.src = "http://waxradioindy.com:8010/transmitter";
+  }
   function showUiError(msg) {
     var alertDiv = document.getElementById('ui-error-alert');
     if (alertDiv) {

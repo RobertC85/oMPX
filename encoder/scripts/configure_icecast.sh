@@ -53,11 +53,37 @@ else
   ICECAST_MOUNT="${ICECAST_MOUNT:-/mpx}"
 fi
 
+
+# --- Ensure /etc/icecast2/icecast.xml exists and is configured ---
+ICECAST_ETC_DIR="/etc/icecast2"
+ICECAST_XML="$ICECAST_ETC_DIR/icecast.xml"
+ICECAST_TEMPLATE="/workspaces/oMPX/encoder/icecast.xml.example"
+
+sudo mkdir -p "$ICECAST_ETC_DIR"
+if [ ! -f "$ICECAST_XML" ]; then
+  echo "[ICECAST] No icecast.xml found, copying template..."
+  sudo cp "$ICECAST_TEMPLATE" "$ICECAST_XML"
+fi
+
+
+# Set Icecast to run as the ompx user (not root)
+sudo sed -i "/<changeowner>/,/<\/changeowner>/d" "$ICECAST_XML"
+sudo sed -i "/<fileserve>1<\/fileserve>/a \\n  <changeowner>\n    <user>$OMPX_USER</user>\n    <group>$OMPX_USER</group>\n  </changeowner>" "$ICECAST_XML"
+
+# Update config with user values (simple sed replace)
+sudo sed -i "s|<source-password>.*</source-password>|<source-password>$ICECAST_PASSWORD</source-password>|" "$ICECAST_XML"
+sudo sed -i "s|<admin-password>.*</admin-password>|<admin-password>$ICECAST_PASSWORD</admin-password>|" "$ICECAST_XML"
+sudo sed -i "s|<relay-password>.*</relay-password>|<relay-password>$ICECAST_PASSWORD</relay-password>|" "$ICECAST_XML"
+sudo sed -i "s|<port>.*</port>|<port>$ICECAST_PORT</port>|" "$ICECAST_XML"
+sudo sed -i "s|<hostname>.*</hostname>|<hostname>$ICECAST_HOST</hostname>|" "$ICECAST_XML"
+
 echo "ICECAST_HOST=\"$ICECAST_HOST\"" > "$PROFILE"
 echo "ICECAST_PORT=\"$ICECAST_PORT\"" >> "$PROFILE"
 echo "ICECAST_SOURCE_USER=\"$ICECAST_SOURCE_USER\"" >> "$PROFILE"
 echo "ICECAST_PASSWORD=\"$ICECAST_PASSWORD\"" >> "$PROFILE"
 echo "ICECAST_MOUNT=\"$ICECAST_MOUNT\"" >> "$PROFILE"
+
+whiptail --title "Icecast Config" --msgbox "Icecast config file created/updated at $ICECAST_XML.\nYou may need to start Icecast manually:\n\nicecast2 -c $ICECAST_XML" 12 70
 sudo chown "$OMPX_USER:$OMPX_USER" "$PROFILE" && sudo chmod 644 "$PROFILE"
 echo "[ICECAST] Icecast settings saved to $PROFILE."
 echo "[DEBUG] configure_icecast.sh completed successfully."

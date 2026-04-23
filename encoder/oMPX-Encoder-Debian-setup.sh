@@ -1,7 +1,5 @@
-# =============================
-# BANDAID: Ensure Icecast2 systemd service exists and is running
-# =============================
-chmod +x "$(dirname "$0")/scripts"/*.sh 2>/dev/null || true
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+chmod +x "$SCRIPT_DIR/scripts"/*.sh 2>/dev/null || true
 if [ "$1" = "--bandaid-icecast" ]; then
   if [ ! -f /etc/systemd/system/icecast2.service ]; then
     echo "[BANDAID] Creating missing Icecast2 systemd service file..."
@@ -54,26 +52,47 @@ fi
 
 # Prompt for Icecast config if needed
 if [ "$AUTO_MODE" != true ] && [[ "${ACTION,,}" =~ ^(install|update|reinstall)$ ]]; then
-  ./scripts/configure_icecast.sh || exit 1
+  "$SCRIPT_DIR/scripts/configure_icecast.sh" || exit 1
   echo "[INFO] Icecast configuration complete. Continuing with $ACTION..."
 fi
 
 # --- MAIN LOGIC DISPATCHER ---
 case "${ACTION,,}" in
   install|reinstall)
-    ./scripts/install.sh || exit 1
+    "$SCRIPT_DIR/scripts/install.sh" || exit 1
+    # --- Nginx proxy setup for oMPX Web UI ---
+    NGINX_CONF_SRC="$(dirname "$0")/ompx-nginx.conf"
+    NGINX_CONF_DST="/etc/nginx/sites-available/ompx"
+    NGINX_ENABLED_LINK="/etc/nginx/sites-enabled/ompx"
+    if [ -f "$NGINX_CONF_SRC" ]; then
+      ENABLE_NGINX_PROXY="yes"
+      if command -v whiptail >/dev/null 2>&1; then
+        whiptail --title "Nginx Proxy" --yesno "Enable Nginx proxy for oMPX Web UI on port 8082?\n(This will forward all requests from port 8082 to the backend on port 5000.)" 12 70
+        [ $? -eq 0 ] && ENABLE_NGINX_PROXY="yes" || ENABLE_NGINX_PROXY="no"
+      fi
+      if [ "$ENABLE_NGINX_PROXY" = "yes" ]; then
+        echo "[INFO] Installing Nginx proxy config for oMPX Web UI..."
+        sudo cp "$NGINX_CONF_SRC" "$NGINX_CONF_DST"
+        sudo ln -sf "$NGINX_CONF_DST" "$NGINX_ENABLED_LINK"
+        sudo nginx -t && sudo systemctl reload nginx && echo "[INFO] Nginx reloaded. Proxy active on port 8082."
+      else
+        echo "[INFO] Skipping Nginx proxy setup. You can enable it later by copying $NGINX_CONF_SRC to $NGINX_CONF_DST and reloading nginx."
+      fi
+    else
+      echo "[WARNING] ompx-nginx.conf not found; skipping Nginx proxy setup."
+    fi
     ;;
   update|bleeding-edge|latest)
-    ./scripts/update.sh || exit 1
+    "$SCRIPT_DIR/scripts/update.sh" || exit 1
     ;;
   uninstall|nuke|nuke-packages|scorch)
-    ./scripts/uninstall.sh || exit 1
+    "$SCRIPT_DIR/scripts/uninstall.sh" || exit 1
     ;;
   configure-icecast)
-    ./scripts/configure_icecast.sh || exit 1
+    "$SCRIPT_DIR/scripts/configure_icecast.sh" || exit 1
     ;;
   configure-alsa)
-    ./scripts/configure_alsa.sh || exit 1
+    "$SCRIPT_DIR/scripts/configure_alsa.sh" || exit 1
     ;;
   exit)
     echo "Exiting installer."

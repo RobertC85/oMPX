@@ -244,6 +244,8 @@ else
   whiptail --title "oMPX Installer" --msgbox "All required service files are present." 10 50
 fi
 
+
+
 # Step 3: Configure Icecast
 whiptail --title "oMPX Installer" --msgbox "[DEBUG] About to run Icecast config script" 8 60
 if whiptail --title "oMPX Installer" --yesno "Configure Icecast streaming settings now?" 10 50; then
@@ -254,8 +256,42 @@ else
   whiptail --title "oMPX Installer" --msgbox "Icecast configuration skipped." 10 50
 fi
 
+# Step 4: Prompt for Program 1 and 2 stream URLs
+DEFAULTS_VAR="/workspaces/oMPX/defaults.var"
+if [ -f "$DEFAULTS_VAR" ]; then
+  source "$DEFAULTS_VAR"
+fi
+
+PROMPT1="Enter Program 1 audio source URL (leave blank for default: $PROGRAM1_SOURCE):"
+PROMPT2="Enter Program 2 audio source URL (leave blank for default: $PROGRAM2_SOURCE):"
+
+USER_PROGRAM1_SOURCE=$(whiptail --title "Audio Source" --inputbox "$PROMPT1" 10 70 3>&1 1>&2 2>&3)
+if [ -z "$USER_PROGRAM1_SOURCE" ]; then
+  USER_PROGRAM1_SOURCE="$PROGRAM1_SOURCE"
+fi
+
+USER_PROGRAM2_SOURCE=$(whiptail --title "Audio Source" --inputbox "$PROMPT2" 10 70 3>&1 1>&2 2>&3)
+if [ -z "$USER_PROGRAM2_SOURCE" ]; then
+  USER_PROGRAM2_SOURCE="$PROGRAM2_SOURCE"
+fi
+
+# Save new values to defaults.var for future installs
+cat > "$DEFAULTS_VAR" <<EOF
+# oMPX Default Source Variables
+# This file is sourced by the installer if the user leaves a prompt blank.
+# Edit these values to set default audio sources for unattended or repeatable installs.
+
+# Program 1 audio source (Icecast URL, ALSA device, file, etc.)
+PROGRAM1_SOURCE="$USER_PROGRAM1_SOURCE"
+# Program 2 audio source
+PROGRAM2_SOURCE="$USER_PROGRAM2_SOURCE"
+# Add more defaults as needed
+EOF
+
+whiptail --title "Audio Sources Saved" --msgbox "Audio source URLs saved to $DEFAULTS_VAR:\n\nProgram 1: $USER_PROGRAM1_SOURCE\nProgram 2: $USER_PROGRAM2_SOURCE" 12 70
+
 whiptail --title "oMPX Installer" --msgbox "[DEBUG] About to run ALSA config script" 8 60
-# Step 4: Configure ALSA audio
+# Step 5: Configure ALSA audio
 if whiptail --title "oMPX Installer" --yesno "Configure ALSA audio settings now?" 10 50; then
   bash "$SCRIPT_DIR/configure_alsa.sh" || true
   whiptail --title "oMPX Installer" --msgbox "ALSA configuration complete." 10 50
@@ -303,6 +339,7 @@ case "$PROCESSOR" in
     if command -v python3 >/dev/null 2>&1; then
       nohup env OMPX_WEB_PORT="$OMPX_WEB_PORT" python3 "$SCRIPT_DIR/ompx_profiles_api.py" &
       sleep 2
+      # Remove nohup.out for commit safety
       rm -f nohup.out
       whiptail --title "oMPX Web UI" --msgbox "oMPX Profile Editor started on port $OMPX_WEB_PORT.\nOpen http://localhost:$OMPX_WEB_PORT in your browser." 10 70
     else
@@ -315,8 +352,13 @@ case "$PROCESSOR" in
     echo "[INSTALL] index.html and all web UI files copied to /var/www/html."
     # Force nginx reload to ensure new files are served
     if command -v nginx >/dev/null 2>&1; then
-      echo "[INSTALL] Reloading nginx to apply new web UI files..."
-      sudo nginx -s reload || echo "[WARNING] nginx reload failed. Please reload manually if needed."
+      # Only reload nginx if it is running
+      if pgrep nginx >/dev/null 2>&1; then
+        echo "[INSTALL] Reloading nginx to apply new web UI files..."
+        sudo nginx -s reload || echo "[WARNING] nginx reload failed. Please reload manually if needed."
+      else
+        echo "[INFO] nginx is not running; skipping reload."
+      fi
     fi
     # Copy any additional static files as needed
     echo "[INSTALL] Web UI files copied to /var/www/html."

@@ -52,107 +52,21 @@ if [ "$DEBUG" -eq 1 ]; then
 fi
 
 case "$DISTRO" in
-  debian|ubuntu)
-    if [ "$DEBUG" -eq 1 ]; then echo "[DEBUG] Entered debian|ubuntu case"; fi
+  debian|ubuntu|fedora|alpine|tinycore|tce|arch)
+    if [ "$DEBUG" -eq 1 ]; then echo "[DEBUG] Entered $DISTRO case"; fi
     case "$ROLE" in
-      encoding)
-        if [ "$DEBUG" -eq 1 ]; then echo "[DEBUG] Entered encoding role"; fi
-        ./encoder/scripts/install.sh
-        ;;
-      processing)
-        if [ "$DEBUG" -eq 1 ]; then echo "[DEBUG] Entered processing role"; fi
-        ./encoder/scripts/install.sh
-        ;;
-      full)
-        if [ "$DEBUG" -eq 1 ]; then echo "[DEBUG] Entered full role"; fi
-        ./encoder/scripts/install.sh
-        ;;
-      install)
-        if [ "$DEBUG" -eq 1 ]; then echo "[DEBUG] Entered install role"; fi
+      encoding|processing|full|install)
+        if [ "$DEBUG" -eq 1 ]; then echo "[DEBUG] Entered $ROLE role ($DISTRO)"; fi
         ./encoder/scripts/install.sh
         ;;
       icecast)
-        if [ "$DEBUG" -eq 1 ]; then echo "[DEBUG] Entered icecast role"; fi
         ./encoder/scripts/configure_icecast.sh
         ;;
       alsa)
-        if [ "$DEBUG" -eq 1 ]; then echo "[DEBUG] Entered alsa role"; fi
         ./encoder/scripts/configure_alsa.sh
         ;;
       *)
         echo "[ERROR] Selected role '$ROLE' not yet implemented for $DISTRO."
-        exit 1
-        ;;
-    esac
-    ;;
-  fedora)
-    echo "[INFO] Fedora detected."
-    case "$ROLE" in
-      encoding|full|install)
-        ./encoder/scripts/install.sh
-        ;;
-      icecast)
-        ./encoder/scripts/configure_icecast.sh
-        ;;
-      alsa)
-        ./encoder/scripts/configure_alsa.sh
-        ;;
-      *)
-        echo "[ERROR] Selected role '$ROLE' not yet implemented for Fedora."
-        exit 1
-        ;;
-    esac
-    ;;
-  alpine)
-    echo "[INFO] Alpine Linux detected."
-    case "$ROLE" in
-      encoding|full|install)
-        ./encoder/scripts/install.sh
-        ;;
-      icecast)
-        ./encoder/scripts/configure_icecast.sh
-        ;;
-      alsa)
-        ./encoder/scripts/configure_alsa.sh
-        ;;
-      *)
-        echo "[ERROR] Selected role '$ROLE' not yet implemented for Alpine."
-        exit 1
-        ;;
-    esac
-    ;;
-  tinycore|tce)
-    echo "[INFO] Tiny Core Linux detected."
-    case "$ROLE" in
-      encoding|full|install)
-        ./encoder/scripts/install.sh
-        ;;
-      icecast)
-        ./encoder/scripts/configure_icecast.sh
-        ;;
-      alsa)
-        ./encoder/scripts/configure_alsa.sh
-        ;;
-      *)
-        echo "[ERROR] Selected role '$ROLE' not yet implemented for Tiny Core."
-        exit 1
-        ;;
-    esac
-    ;;
-  arch)
-    echo "[INFO] Arch Linux detected."
-    case "$ROLE" in
-      encoding|full|install)
-        ./encoder/scripts/install.sh
-        ;;
-      icecast)
-        ./encoder/scripts/configure_icecast.sh
-        ;;
-      alsa)
-        ./encoder/scripts/configure_alsa.sh
-        ;;
-      *)
-        echo "[ERROR] Selected role '$ROLE' not yet implemented for Arch."
         exit 1
         ;;
     esac
@@ -162,7 +76,7 @@ case "$DISTRO" in
     if [ -f /etc/tc-version ]; then
       echo "[INFO] Tiny Core Linux detected via /etc/tc-version."
       case "$ROLE" in
-        encoding|full|install)
+        encoding|processing|full|install)
           ./encoder/scripts/install.sh
           ;;
         icecast)
