@@ -1,3 +1,14 @@
+# 0.2.2m1 (2026-04-23)
+- Versioning fix: VERSION file is now at repo root, not in encoder/.
+- All static file serving, backend, and UI fixes from 0.2.2L11 included.
+- Ready for bare metal and Codespaces testing.
+# 0.2.2L11 (2026-04-23)
+- Fix: Static file serving is now robust and correct for all .js and .css files; MIME errors and browser blocks resolved.
+- Fix: All indentation and logic errors in backend and utility scripts resolved; backend now starts cleanly on any system.
+- Feature: Real-time slider updates in the web UI now send values to the backend as you drag, with visible error alerts for any JS/UI issues.
+- Dev: Debug logging added for slider input and static file serving; easier troubleshooting for UI/backend integration.
+- Dev: Backend and UI now fully portable between Codespaces and bare metal (port config, working directory, and cache-busting all tested).
+
 # 0.2.2L10 (2026-04-23)
 - UI/UX: Major refactor. Each program (Program 1, Program 2) now has its own dedicated HTML page (program1.html, program2.html) for clarity and maintainability.
 - UI/UX: Sidebar navigation highlights only the active page; unavailable features are dimmed and unclickable.

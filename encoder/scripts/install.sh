@@ -308,6 +308,23 @@ case "$PROCESSOR" in
     else
       whiptail --title "oMPX Web UI" --msgbox "Python3 not found. Cannot start oMPX Profile Editor." 8 60
     fi
+    # --- Copy all web UI files to /var/www/html ---
+    WEBUI_SRC_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+    sudo mkdir -p /var/www/html
+    sudo cp -v "$WEBUI_SRC_DIR"/index.html "$WEBUI_SRC_DIR"/program1.html "$WEBUI_SRC_DIR"/program2.html "$WEBUI_SRC_DIR"/main.js "$WEBUI_SRC_DIR"/legacy.html "$WEBUI_SRC_DIR"/modern.html "$WEBUI_SRC_DIR"/preloader.css "$WEBUI_SRC_DIR"/404.html /var/www/html/ || true
+    echo "[INSTALL] index.html and all web UI files copied to /var/www/html."
+    # Force nginx reload to ensure new files are served
+    if command -v nginx >/dev/null 2>&1; then
+      echo "[INSTALL] Reloading nginx to apply new web UI files..."
+      sudo nginx -s reload || echo "[WARNING] nginx reload failed. Please reload manually if needed."
+    fi
+    # Copy any additional static files as needed
+    echo "[INSTALL] Web UI files copied to /var/www/html."
+    # --- Reload nginx to serve new files ---
+    if command -v nginx >/dev/null 2>&1; then
+      echo "[INSTALL] Reloading nginx to apply new web UI files..."
+      sudo nginx -s reload || echo "[WARNING] nginx reload failed. Please reload manually if needed."
+    fi
     ;;
 esac
 

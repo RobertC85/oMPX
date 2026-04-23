@@ -62,6 +62,25 @@ def save_state(state):
 # Handles all HTTP requests (GET/POST) for the API and static frontend
 class Handler(BaseHTTPRequestHandler):
 
+    # Real-time parameter update endpoint
+    def _handle_update_param(self, payload):
+        prog = int(payload.get("program", 0))
+        param = payload.get("param")
+        value = payload.get("value")
+        if prog not in (1, 2) or not param:
+            self._send_json({"ok": False, "message": "Invalid program or parameter"}, status=HTTPStatus.BAD_REQUEST)
+            return
+        # Update state
+        with STATE_LOCK:
+            state = load_state()
+            prefix = f"P{prog}"
+            state_key = f"{param}_{prefix}"
+            state[state_key] = value
+            save_state(state)
+        # Optionally, update .profile and/or Liquidsoap here if needed
+        self._send_json({"ok": True, "message": f"{param} updated for Program {prog}"})
+        return
+
 
     def _is_local_kiosk(self):
         """
@@ -90,6 +109,13 @@ class Handler(BaseHTTPRequestHandler):
         Handle POST requests for all API endpoints.
         Implements authentication, state management, and control actions.
         """
+        # Parse JSON payload (if any)
+        length = int(self.headers.get('Content-Length', 0))
+        payload = json.loads(self.rfile.read(length)) if length else {}
+
+        # Real-time param update
+        if self.path == "/api/update_param":
+            return self._handle_update_param(payload)
         # If UI auth is enabled but this is not a local kiosk, require password
         if os.environ.get("OMPX_WEB_AUTH_ENABLE", "false").lower() == "true" and not self._is_local_kiosk():
             # Simple password check (Bearer token)
@@ -238,24 +264,27 @@ class Handler(BaseHTTPRequestHandler):
 
 
 
+
     def do_GET(self):
         """
-        Handle GET requests for the root (serves index.html) and audio preview endpoints.
-        Proxies audio streams from Icecast and Liquidsoap for the web UI preview player.
-        Adds cache-busting to index.html and static assets.
+        Handle GET requests for the root (serves index.html), static files, and audio preview endpoints.
         """
         import re
+        import mimetypes
         # Serve the main frontend (index.html) at root or with cache-busting query
         if self.path == "/" or re.match(r"^/\?v=", self.path):
-            self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", "text/html")
-            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-            self.send_header("Pragma", "no-cache")
-            self.send_header("Expires", "0")
-            self.end_headers()
-            with open(os.path.join(os.path.dirname(__file__), "index.html"), "r") as f:
-                self.wfile.write(f.read().encode())
+            self._serve_static_file("index.html")
             return
+
+        # Serve any static file in the encoder directory (html, js, css, images, etc.)
+        static_file_match = re.match(r"^/([\w\-\.]+)(\?.*)?$", self.path)
+        if static_file_match:
+            filename = static_file_match.group(1)
+            import os
+            file_path = os.path.join(os.path.dirname(__file__), filename)
+            if os.path.isfile(file_path):
+                self._serve_static_file(filename)
+                return
 
         # Audio preview endpoint: MP3 (proxied from Icecast /preview mount)
         if self.path.startswith("/api/preview.mp3"):
@@ -298,6 +327,33 @@ class Handler(BaseHTTPRequestHandler):
 
         # Unknown GET endpoint
         self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+
+    def _serve_static_file(self, filename):
+        import mimetypes, os
+        file_path = os.path.join(os.path.dirname(__file__), filename)
+        if not os.path.isfile(file_path):
+            self.send_error(HTTPStatus.NOT_FOUND, "File not found")
+            return
+        mime, _ = mimetypes.guess_type(filename)
+        # Always set correct MIME type for .js and .css
+        if filename.endswith('.js'):
+            mime = 'application/javascript'
+        elif filename.endswith('.css'):
+            mime = 'text/css'
+        elif filename.endswith('.html'):
+            mime = 'text/html'
+        elif not mime:
+            mime = 'application/octet-stream'
+        # Debug log for Content-Type
+        print(f"[oMPX] Serving {filename} with Content-Type: {mime}")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", mime)
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        self.end_headers()
+        with open(file_path, "rb") as f:
+            self.wfile.write(f.read())
 
 
 # Entrypoint: start the backend server

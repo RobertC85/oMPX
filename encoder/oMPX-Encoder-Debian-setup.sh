@@ -7868,5 +7868,43 @@ case "$apply_choice" in
 esac
 
 chmod +x "$0" || true
+
+# =============================
+# RESTART PROTOCOL: Restart all relevant services
+# =============================
+echo "[INFO] Restarting oMPX services..."
+
+restart_service() {
+  local svc="$1"
+  if command -v systemctl >/dev/null 2>&1; then
+    if systemctl list-unit-files | grep -q "^$svc"; then
+      echo "[INFO] Restarting $svc via systemctl..."
+      systemctl restart "$svc" && echo "[SUCCESS] $svc restarted" || echo "[WARNING] Failed to restart $svc"
+    else
+      echo "[INFO] $svc not found in systemd; skipping."
+    fi
+  elif command -v service >/dev/null 2>&1; then
+    echo "[INFO] Restarting $svc via service command..."
+    service "$svc" restart && echo "[SUCCESS] $svc restarted" || echo "[WARNING] Failed to restart $svc"
+  else
+    echo "[WARNING] No supported service manager found for $svc. Please restart it manually."
+  fi
+}
+
+# List of relevant services
+RELEVANT_SERVICES=(
+  mpx-processing-alsa
+  mpx-mix
+  mpx-watchdog
+  ompx-web-ui
+  icecast2
+)
+
+for svc in "${RELEVANT_SERVICES[@]}"; do
+  restart_service "$svc"
+done
+
+echo "[INFO] All relevant oMPX services have been restarted (where available)."
+echo "[INFO] If you encounter issues, please check the logs or restart services manually."
 echo "[SUCCESS] Installation finished successfully!"
 exit 0

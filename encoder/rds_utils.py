@@ -8,30 +8,15 @@ import json
 # Clock Time (CT), and RadioText (RT) for each program.
 
 def recreate_rds_json():
-        """
-        Delete and recreate RDS JSON files for both programs with default/empty values.
-        This function is intended to reset the RDS metadata for both program slots (prog1 and prog2)
-        by overwriting their rds-info.json files with a default structure.
-        """
-
-    """Delete and recreate RDS JSON files for both programs with default/empty values."""
+    """
+    Delete and recreate RDS JSON files for both programs with default/empty values.
+    This function is intended to reset the RDS metadata for both program slots (prog1 and prog2)
+    by overwriting their rds-info.json files with a default structure.
+    """
     base_paths = [
         "/home/ompx/rds/prog1/rds-info.json",
         "/home/ompx/rds/prog2/rds-info.json"
-    base_paths = [
-        "/home/ompx/rds/prog1/rds-info.json",  # Path for program 1 RDS info
-        "/home/ompx/rds/prog2/rds-info.json"   # Path for program 2 RDS info
     ]
-    default_rds = {
-        "ps": "",
-        "pi": "",
-        "pty": 0,
-        "tp": False,
-        "ta": False,
-        "ms": False,
-        "ct": "",
-        "rt": ""
-    # Default RDS structure: all fields empty or zeroed
     default_rds = {
         "ps": "",   # Program Service name (station name)
         "pi": "",   # Program Identification code
@@ -44,22 +29,14 @@ def recreate_rds_json():
     }
     for path in base_paths:
         try:
-    for path in base_paths:
-        try:
             # Ensure the directory exists
             os.makedirs(os.path.dirname(path), exist_ok=True)
-                        # Remove the file if it already exists
-                        if os.path.exists(path):
-                            os.remove(path)
-                        # Write the default RDS structure to the file as JSON
-                        with open(path, "w") as f:
-                            json.dump(default_rds, f)
-                    except Exception as e:
-                        # Print a clear error message if anything fails
-                        print(f"[RDS] Failed to recreate {path}: {e}")
+            # Remove the file if it already exists
             if os.path.exists(path):
                 os.remove(path)
+            # Write the default RDS structure to the file as JSON
             with open(path, "w") as f:
                 json.dump(default_rds, f)
         except Exception as e:
+            # Print a clear error message if anything fails
             print(f"[RDS] Failed to recreate {path}: {e}")

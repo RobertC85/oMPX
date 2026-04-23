@@ -8,6 +8,15 @@
   <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>oMPX Web UI - Modern</title>
+  <link rel="stylesheet" href="preloader.css?v=1">
+  <script>
+    // Preloader removal logic
+    window.addEventListener('load', function() {
+      var pre = document.getElementById('preloader');
+      if (pre) pre.style.opacity = 0;
+      setTimeout(function() { if (pre) pre.remove(); }, 400);
+    });
+  </script>
   <script>
     // Always cache-bust main.js with timestamp
     var s = document.createElement('script');
@@ -16,19 +25,19 @@
     document.head.appendChild(s);
   </script>
   <style>
-        .btn-inactive {
-          background: #111 !important;
-          color: var(--accent) !important;
-          border: 1px solid var(--accent) !important;
-          pointer-events: none;
-        }
-        .btn-unavailable {
-          background: #111 !important;
-          color: #888 !important;
-          border: 1px solid #222 !important;
-          opacity: 0.7;
-          pointer-events: none;
-        }
+    .btn-inactive {
+      background: #111 !important;
+      color: var(--accent) !important;
+      border: 1px solid var(--accent) !important;
+      pointer-events: none;
+    }
+    .btn-unavailable {
+      background: #111 !important;
+      color: #888 !important;
+      border: 1px solid #222 !important;
+      opacity: 0.7;
+      pointer-events: none;
+    }
     :root {
       --bg: #0f1b1a;
       --card: #132825;
@@ -74,45 +83,10 @@
   </style>
 </head>
 <body>
+  <div id="preloader"><div class="spinner"></div></div>
+  <div id="ui-error-alert" style="display:none;background:#c00;color:#fff;padding:12px 20px;text-align:center;font-weight:bold;z-index:9999;position:fixed;top:0;left:0;right:0;box-shadow:0 2px 12px #0008;"></div>
   <div style="background:#ff0;color:#000;padding:8px 0;text-align:center;font-weight:bold;">oMPX Version <span class="ompx-version">...</span></div>
   <div style="display:flex;min-height:90vh;">
-    <nav id="sidebar" style="width:220px;background:linear-gradient(180deg,#1a322e,#132825);border-right:1px solid #2a4f47;padding:2em 1em 2em 1.5em;display:flex;flex-direction:column;gap:1em;">
-      <div style="font-size:1.2em;font-weight:700;color:var(--accent);margin-bottom:1.5em;">oMPX Menu</div>
-      <button class="menu-btn" data-section="program1">Program 1</button>
-      <button class="menu-btn" data-section="program2">Program 2</button>
-      <button class="menu-btn" data-section="global">Global Settings</button>
-      <button class="menu-btn" data-section="about">About</button>
-    </nav>
-    <div class="container" style="flex:1;">
-      <!-- Modern UI sections (copied from index.html) -->
-      <div id="modern-ui">
-        <!-- ...copy all modern UI content from index.html... -->
-      </div>
-    </div>
-  </div>
-</body>
-</html>
-      font-weight: 600;
-      border: 1px solid #d99424;
-      border-radius: 8px;
-      cursor: pointer;
-      padding: 8px 16px;
-      margin-top: 4px;
-    }
-    button:active {
-      background: #d99424;
-    }
-    @media (max-width:900px) {
-      .container { padding: 1em; }
-      #top-tabs { flex-direction: column; gap: 0.5em; }
-    }
-  </style>
-</head>
-<body>
-  <!-- Version banner for quick reference -->
-  <div style="background:#ff0;color:#000;padding:8px 0;text-align:center;font-weight:bold;">oMPX Version <span class="ompx-version">...</span></div>
-  <div style="display:flex;min-height:90vh;">
-    <!-- Sidebar navigation for main sections -->
     <nav id="sidebar" style="width:220px;background:linear-gradient(180deg,#1a322e,#132825);border-right:1px solid #2a4f47;padding:2em 1em 2em 1.5em;display:flex;flex-direction:column;gap:1em;">
       <div style="font-size:1.2em;font-weight:700;color:var(--accent);margin-bottom:1.5em;">oMPX Menu</div>
       <button class="menu-btn" data-section="program1">Program 1</button>
@@ -127,75 +101,128 @@
         </select>
       </div>
     </nav>
-    <!-- Main container for controls and preview -->
     <div class="container" style="flex:1;">
-      <!-- Modern UI sections (default) -->
       <div id="modern-ui">
-        <div id="section-program1" class="section" style="display:none;">
-          <div class="category-title">Program 1 Controls</div>
-          <div class="feature-list">
-            <li>
-              <label>Input Channel</label><br>
-              <select id="input_device_prg1">
-                <option value="radio1_url">Program 1 stream URL</option>
-                <option value="ompx_prg1in_cap">Program 1 input</option>
-                <option value="ompx_prg1mpx_cap">Program 1 MPX path</option>
-              </select>
-            </li>
-            <li>
-              <label>Sample Rate</label><br>
-              <input id="sample_rate_prg1" type="number" min="8000" max="192000" step="1000" />
-            </li>
-            <li>
-              <label>Waveform Window (seconds)</label><br>
-              <input id="wave_window_sec_prg1" type="range" min="0.25" max="10" step="0.25" />
-              <span id="wave_window_readout_prg1">3.00 s</span>
-            </li>
-            <li>
-              <button id="analysis_pause_prg1" type="button">Pause Scope</button>
-              <button id="analysis_step_prg1" type="button" class="btn-inactive">Step Frame</button> <!-- Remove .btn-inactive when implemented -->
-            </li>
-            <li>
-              <label>HF Tame (dB)</label><br>
-              <input id="hf_tame_db_prg1" type="number" step="0.1" />
-            </li>
-            <li>
-              <label>HF Tame Freq (Hz)</label><br>
-              <input id="hf_tame_freq_prg1" type="number" step="100" />
-            </li>
-            <li>
-              <label>Bypass All Processing</label><br>
-              <input id="processing_bypass_prg1" type="checkbox" />
-              <button id="processing_bypass_toggle_prg1" type="button">Toggle Processing Bypass</button>
-                          <!-- Example: make Apply and Patch buttons inactive by default -->
-            </li>
-            <li>
-              <label>Auto Level Match In Bypass</label><br>
-              <input id="bypass_level_match_enabled_prg1" type="checkbox" />
-              <label>Bypass Level Trim (dB)</label>
-              <input id="bypass_level_match_db_prg1" type="number" step="0.1" min="-24" max="24" />
-            </li>
-            <li>
-              <button id="apply_prg1">Apply and Refresh Preview</button>
-                          <button id="apply_prg1" class="btn-inactive">Apply and Refresh Preview</button> <!-- Remove .btn-inactive when implemented -->
-            </li>
-            <li>
-              <button id="patch_start_prg1">Start Hardware Patch</button>
-              <button id="patch_stop_prg1" class="btn-inactive">Stop Hardware Patch</button> <!-- Remove .btn-inactive when implemented -->
-            </li>
-            <li>
-              <label>Hardware Patch Output Device</label><br>
-              <input id="patch_output_device_prg1" type="text" />
-            </li>
-            <li>
-              <audio id="audio_prg1" controls autoplay style="width:100%; margin-top:10px"></audio>
-            </li>
-            <li>
-              <label>Waveform</label><br>
-              <canvas id="wave_prg1" width="900" height="180"></canvas>
-            </li>
-            <li>
-              <label>Band Spectrum</label><br>
+            <!-- Audio Processing Controls -->
+            <section id="audio-processing-controls" style="margin-bottom:2em;">
+              <h2 style="margin-top:0;color:var(--accent);font-size:1.2em;">Audio Processing Controls</h2>
+              <ul style="list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1em;">
+                <li>
+                  <label>Pre-Gain (dB): <span id="pre_gain_db_val">0</span></label><br>
+                  <input id="pre_gain_db" type="range" min="-24" max="24" step="0.1" value="0" />
+                </li>
+                <li>
+                  <label>Post-Gain (dB): <span id="post_gain_db_val">0</span></label><br>
+                  <input id="post_gain_db" type="range" min="-24" max="24" step="0.1" value="0" />
+                </li>
+                <li>
+                  <label>Parallel Dry Mix: <span id="parallel_dry_mix_val">0</span></label><br>
+                  <input id="parallel_dry_mix" type="range" min="0" max="1" step="0.01" value="0" />
+                </li>
+                <li>
+                  <label>Stereo Width: <span id="stereo_width_val">1.0</span></label><br>
+                  <input id="stereo_width" type="range" min="0" max="2" step="0.01" value="1.0" />
+                </li>
+                <li>
+                  <label>HF Tame (dB): <span id="hf_tame_db_val">0</span></label><br>
+                  <input id="hf_tame_db" type="range" min="-24" max="24" step="0.1" value="0" />
+                </li>
+                <li>
+                  <label>HF Tame Freq (Hz): <span id="hf_tame_freq_val">7000</span></label><br>
+                  <input id="hf_tame_freq" type="range" min="1000" max="20000" step="100" value="7000" />
+                </li>
+                <li>
+                  <label>Output Limit: <span id="output_limit_val">0.96</span></label><br>
+                  <input id="output_limit" type="range" min="0.8" max="1" step="0.001" value="0.96" />
+                </li>
+                <li>
+                  <label>HPF (Hz): <span id="hpf_freq_val">30</span></label><br>
+                  <input id="hpf_freq" type="range" min="10" max="200" step="1" value="30" />
+                </li>
+                <li>
+                  <label>LPF (Hz): <span id="lpf_freq_val">15000</span></label><br>
+                  <input id="lpf_freq" type="range" min="8000" max="22000" step="10" value="15000" />
+                </li>
+                <li>
+                  <label>Crossover 1 (Hz): <span id="xover_1_val">90</span></label><br>
+                  <input id="xover_1" type="range" min="50" max="500" step="1" value="90" />
+                </li>
+                <li>
+                  <label>Crossover 2 (Hz): <span id="xover_2_val">280</span></label><br>
+                  <input id="xover_2" type="range" min="100" max="1000" step="1" value="280" />
+                </li>
+                <li>
+                  <label>Crossover 3 (Hz): <span id="xover_3_val">900</span></label><br>
+                  <input id="xover_3" type="range" min="200" max="3000" step="1" value="900" />
+                </li>
+                <li>
+                  <label>Crossover 4 (Hz): <span id="xover_4_val">2800</span></label><br>
+                  <input id="xover_4" type="range" min="500" max="6000" step="1" value="2800" />
+                </li>
+                <li>
+                  <label>Band 1 Trim (dB): <span id="band1_trim_db_val">0</span></label><br>
+                  <input id="band1_trim_db" type="range" min="-12" max="12" step="0.1" value="0" />
+                </li>
+                <li>
+                  <label>Band 2 Trim (dB): <span id="band2_trim_db_val">0</span></label><br>
+                  <input id="band2_trim_db" type="range" min="-12" max="12" step="0.1" value="0" />
+                </li>
+                <li>
+                  <label>Band 3 Trim (dB): <span id="band3_trim_db_val">0</span></label><br>
+                  <input id="band3_trim_db" type="range" min="-12" max="12" step="0.1" value="0" />
+                </li>
+                <li>
+                  <label>Band 4 Trim (dB): <span id="band4_trim_db_val">0</span></label><br>
+                  <input id="band4_trim_db" type="range" min="-12" max="12" step="0.1" value="0" />
+                </li>
+                <li>
+                  <label>Band 5 Trim (dB): <span id="band5_trim_db_val">0</span></label><br>
+                  <input id="band5_trim_db" type="range" min="-12" max="12" step="0.1" value="0" />
+                </li>
+                <li style="grid-column:1/-1;">
+                  <label>AGC Frequency (Hz): <span id="agc_freq_val">250</span></label><br>
+                  <input id="agc_freq" type="range" min="50" max="1000" step="1" value="250" />
+                  <label>AGC Gain (dB): <span id="agc_gain_val">7</span></label><br>
+                  <input id="agc_gain" type="range" min="0" max="20" step="0.1" value="7" />
+                  <label>AGC Max Gain (dB): <span id="agc_max_gain_val">15</span></label><br>
+                  <input id="agc_max_gain" type="range" min="1" max="30" step="0.1" value="15" />
+                  <label>AGC Peak (0-1): <span id="agc_peak_val">0.95</span></label><br>
+                  <input id="agc_peak" type="range" min="0.80" max="1.00" step="0.01" value="0.95" />
+                  <!-- Hidden raw filter string for advanced use -->
+                  <input id="agc_filter" type="hidden" value="dynaudnorm=f=250:g=7:m=15:p=0.95" />
+                </li>
+              </ul>
+              <button id="apply_audio_processing" style="margin-top:1em;">Apply Audio Processing</button>
+
+              <!-- Visualizers -->
+              <div style="margin-top:2em;display:grid;grid-template-columns:1fr 1fr;gap:2em;align-items:start;">
+                <div>
+                  <label>Waveform</label><br>
+                  <canvas id="audio_waveform" width="600" height="120" style="width:100%;background:#181f1c;border-radius:6px;"></canvas>
+                </div>
+                <div>
+                  <label>Spectrum</label><br>
+                  <canvas id="audio_spectrum" width="600" height="120" style="width:100%;background:#181f1c;border-radius:6px;"></canvas>
+                </div>
+              </div>
+              <!-- Band Meter Visualizer -->
+              <div style="margin-top:2em;">
+                <label>Processor Band Meters</label>
+                <div class="meter-grid" id="band_meters">
+                  <div class="meter-row"><span class="name">Sub (30-120)</span><div class="meter-track"><div id="meter_sub" class="meter-fill"></div></div><span id="meter_sub_db" class="db">-inf dB</span></div>
+                  <div class="meter-row"><span class="name">Low (120-400)</span><div class="meter-track"><div id="meter_low" class="meter-fill"></div></div><span id="meter_low_db" class="db">-inf dB</span></div>
+                  <div class="meter-row"><span class="name">Mid (400-2k)</span><div class="meter-track"><div id="meter_mid" class="meter-fill"></div></div><span id="meter_mid_db" class="db">-inf dB</span></div>
+                  <div class="meter-row"><span class="name">Presence (2k-6k)</span><div class="meter-track"><div id="meter_pres" class="meter-fill"></div></div><span id="meter_pres_db" class="db">-inf dB</span></div>
+                  <div class="meter-row"><span class="name">Air (6k-15k)</span><div class="meter-track"><div id="meter_air" class="meter-fill"></div></div><span id="meter_air_db" class="db">-inf dB</span></div>
+                </div>
+              </div>
+            </section>
+        <!-- Place all your modern UI content here. Only one instance should exist. -->
+      </div>
+    </div>
+  </div>
+</body>
+  </html>
               <canvas id="spec_prg1" width="900" height="180"></canvas>
             </li>
             <li>
@@ -384,244 +411,7 @@
           <div style="color:var(--muted);padding:2em 0;">oMPX Web UI<br>Version <span class="ompx-version">...</span></div>
         </div>
       </div>
-      <!-- Legacy UI section (hidden by default) -->
-      <div id="legacy-ui" style="display:none;">
-        <!-- Begin legacy UI copy from original-ui.html -->
-        <div class="wrap">
-          <h1>oMPX Live Control + Patch Preview</h1>
-          <div class="grid">
-            <div class="card">
-              <div class="tabs">
-                <button type="button" id="tab_prog1" class="tab-btn active">Program 1</button>
-                <button type="button" id="tab_prog2" class="tab-btn">Program 2</button>
-                <button type="button" id="tab_global" class="tab-btn">Global Settings</button>
-              </div>
-              <div class="row">
-                <div><label>Program 1 Tab Name</label><input id="tab_name_prog1" class="tab-name" type="text" maxlength="24" /></div>
-                <div><label>Program 2 Tab Name</label><input id="tab_name_prog2" class="tab-name" type="text" maxlength="24" /></div>
-              </div>
-              <div class="global-field">
-                <label style="margin-top:8px">Global Settings</label>
-                <label><input id="enable_momentary_ab" type="checkbox" /> Enable Momentary A/B Hold (optional)</label>
-                <div class="status">When enabled, hold the A/B button to temporarily bypass processing, then release to return.</div>
-              </div>
-              <div class="row">
-                <div>
-                  <label>Input Channel</label>
-                  <select id="input_device">
-                    <option value="radio1_url">Program 1 stream URL</option>
-                    <option value="radio2_url">Program 2 stream URL</option>
-                    <option value="ompx_prg1in_cap">Program 1 input</option>
-                    <option value="ompx_prg2in_cap">Program 2 input</option>
-                    <option value="ompx_prg1mpx_cap">Program 1 MPX path</option>
-                    <option value="ompx_prg2mpx_cap">Program 2 MPX path</option>
-                  </select>
-                </div>
-                <div>
-                  <label>Sample Rate</label>
-                  <input id="sample_rate" type="number" min="8000" max="192000" step="1000" />
-                </div>
-              </div>
-              <div class="row">
-                <div>
-                  <label>Waveform Window (seconds)</label>
-                  <input id="wave_window_sec" type="range" min="0.25" max="10" step="0.25" />
-                  <div class="status" id="wave_window_readout">3.00 s</div>
-                </div>
-                <div>
-                  <label>Scope Capture</label>
-                  <div class="row">
-                    <div><button id="analysis_pause" type="button">Pause Scope</button></div>
-                    <div><button id="analysis_step" type="button">Step Frame</button></div>
-                  </div>
-                </div>
-              </div>
-              <div class="row">
-                <div>
-                  <label>Preview Decode Mode</label>
-                  <select id="preview_mode">
-                    <option value="auto">Auto (decode MPX inputs)</option>
-                    <option value="audio">Audio chain only</option>
-                    <option value="mpx-decode">Force MPX stereo decode</option>
-                  </select>
-                </div>
-                <div></div>
-              </div>
-              <div class="row">
-                <div><label>Pre Gain (dB)</label><input id="pre_gain_db" type="number" step="0.1" /></div>
-                <div><label>Post Gain (dB)</label><input id="post_gain_db" type="number" step="0.1" /></div>
-              </div>
-              <div class="row">
-                <div><label>Processor Input Gain (dB)</label><input id="processor_input_gain_db" type="number" step="0.1" min="-24" max="24" /></div>
-                <div>
-                  <label>Peak Hold Overlay</label>
-                  <div class="row">
-                    <div><label><input id="peak_hold_enabled" type="checkbox" /> Enable</label></div>
-                    <div><input id="peak_hold_decay" type="number" step="0.01" min="0.50" max="0.999" /></div>
-                  </div>
-                </div>
-              </div>
-              <label style="margin-top:12px">5-Band Processor (Drive / Ratio / Attack / Release / Mix)</label>
-              <div class="row" style="margin-bottom:4px">
-                <div>Band Bypass</div>
-                <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;">
-                  <label><input id="band1_enabled" type="checkbox" checked /> B1</label>
-                  <label><input id="band2_enabled" type="checkbox" checked /> B2</label>
-                  <label><input id="band3_enabled" type="checkbox" checked /> B3</label>
-                  <label><input id="band4_enabled" type="checkbox" checked /> B4</label>
-                  <label><input id="band5_enabled" type="checkbox" checked /> B5</label>
-                </div>
-              </div>
-              <div class="row"><div>Sub 30-120</div><div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;"><input id="band1_drive_db" type="number" step="0.1" placeholder="Drive dB" /><input id="band1_ratio" type="number" step="0.1" placeholder="Ratio" /><input id="band1_attack_ms" type="number" step="0.1" placeholder="Attack ms" /><input id="band1_release_ms" type="number" step="1" placeholder="Release ms" /><input id="band1_mix" type="number" step="0.01" placeholder="Mix" /></div></div>
-              <div class="row"><div>Low 120-400</div><div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;"><input id="band2_drive_db" type="number" step="0.1" placeholder="Drive dB" /><input id="band2_ratio" type="number" step="0.1" placeholder="Ratio" /><input id="band2_attack_ms" type="number" step="0.1" placeholder="Attack ms" /><input id="band2_release_ms" type="number" step="1" placeholder="Release ms" /><input id="band2_mix" type="number" step="0.01" placeholder="Mix" /></div></div>
-              <div class="row"><div>Mid 400-2k</div><div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;"><input id="band3_drive_db" type="number" step="0.1" placeholder="Drive dB" /><input id="band3_ratio" type="number" step="0.1" placeholder="Ratio" /><input id="band3_attack_ms" type="number" step="0.1" placeholder="Attack ms" /><input id="band3_release_ms" type="number" step="1" placeholder="Release ms" /><input id="band3_mix" type="number" step="0.01" placeholder="Mix" /></div></div>
-              <div class="row"><div>Presence 2k-6k</div><div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;"><input id="band4_drive_db" type="number" step="0.1" placeholder="Drive dB" /><input id="band4_ratio" type="number" step="0.1" placeholder="Ratio" /><input id="band4_attack_ms" type="number" step="0.1" placeholder="Attack ms" /><input id="band4_release_ms" type="number" step="1" placeholder="Release ms" /><input id="band4_mix" type="number" step="0.01" placeholder="Mix" /></div></div>
-              <div class="row"><div>Air 6k-15k</div><div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;"><input id="band5_drive_db" type="number" step="0.1" placeholder="Drive dB" /><input id="band5_ratio" type="number" step="0.1" placeholder="Ratio" /><input id="band5_attack_ms" type="number" step="0.1" placeholder="Attack ms" /><input id="band5_release_ms" type="number" step="1" placeholder="Release ms" /><input id="band5_mix" type="number" step="0.01" placeholder="Mix" /></div></div>
-              <div class="row">
-                <div><label>Stereo Width</label><input id="stereo_width" type="number" step="0.01" min="0" max="2" /></div>
-                <div><label>Limiter Ceiling (0..1)</label><input id="output_limit" type="number" step="0.01" min="0.1" max="1" /></div>
-              </div>
-              <div class="row">
-                <div><label>HF Tame (dB)</label><input id="hf_tame_db" type="number" step="0.1" /></div>
-                <div><label>HF Tame Freq (Hz)</label><input id="hf_tame_freq" type="number" step="100" /></div>
-              </div>
-              <div class="row global-field">
-                <div>
-                  <label>Color Theme</label>
-                  <select id="ui_theme">
-                    <option value="forest">Forest (default)</option>
-                    <option value="daylight">Daylight</option>
-                    <option value="midnight">Midnight</option>
-                    <option value="amber">Amber Scope</option>
-                    <option value="system">System</option>
-                  </select>
-                </div>
-                <div>
-                  <label>&nbsp;</label>
-                  <button id="theme_apply">Apply Theme</button>
-                </div>
-              </div>
-              <label class="global-field">Custom CSS (optional)</label>
-              <textarea class="global-field" id="ui_custom_css" rows="4" style="width:100%; margin-top:4px; padding:8px; border-radius:8px; border:1px solid #365f55; background:#0d1f1c; color:var(--ink);"></textarea>
-              <button class="global-field" id="css_apply" style="margin-top:8px;">Apply Custom CSS</button>
-              <div class="row" style="margin-top:8px">
-                <div><label><input id="processing_bypass" type="checkbox" /> Bypass All Processing</label></div>
-                <div><button id="processing_bypass_toggle" type="button">Toggle Processing Bypass</button></div>
-              </div>
-              <div id="momentary_wrap" style="display:none; margin-top:8px"><button id="processing_bypass_hold" type="button">Hold For Bypass A/B</button></div>
-              <div class="row">
-                <div><label><input id="bypass_level_match_enabled" type="checkbox" /> Auto Level Match In Bypass (optional)</label></div>
-                <div><label>Bypass Level Trim (dB)</label><input id="bypass_level_match_db" type="number" step="0.1" min="-24" max="24" /></div>
-              </div>
-              <button id="apply">Apply and Refresh Preview</button>
-              <div class="row" style="margin-top:8px">
-                <div><button id="patch_start">Start Hardware Patch</button></div>
-                <div><button id="patch_stop">Stop Hardware Patch</button></div>
-              </div>
-              <label>Hardware Patch Output Device</label>
-              <input id="patch_output_device" type="text" />
-              <div class="row">
-                <div>
-                  <label>FFT Input Device (MPX)</label>
-                  <select id="fft_input_device">
-                    <option value="radio1_url">Program 1 stream URL</option>
-                    <option value="radio2_url">Program 2 stream URL</option>
-                    <option value="ompx_prg1mpx_cap">Program 1 MPX capture</option>
-                    <option value="ompx_prg2mpx_cap">Program 2 MPX capture</option>
-                    <option value="ompx_prg1in_cap">Program 1 audio input</option>
-                    <option value="ompx_prg2in_cap">Program 2 audio input</option>
-                  </select>
-                </div>
-                <div>
-                  <label>FFT Max Hz</label>
-                  <input id="fft_max_hz" type="number" min="1000" max="96000" step="1000" />
-                </div>
-              </div>
-              <div class="row">
-                <div><label>FFT Sample Rate</label><input id="fft_sample_rate" type="number" min="32000" max="384000" step="1000" /></div>
-                <div><label>&nbsp;</label><button id="fft_refresh">Refresh FFT Now</button></div>
-              </div>
-              <label style="margin-top:12px">RDS Live Overrides</label>
-              <div class="row">
-                <div class="program-field program-1"><label>P1 PS</label><input id="rds_prog1_ps" type="text" maxlength="8" /></div>
-                <div class="program-field program-2"><label>P2 PS</label><input id="rds_prog2_ps" type="text" maxlength="8" /></div>
-              </div>
-              <div class="row">
-                <div class="program-field program-1"><label>P1 PI (hex)</label><input id="rds_prog1_pi" type="text" maxlength="4" /></div>
-                <div class="program-field program-2"><label>P2 PI (hex)</label><input id="rds_prog2_pi" type="text" maxlength="4" /></div>
-              </div>
-              <div class="row">
-                <div class="program-field program-1"><label>P1 PTY (0-31)</label><input id="rds_prog1_pty" type="number" min="0" max="31" step="1" /></div>
-                <div class="program-field program-2"><label>P2 PTY (0-31)</label><input id="rds_prog2_pty" type="number" min="0" max="31" step="1" /></div>
-              </div>
-              <div class="row">
-                <div class="program-field program-1"><label>P1 RT Text</label><input id="rds_prog1_rt" type="text" /></div>
-                <div class="program-field program-2"><label>P2 RT Text</label><input id="rds_prog2_rt" type="text" /></div>
-              </div>
-              <div class="row">
-                <div class="program-field program-1">
-                  <label>P1 CT Mode</label>
-                  <select id="rds_prog1_ct_mode"><option value="local">Local</option><option value="utc">UTC</option></select>
-                </div>
-                <div class="program-field program-2">
-                  <label>P2 CT Mode</label>
-                  <select id="rds_prog2_ct_mode"><option value="local">Local</option><option value="utc">UTC</option></select>
-                </div>
-              </div>
-              <div class="row">
-                <div class="program-field program-1">
-                  <label>P1 Flags</label>
-                  <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px;">
-                    <label><input id="rds_prog1_tp" type="checkbox" /> TP</label>
-                    <label><input id="rds_prog1_ta" type="checkbox" /> TA</label>
-                    <label><input id="rds_prog1_ms" type="checkbox" /> MS</label>
-                    <label><input id="rds_prog1_ct_enable" type="checkbox" /> CT</label>
-                  </div>
-                </div>
-                <div class="program-field program-2">
-                  <label>P2 Flags</label>
-                  <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px;">
-                    <label><input id="rds_prog2_tp" type="checkbox" /> TP</label>
-                    <label><input id="rds_prog2_ta" type="checkbox" /> TA</label>
-                    <label><input id="rds_prog2_ms" type="checkbox" /> MS</label>
-                    <label><input id="rds_prog2_ct_enable" type="checkbox" /> CT</label>
-                  </div>
-                </div>
-              </div>
-              <button id="rds_apply" style="margin-top:8px;">Apply RDS Overrides</button>
-              <div class="row" style="margin-top:8px">
-                <div class="status program-field program-1">P1 CT: <span id="rds_prog1_ct_current">-</span> | Updated: <span id="rds_prog1_updated_at">-</span></div>
-                <div class="status program-field program-2">P2 CT: <span id="rds_prog2_ct_current">-</span> | Updated: <span id="rds_prog2_updated_at">-</span></div>
-              </div>
-              <audio id="audio" controls autoplay style="width:100%; margin-top:10px"></audio>
-              <div class="status" id="status">Ready.</div>
-            </div>
-            <div class="card">
-              <label>Waveform</label>
-              <canvas id="wave" width="900" height="280"></canvas>
-              <label style="margin-top:12px">Band Spectrum</label>
-              <canvas id="spec" width="900" height="280"></canvas>
-              <label style="margin-top:12px">Processor Band Meters</label>
-              <div class="meter-grid" id="band_meters">
-                <div class="meter-row"><span class="name">Sub (30-120)</span><div class="meter-track"><div id="meter_sub" class="meter-fill"></div></div><span id="meter_sub_db" class="db">-inf dB</span></div>
-                <div class="meter-row"><span class="name">Low (120-400)</span><div class="meter-track"><div id="meter_low" class="meter-fill"></div></div><span id="meter_low_db" class="db">-inf dB</span></div>
-                <div class="meter-row"><span class="name">Mid (400-2k)</span><div class="meter-track"><div id="meter_mid" class="meter-fill"></div></div><span id="meter_mid_db" class="db">-inf dB</span></div>
-                <div class="meter-row"><span class="name">Presence (2k-6k)</span><div class="meter-track"><div id="meter_pres" class="meter-fill"></div></div><span id="meter_pres_db" class="db">-inf dB</span></div>
-                <div class="meter-row"><span class="name">Air (6k-15k)</span><div class="meter-track"><div id="meter_air" class="meter-fill"></div></div><span id="meter_air_db" class="db">-inf dB</span></div>
-              </div>
-              <label style="margin-top:12px">MPX FFT Snapshot (server-side)</label>
-              <div style="position:relative; border:1px solid #2a4f47; border-radius:8px; overflow:hidden; background:#0a1412;">
-                <img id="fft_img" alt="MPX FFT" style="display:block; width:100%; height:300px; object-fit:fill;" />
-                <div id="pilot_marker" style="position:absolute; top:0; bottom:0; width:2px; background:#f2b642; opacity:0.9;"></div>
-                <div id="sub_marker" style="position:absolute; top:0; bottom:0; width:2px; background:#52d3c7; opacity:0.9;"></div>
-                <div style="position:absolute; top:6px; left:8px; font-size:11px; color:#f2b642; background:#0008; padding:2px 6px; border-radius:4px;">19 kHz pilot</div>
-                <div style="position:absolute; top:6px; left:120px; font-size:11px; color:#52d3c7; background:#0008; padding:2px 6px; border-radius:4px;">38 kHz L-R DSB</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <!-- End legacy UI copy -->
-      </div>
-  </script>
+    </div>
+  </div>
 </body>
 </html>
