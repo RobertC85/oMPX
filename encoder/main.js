@@ -5,15 +5,46 @@ document.addEventListener('DOMContentLoaded', function() {
     // Apply button logic
     var applyBtn = document.getElementById('apply_settings_btn');
     if (applyBtn) {
-      applyBtn.addEventListener('click', function() {
+      applyBtn.addEventListener('click', async function() {
         applyBtn.disabled = true;
         applyBtn.textContent = 'Applying...';
-        // TODO: Implement actual apply logic (API call)
-        setTimeout(function() {
-          applyBtn.disabled = false;
+        try {
+          // Collect all slider values
+          const sliderIds = [
+            'pre_gain_db','post_gain_db','parallel_dry_mix','stereo_width','hf_tame_db','hf_tame_freq','output_limit',
+            'hpf_freq','lpf_freq','xover_1','xover_2','xover_3','xover_4',
+            'band1_trim_db','band2_trim_db','band3_trim_db','band4_trim_db','band5_trim_db',
+            'agc_freq','agc_gain','agc_max_gain','agc_peak'
+          ];
+          const payload = {};
+          sliderIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) payload[id] = el.value;
+          });
+          // Add program number
+          payload.program = window.currentProgram || 1;
+          // POST to /api/apply_mpx
+          const res = await fetch('/api/apply_mpx', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const ct = res.headers.get('content-type') || '';
+          let data;
+          if (ct.includes('application/json')) {
+            data = await res.json();
+          } else {
+            const text = await res.text();
+            throw new Error('Non-JSON response: ' + text.slice(0, 100));
+          }
+          if (!data.ok) throw new Error(data.message || 'Failed to apply settings');
+          applyBtn.textContent = 'Applied!';
+          setTimeout(() => { applyBtn.textContent = 'Apply Settings'; applyBtn.disabled = false; }, 1200);
+        } catch (e) {
+          showUiError('Apply error: ' + e);
           applyBtn.textContent = 'Apply Settings';
-          alert('Settings applied! (placeholder)');
-        }, 1200);
+          applyBtn.disabled = false;
+        }
       });
     }
   // Patchpoint selector for audio monitor
@@ -27,6 +58,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     patchSel.addEventListener('change', setAudioSrc);
     setAudioSrc(); // Set initial
+  }
+
+  // On parameter change, reload preview audio if preview is selected
+  function reloadPreviewAudioIfNeeded() {
+    if (patchSel && audioMon && patchSel.value === '/api/preview.wav') {
+      // Force reload by resetting src (cache-busting)
+      audioMon.src = '/api/preview.wav?v=' + Date.now();
+      audioMon.load();
+      audioMon.play().catch(()=>{});
+    }
   }
   function showUiError(msg) {
     var alertDiv = document.getElementById('ui-error-alert');
@@ -100,7 +141,7 @@ document.addEventListener('DOMContentLoaded', function() {
        const valSpan = document.getElementById(id + '_val');
        if (!slider) return;
        // Update value span and send real-time update on slider input
-       slider.addEventListener('input', () => {
+      slider.addEventListener('input', () => {
          // Debug: log slider input
          console.log(`[oMPX] Slider #${id} input:`, slider.value);
          if (valSpan) {
@@ -123,8 +164,9 @@ document.addEventListener('DOMContentLoaded', function() {
          })
          .then(data => {
            if (!data.ok) showUiError(data.message || 'Failed to update parameter');
+           reloadPreviewAudioIfNeeded();
          })
-         .catch(e => showUiError('Network error: ' + e));
+         .catch(e => { showUiError('Network error: ' + e); reloadPreviewAudioIfNeeded(); });
        });
        if (valSpan) valSpan.textContent = slider.value;
        // Double-click value span to edit

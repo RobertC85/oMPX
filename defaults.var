@@ -3,7 +3,7 @@
 # Edit these values to set default audio sources for unattended or repeatable installs.
 
 # Program 1 audio source (Icecast URL, ALSA device, file, etc.)
-PROGRAM1_SOURCE="http://127.0.0.1:8000/stream1"
+PROGRAM1_SOURCE=""
 # Program 2 audio source
-PROGRAM2_SOURCE="http://127.0.0.1:8000/stream2"
+PROGRAM2_SOURCE=""
 # Add more defaults as needed

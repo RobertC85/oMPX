@@ -15,13 +15,15 @@
 # - Designed for maintainability and open source clarity
 # -------------------------------------------------------------
 
+import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from http import HTTPStatus
 import json
 import threading
-import os
 import subprocess
 import requests
+import socket
+import time
 from rds_utils import recreate_rds_json
 
 
@@ -144,11 +146,6 @@ class Handler(BaseHTTPRequestHandler):
             prog = int(payload.get("program", 0))
             if prog not in (1, 2):
                 self._send_json({"ok": False, "message": "Invalid program number"}, status=HTTPStatus.BAD_REQUEST)
-                # Serve the latest index.html from the same directory as this script
-                import os
-                index_path = os.path.join(os.path.dirname(__file__), "index.html")
-                with open(index_path, "r") as f:
-                    self.wfile.write(f.read().encode())
                 return
             # Helper to get option from payload, env, or default
             def get_opt(key, env_key=None, default=None):
@@ -311,6 +308,30 @@ class Handler(BaseHTTPRequestHandler):
 
         # Audio preview endpoint: WAV (proxied from Liquidsoap HTTP output)
         if self.path.startswith("/api/preview.wav"):
+            # Check if port 8088 is open (Liquidsoap HTTP output)
+            def is_port_open(host, port):
+                try:
+                    with socket.create_connection((host, port), timeout=1):
+                        return True
+                except Exception:
+                    return False
+
+            if not is_port_open("127.0.0.1", 8088):
+                # Try to start Liquidsoap preview in background
+                liq_path = os.path.join(os.path.dirname(__file__), "ompx-preview.liq")
+                liq_bin = "/usr/bin/liquidsoap"
+                try:
+                    subprocess.Popen([liq_bin, liq_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    # Wait briefly for it to start
+                    for _ in range(10):
+                        if is_port_open("127.0.0.1", 8088):
+                            break
+                        time.sleep(0.5)
+                except Exception as e:
+                    self.send_error(HTTPStatus.SERVICE_UNAVAILABLE, f"Failed to auto-start Liquidsoap: {e}")
+                    return
+
+            # Now try to proxy the WAV stream
             try:
                 resp = requests.get("http://127.0.0.1:8088/", stream=True, timeout=5)
                 self.send_response(HTTPStatus.OK)
@@ -339,6 +360,24 @@ class Handler(BaseHTTPRequestHandler):
         file_path = os.path.join(os.path.dirname(__file__), filename)
         if not os.path.isfile(file_path):
             self.send_error(HTTPStatus.NOT_FOUND, "File not found")
+            return
+        # Guess the content type
+        content_type, _ = mimetypes.guess_type(file_path)
+        if not content_type:
+            content_type = "application/octet-stream"
+        try:
+            with open(file_path, "rb") as f:
+                data = f.read()
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception as e:
+            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to serve file: {e}")
             return
         mime, _ = mimetypes.guess_type(filename)
         # Always set correct MIME type for .js and .css

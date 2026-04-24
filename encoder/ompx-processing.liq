@@ -182,13 +182,14 @@ output_filtered_2 = lowpass(output_filtered_2, 16900.0)
 # 2. HTTP WAV preview output for browser/monitoring
 ######################################################################
 
-# Icecast output for Program 1
-output.icecast(%mp3(bitrate=320), host="localhost", port=8000, password="hackme", mount="/mpx1", name="MPX Program 1", description="MPX 1")
-    (audio_to_stereo(output_filtered_1))
 
-# Icecast output for Program 2
-output.icecast(%mp3(bitrate=320), host="localhost", port=8000, password="hackme", mount="/mpx2", name="MPX Program 2", description="MPX 2")
-    (audio_to_stereo(output_filtered_2))
+# Icecast FLAC output for Program 1 (192kHz)
+output.icecast(%flac(samplerate=192000), host="localhost", port=8000, password="hackme", mount="/mpx1", name="MPX Program 1 FLAC 192kHz", description="MPX 1 FLAC 192kHz")
+	(audio_to_stereo(output_filtered_1))
+
+# Icecast FLAC output for Program 2 (192kHz)
+output.icecast(%flac(samplerate=192000), host="localhost", port=8000, password="hackme", mount="/mpx2", name="MPX Program 2 FLAC 192kHz", description="MPX 2 FLAC 192kHz")
+	(audio_to_stereo(output_filtered_2))
 
 # HTTP WAV preview output for Program 1
 output.http(

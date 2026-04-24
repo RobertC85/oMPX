@@ -1,0 +1,1138 @@
+At ompx-preview.liq, line 19, char 0-6:
+output.http(post_gain, port=8088)
+
+Error 5: 
+this value has no method `http`
+  Its type is ((?id : string?, ?fallible : bool, ?on_start : (() -> unit),
+  ?on_stop : (() -> unit), ?start : bool, source(audio=pcm('A))) -> 
+ {
+   buffered : () -> [string * float],
+   duration : () -> float,
+   elapsed : () -> float,
+   fallible : bool,
+   id : () -> string,
+   is_active : () -> bool,
+   is_ready : () -> bool,
+   is_started : () -> bool,
+   is_up : () -> bool,
+   last_metadata : () -> [string * string]?,
+   log : 
+   {level : (() -> int?).{set : (int) -> unit}
+   },
+   on_metadata : ((([string * string]) -> unit)) -> unit,
+   on_shutdown : ((() -> unit)) -> unit,
+   on_track : ((([string * string]) -> unit)) -> unit,
+   on_wake_up : ((() -> unit)) -> unit,
+   remaining : () -> float,
+   seek : (float) -> float,
+   self_sync : () -> bool,
+   shutdown : () -> unit,
+   skip : () -> unit,
+   start : () -> unit,
+   stop : () -> unit,
+   time : () -> float})
+.{
+  alsa : 'a.'b.(?id : string?, ?bufferize : bool, ?clock_safe : bool,
+                ?device : string, ?fallible : bool, ?on_start : (() -> unit),
+                ?on_stop : (() -> unit), ?register_telnet : bool,
+                ?start : bool, source(audio=pcm('a), 'b)) -> 
+               {
+                 buffered : () -> [string * float],
+                 duration : () -> float,
+                 elapsed : () -> float,
+                 fallible : bool,
+                 id : () -> string,
+                 is_active : () -> bool,
+                 is_ready : () -> bool,
+                 is_started : () -> bool,
+                 is_up : () -> bool,
+                 last_metadata : () -> [string * string]?,
+                 log : 
+                 {level : (() -> int?).{set : (int) -> unit}
+                 },
+                 on_metadata : ((([string * string]) -> unit)) -> unit,
+                 on_shutdown : ((() -> unit)) -> unit,
+                 on_track : ((([string * string]) -> unit)) -> unit,
+                 on_wake_up : ((() -> unit)) -> unit,
+                 remaining : () -> float,
+                 seek : (float) -> float,
+                 self_sync : () -> bool,
+                 shutdown : () -> unit,
+                 skip : () -> unit,
+                 start : () -> unit,
+                 stop : () -> unit,
+                 time : () -> float},
+  ao : 'a.'b.(?id : string?, ?buffer_size : int, ?channels_matrix : string,
+              ?clock_safe : bool, ?driver : string, ?fallible : bool,
+              ?on_start : (() -> unit), ?on_stop : (() -> unit),
+              ?options : [string * string], ?register_telnet : bool,
+              ?start : bool, source(audio=pcm('a), 'b)) -> 
+             {
+               buffered : () -> [string * float],
+               duration : () -> float,
+               elapsed : () -> float,
+               fallible : bool,
+               id : () -> string,
+               is_active : () -> bool,
+               is_ready : () -> bool,
+               is_started : () -> bool,
+               is_up : () -> bool,
+               last_metadata : () -> [string * string]?,
+               log : 
+               {level : (() -> int?).{set : (int) -> unit}
+               },
+               on_metadata : ((([string * string]) -> unit)) -> unit,
+               on_shutdown : ((() -> unit)) -> unit,
+               on_track : ((([string * string]) -> unit)) -> unit,
+               on_wake_up : ((() -> unit)) -> unit,
+               remaining : () -> float,
+               seek : (float) -> float,
+               self_sync : () -> bool,
+               shutdown : () -> unit,
+               skip : () -> unit,
+               start : () -> unit,
+               stop : () -> unit,
+               time : () -> float},
+  audio_video : (?id : string?, ?fallible : bool, ?on_start : (() -> unit),
+                 ?on_stop : (() -> unit), ?start : bool,
+                 source(audio=pcm('A), video=canvas('C))) -> 
+                {
+                  buffered : () -> [string * float],
+                  duration : () -> float,
+                  elapsed : () -> float,
+                  fallible : bool,
+                  id : () -> string,
+                  is_active : () -> bool,
+                  is_ready : () -> bool,
+                  is_started : () -> bool,
+                  is_up : () -> bool,
+                  last_metadata : () -> [string * string]?,
+                  log : 
+                  {level : (() -> int?).{set : (int) -> unit}
+                  },
+                  on_metadata : ((([string * string]) -> unit)) -> unit,
+                  on_shutdown : ((() -> unit)) -> unit,
+                  on_track : ((([string * string]) -> unit)) -> unit,
+                  on_wake_up : ((() -> unit)) -> unit,
+                  remaining : () -> float,
+                  seek : (float) -> float,
+                  self_sync : () -> bool,
+                  shutdown : () -> unit,
+                  skip : () -> unit,
+                  start : () -> unit,
+                  stop : () -> unit,
+                  time : () -> float},
+  dummy : 'a.(?id : string?, ?fallible : bool, ?on_start : (() -> unit),
+              ?on_stop : (() -> unit), ?register_telnet : bool,
+              ?start : bool, source('a)) -> 
+             {
+               buffered : () -> [string * float],
+               duration : () -> float,
+               elapsed : () -> float,
+               fallible : bool,
+               id : () -> string,
+               is_active : () -> bool,
+               is_ready : () -> bool,
+               is_started : () -> bool,
+               is_up : () -> bool,
+               last_metadata : () -> [string * string]?,
+               log : 
+               {level : (() -> int?).{set : (int) -> unit}
+               },
+               on_metadata : ((([string * string]) -> unit)) -> unit,
+               on_shutdown : ((() -> unit)) -> unit,
+               on_track : ((([string * string]) -> unit)) -> unit,
+               on_wake_up : ((() -> unit)) -> unit,
+               remaining : () -> float,
+               seek : (float) -> float,
+               self_sync : () -> bool,
+               shutdown : () -> unit,
+               skip : () -> unit,
+               start : () -> unit,
+               stop : () -> unit,
+               time : () -> float},
+  external : 'a.((?id : string?, ?export_cover_metadata : bool,
+                  ?fallible : bool, ?flush : bool, ?on_reopen : (() -> unit),
+                  ?on_start : (() -> unit), ?on_stop : (() -> unit),
+                  ?register_telnet : bool, ?reopen_delay : {float},
+                  ?reopen_on_error : ((error
+                                       .{
+                                         kind : string,
+                                         message : string,
+                                         trace : [
+                                                  {
+                                                    position_end : 
+                                                    {
+                                                      character_offset : int,
+                                                      filename : string,
+                                                      line_number : int
+                                                    },
+                                                    position_start : 
+                                                    {
+                                                      character_offset : int,
+                                                      filename : string,
+                                                      line_number : int
+                                                    },
+                                                    to_string : (?prefix : string) ->
+                                                                string
+                                                  }]
+                                       }?) -> float?),
+                  ?reopen_on_metadata : (([string * string]) -> bool),
+                  ?reopen_when : (() -> bool), ?self_sync : bool,
+                  ?start : bool, format('a), {string}, source('a)) -> 
+                 {
+                   buffered : () -> [string * float],
+                   duration : () -> float,
+                   elapsed : () -> float,
+                   fallible : bool,
+                   id : () -> string,
+                   is_active : () -> bool,
+                   is_ready : () -> bool,
+                   is_started : () -> bool,
+                   is_up : () -> bool,
+                   last_metadata : () -> [string * string]?,
+                   log : 
+                   {level : (() -> int?).{set : (int) -> unit}
+                   },
+                   on_metadata : ((([string * string]) -> unit)) -> unit,
+                   on_shutdown : ((() -> unit)) -> unit,
+                   on_track : ((([string * string]) -> unit)) -> unit,
+                   on_wake_up : ((() -> unit)) -> unit,
+                   remaining : () -> float,
+                   reopen : () -> unit,
+                   seek : (float) -> float,
+                   self_sync : () -> bool,
+                   shutdown : () -> unit,
+                   skip : () -> unit,
+                   start : () -> unit,
+                   stop : () -> unit,
+                   time : () -> float})
+  .{
+    ffmpeg : (?id : string?, ?show_command : bool, ?flush : bool,
+              ?fallible : bool, ?on_start : (() -> unit),
+              ?on_stop : (() -> unit),
+              ?reopen_on_metadata : (([string * string]) -> bool),
+              ?reopen_on_error : ((error
+                                   .{
+                                     kind : string,
+                                     message : string,
+                                     trace : [
+                                              {
+                                                position_end : 
+                                                {
+                                                  character_offset : int,
+                                                  filename : string,
+                                                  line_number : int
+                                                },
+                                                position_start : 
+                                                {
+                                                  character_offset : int,
+                                                  filename : string,
+                                                  line_number : int
+                                                },
+                                                to_string : (?prefix : string) ->
+                                                            string
+                                              }]
+                                   }?) -> float?),
+              ?reopen_when : (() -> bool), ?reopen_delay : {float},
+              ?on_reopen : (() -> unit), ?start : bool, string,
+              source(audio=pcm(stereo), video=canvas)) -> 
+             {
+               buffered : () -> [string * float],
+               duration : () -> float,
+               elapsed : () -> float,
+               fallible : bool,
+               id : () -> string,
+               is_active : () -> bool,
+               is_ready : () -> bool,
+               is_started : () -> bool,
+               is_up : () -> bool,
+               last_metadata : () -> [string * string]?,
+               log : 
+               {level : (() -> int?).{set : (int) -> unit}
+               },
+               on_metadata : ((([string * string]) -> unit)) -> unit,
+               on_shutdown : ((() -> unit)) -> unit,
+               on_track : ((([string * string]) -> unit)) -> unit,
+               on_wake_up : ((() -> unit)) -> unit,
+               remaining : () -> float,
+               reopen : () -> unit,
+               seek : (float) -> float,
+               self_sync : () -> bool,
+               shutdown : () -> unit,
+               skip : () -> unit,
+               start : () -> unit,
+               stop : () -> unit,
+               time : () -> float}
+  },
+  file : 'a.((?id : string?, ?append : bool, ?dir_perm : int,
+              ?export_cover_metadata : bool, ?fallible : bool, ?flush : bool,
+              ?on_close : ((string) -> unit), ?on_reopen : (() -> unit),
+              ?on_start : (() -> unit), ?on_stop : (() -> unit), ?perm : int,
+              ?register_telnet : bool, ?reopen_delay : {float},
+              ?reopen_on_error : ((error
+                                   .{
+                                     kind : string,
+                                     message : string,
+                                     trace : [
+                                              {
+                                                position_end : 
+                                                {
+                                                  character_offset : int,
+                                                  filename : string,
+                                                  line_number : int
+                                                },
+                                                position_start : 
+                                                {
+                                                  character_offset : int,
+                                                  filename : string,
+                                                  line_number : int
+                                                },
+                                                to_string : (?prefix : string) ->
+                                                            string
+                                              }]
+                                   }?) -> float?),
+              ?reopen_on_metadata : (([string * string]) -> bool),
+              ?reopen_when : (() -> bool), ?start : bool, format('a),
+              {string}, source('a)) -> 
+             {
+               buffered : () -> [string * float],
+               duration : () -> float,
+               elapsed : () -> float,
+               fallible : bool,
+               id : () -> string,
+               is_active : () -> bool,
+               is_ready : () -> bool,
+               is_started : () -> bool,
+               is_up : () -> bool,
+               last_metadata : () -> [string * string]?,
+               log : 
+               {level : (() -> int?).{set : (int) -> unit}
+               },
+               on_metadata : ((([string * string]) -> unit)) -> unit,
+               on_shutdown : ((() -> unit)) -> unit,
+               on_track : ((([string * string]) -> unit)) -> unit,
+               on_wake_up : ((() -> unit)) -> unit,
+               remaining : () -> float,
+               reopen : () -> unit,
+               seek : (float) -> float,
+               self_sync : () -> bool,
+               shutdown : () -> unit,
+               skip : () -> unit,
+               start : () -> unit,
+               stop : () -> unit,
+               time : () -> float})
+  .{
+    dash : 
+    {
+      ffmpeg : (?id : string?, ?flush : bool, ?fallible : bool,
+                ?on_start : (() -> unit), ?on_stop : (() -> unit),
+                ?reopen_on_metadata : (([string * string]) -> bool),
+                ?reopen_on_error : ((error
+                                     .{
+                                       kind : string,
+                                       message : string,
+                                       trace : [
+                                                {
+                                                  position_end : 
+                                                  {
+                                                    character_offset : int,
+                                                    filename : string,
+                                                    line_number : int
+                                                  },
+                                                  position_start : 
+                                                  {
+                                                    character_offset : int,
+                                                    filename : string,
+                                                    line_number : int
+                                                  },
+                                                  to_string : (?prefix : string) ->
+                                                              string
+                                                }]
+                                     }?) -> float?),
+                ?reopen_when : (() -> bool), ?reopen_delay : {float},
+                ?on_reopen : (() -> unit), ?start : bool, ?playlist : string,
+                directory : string, source(audio=pcm(stereo), video=canvas)) ->
+               
+               {
+                 buffered : () -> [string * float],
+                 duration : () -> float,
+                 elapsed : () -> float,
+                 fallible : bool,
+                 id : () -> string,
+                 is_active : () -> bool,
+                 is_ready : () -> bool,
+                 is_started : () -> bool,
+                 is_up : () -> bool,
+                 last_metadata : () -> [string * string]?,
+                 log : 
+                 {level : (() -> int?).{set : (int) -> unit}
+                 },
+                 on_metadata : ((([string * string]) -> unit)) -> unit,
+                 on_shutdown : ((() -> unit)) -> unit,
+                 on_track : ((([string * string]) -> unit)) -> unit,
+                 on_wake_up : ((() -> unit)) -> unit,
+                 remaining : () -> float,
+                 reopen : () -> unit,
+                 seek : (float) -> float,
+                 self_sync : () -> bool,
+                 shutdown : () -> unit,
+                 skip : () -> unit,
+                 start : () -> unit,
+                 stop : () -> unit,
+                 time : () -> float}
+    },
+    hls : 'b.((?id : string?, ?dir_perm : int, ?extra_tags : [string],
+               ?fallible : bool,
+               ?on_file_change : ((state : string, string) -> unit),
+               ?on_start : (() -> unit), ?on_stop : (() -> unit),
+               ?perm : int, ?persist_at : string?, ?playlist : string,
+               ?prefix : string, ?register_telnet : bool,
+               ?segment_duration : float,
+               ?segment_name : ((position : int, extname : string, string) ->
+                                string),
+               ?segments : int, ?segments_overhead : int, ?start : bool,
+               ?strict_persist : bool, ?temp_dir : string?, string,
+               [string * format('b)
+                .{
+                  bandwidth? : int,
+                  codecs? : string,
+                  extname? : string,
+                  extra_tags? : [string],
+                  id3? : bool,
+                  id3_version? : int,
+                  replay_id3? : bool,
+                  video_size? : int * int
+                }],
+               source('b)) -> 
+              {
+                buffered : () -> [string * float],
+                duration : () -> float,
+                elapsed : () -> float,
+                fallible : bool,
+                id : () -> string,
+                is_active : () -> bool,
+                is_ready : () -> bool,
+                is_started : () -> bool,
+                is_up : () -> bool,
+                last_metadata : () -> [string * string]?,
+                log : 
+                {level : (() -> int?).{set : (int) -> unit}
+                },
+                on_metadata : ((([string * string]) -> unit)) -> unit,
+                on_shutdown : ((() -> unit)) -> unit,
+                on_track : ((([string * string]) -> unit)) -> unit,
+                on_wake_up : ((() -> unit)) -> unit,
+                remaining : () -> float,
+                seek : (float) -> float,
+                self_sync : () -> bool,
+                shutdown : () -> unit,
+                skip : () -> unit,
+                start : () -> unit,
+                stop : () -> unit,
+                streams : () ->
+                          [
+                           {
+                             bandwidth : int,
+                             codecs : string,
+                             discontinuity_count : int,
+                             encoder : format('b),
+                             extname : string,
+                             extra_tags : [string],
+                             id3_enabled : bool,
+                             insert_tag : (string) -> unit,
+                             name : string,
+                             replay_id3 : bool,
+                             video_size : 
+                             {height : int, width : int
+                             }?
+                           }],
+                time : () -> float})
+    .{
+      ffmpeg : (?id : string?, ?flush : bool, ?fallible : bool,
+                ?on_start : (() -> unit), ?on_stop : (() -> unit),
+                ?reopen_on_metadata : (([string * string]) -> bool),
+                ?reopen_on_error : ((error
+                                     .{
+                                       kind : string,
+                                       message : string,
+                                       trace : [
+                                                {
+                                                  position_end : 
+                                                  {
+                                                    character_offset : int,
+                                                    filename : string,
+                                                    line_number : int
+                                                  },
+                                                  position_start : 
+                                                  {
+                                                    character_offset : int,
+                                                    filename : string,
+                                                    line_number : int
+                                                  },
+                                                  to_string : (?prefix : string) ->
+                                                              string
+                                                }]
+                                     }?) -> float?),
+                ?reopen_when : (() -> bool), ?reopen_delay : {float},
+                ?on_reopen : (() -> unit), ?start : bool, ?playlist : string,
+                directory : string, source(audio=pcm(stereo), video=canvas)) ->
+               
+               {
+                 buffered : () -> [string * float],
+                 duration : () -> float,
+                 elapsed : () -> float,
+                 fallible : bool,
+                 id : () -> string,
+                 is_active : () -> bool,
+                 is_ready : () -> bool,
+                 is_started : () -> bool,
+                 is_up : () -> bool,
+                 last_metadata : () -> [string * string]?,
+                 log : 
+                 {level : (() -> int?).{set : (int) -> unit}
+                 },
+                 on_metadata : ((([string * string]) -> unit)) -> unit,
+                 on_shutdown : ((() -> unit)) -> unit,
+                 on_track : ((([string * string]) -> unit)) -> unit,
+                 on_wake_up : ((() -> unit)) -> unit,
+                 remaining : () -> float,
+                 reopen : () -> unit,
+                 seek : (float) -> float,
+                 self_sync : () -> bool,
+                 shutdown : () -> unit,
+                 skip : () -> unit,
+                 start : () -> unit,
+                 stop : () -> unit,
+                 time : () -> float}
+    }
+  },
+  graphics : 'a.'b.(?id : string?, ?fallible : bool,
+                    ?on_start : (() -> unit), ?on_stop : (() -> unit),
+                    ?register_telnet : bool, ?start : bool,
+                    source(video=canvas('a), 'b)) -> 
+                   {
+                     buffered : () -> [string * float],
+                     duration : () -> float,
+                     elapsed : () -> float,
+                     fallible : bool,
+                     id : () -> string,
+                     is_active : () -> bool,
+                     is_ready : () -> bool,
+                     is_started : () -> bool,
+                     is_up : () -> bool,
+                     last_metadata : () -> [string * string]?,
+                     log : 
+                     {level : (() -> int?).{set : (int) -> unit}
+                     },
+                     on_metadata : ((([string * string]) -> unit)) -> unit,
+                     on_shutdown : ((() -> unit)) -> unit,
+                     on_track : ((([string * string]) -> unit)) -> unit,
+                     on_wake_up : ((() -> unit)) -> unit,
+                     remaining : () -> float,
+                     seek : (float) -> float,
+                     self_sync : () -> bool,
+                     shutdown : () -> unit,
+                     skip : () -> unit,
+                     start : () -> unit,
+                     stop : () -> unit,
+                     time : () -> float},
+  harbor : 'a.((?id : string?,
+                ?auth : ((address : string, string, string) -> bool)?,
+                ?buffer : int, ?burst : int, ?chunk : int,
+                ?dumpfile : string?, ?encoding : string, ?fallible : bool,
+                ?format : string, ?headers : [string * string],
+                ?metaint : int, mount : string,
+                ?on_connect : ((headers : [string * string], uri : string,
+                                protocol : string, string) -> unit),
+                ?on_disconnect : ((string) -> unit),
+                ?on_start : (() -> unit), ?on_stop : (() -> unit),
+                ?password : string?, ?port : int, ?register_telnet : bool,
+                ?start : bool, ?timeout : float, ?transport : http_transport,
+                ?url : string?, ?user : string?, format('a), source('a)) -> 
+               {
+                 buffered : () -> [string * float],
+                 duration : () -> float,
+                 elapsed : () -> float,
+                 fallible : bool,
+                 id : () -> string,
+                 is_active : () -> bool,
+                 is_ready : () -> bool,
+                 is_started : () -> bool,
+                 is_up : () -> bool,
+                 last_metadata : () -> [string * string]?,
+                 log : 
+                 {level : (() -> int?).{set : (int) -> unit}
+                 },
+                 on_metadata : ((([string * string]) -> unit)) -> unit,
+                 on_shutdown : ((() -> unit)) -> unit,
+                 on_track : ((([string * string]) -> unit)) -> unit,
+                 on_wake_up : ((() -> unit)) -> unit,
+                 remaining : () -> float,
+                 seek : (float) -> float,
+                 self_sync : () -> bool,
+                 shutdown : () -> unit,
+                 skip : () -> unit,
+                 start : () -> unit,
+                 stop : () -> unit,
+                 time : () -> float})
+  .{
+    hls : 'b.((?id : string?, ?dir_perm : int, ?extra_tags : [string],
+               ?fallible : bool,
+               ?on_file_change : ((state : string, string) -> unit),
+               ?on_start : (() -> unit), ?on_stop : (() -> unit),
+               ?perm : int, ?persist_at : string?, ?playlist : string,
+               ?prefix : string, ?register_telnet : bool,
+               ?segment_duration : float, ?segments : int,
+               ?segments_overhead : int, ?start : bool,
+               ?strict_persist : bool, ?temp_dir : string?,
+               ?segment_name : ((position : int, extname : string, string) ->
+                                string),
+               ?headers : [string * string], ?port : int, ?path : string,
+               ?tmpdir : string?, ?transport : http_transport
+               .{default_port : int, name : string, protocol : string},
+               [string * format('b)], source('b)) -> 
+              {
+                buffered : () -> [string * float],
+                duration : () -> float,
+                elapsed : () -> float,
+                fallible : bool,
+                id : () -> string,
+                is_active : () -> bool,
+                is_ready : () -> bool,
+                is_started : () -> bool,
+                is_up : () -> bool,
+                last_metadata : () -> [string * string]?,
+                log : 
+                {level : (() -> int?).{set : (int) -> unit}
+                },
+                on_metadata : ((([string * string]) -> unit)) -> unit,
+                on_shutdown : ((() -> unit)) -> unit,
+                on_track : ((([string * string]) -> unit)) -> unit,
+                on_wake_up : ((() -> unit)) -> unit,
+                remaining : () -> float,
+                seek : (float) -> float,
+                self_sync : () -> bool,
+                shutdown : () -> unit,
+                skip : () -> unit,
+                start : () -> unit,
+                stop : () -> unit,
+                streams : () ->
+                          [
+                           {
+                             bandwidth : int,
+                             codecs : string,
+                             discontinuity_count : int,
+                             encoder : format('b),
+                             extname : string,
+                             extra_tags : [string],
+                             id3_enabled : bool,
+                             insert_tag : (string) -> unit,
+                             name : string,
+                             replay_id3 : bool,
+                             video_size : 
+                             {height : int, width : int
+                             }?
+                           }],
+                time : () -> float})
+    .{
+      base : 'c.'d.'e.'f.(?id : string?, ?dir_perm : int,
+                          ?extra_tags : [string], ?fallible : bool,
+                          ?on_file_change : ((state : string, string) ->
+                                             unit),
+                          ?on_start : (() -> unit), ?on_stop : (() -> unit),
+                          ?perm : int, ?persist_at : string?,
+                          ?playlist : string, ?prefix : string,
+                          ?register_telnet : bool, ?segment_duration : float,
+                          ?segments : int, ?segments_overhead : int,
+                          ?start : bool, ?strict_persist : bool,
+                          ?temp_dir : string?,
+                          segment_name : ((position : int, extname : string,
+                                           string) -> string),
+                          tmpdir : string?, port : 'c, path : 'd,
+                          ((port : 'c, path : 'd,
+                            content_type : ((string) -> string), string) ->
+                           'e),
+                          [string * format('f)], source('f)) -> 
+                         {
+                           buffered : () -> [string * float],
+                           duration : () -> float,
+                           elapsed : () -> float,
+                           fallible : bool,
+                           id : () -> string,
+                           is_active : () -> bool,
+                           is_ready : () -> bool,
+                           is_started : () -> bool,
+                           is_up : () -> bool,
+                           last_metadata : () -> [string * string]?,
+                           log : 
+                           {level : (() -> int?).{set : (int) -> unit}
+                           },
+                           on_metadata : ((([string * string]) -> unit)) ->
+                                         unit,
+                           on_shutdown : ((() -> unit)) -> unit,
+                           on_track : ((([string * string]) -> unit)) -> unit,
+                           on_wake_up : ((() -> unit)) -> unit,
+                           remaining : () -> float,
+                           seek : (float) -> float,
+                           self_sync : () -> bool,
+                           shutdown : () -> unit,
+                           skip : () -> unit,
+                           start : () -> unit,
+                           stop : () -> unit,
+                           streams : () ->
+                                     [
+                                      {
+                                        bandwidth : int,
+                                        codecs : string,
+                                        discontinuity_count : int,
+                                        encoder : format('f),
+                                        extname : string,
+                                        extra_tags : [string],
+                                        id3_enabled : bool,
+                                        insert_tag : (string) -> unit,
+                                        name : string,
+                                        replay_id3 : bool,
+                                        video_size : 
+                                        {height : int, width : int
+                                        }?
+                                      }],
+                           time : () -> float}
+    }
+  },
+  icecast : 'a.(?id : string?, ?chunked : bool, ?connection_timeout : float,
+                ?description : string?, ?dumpfile : string?,
+                ?encoding : string?, ?fallible : bool, ?format : string,
+                ?genre : string?, ?headers : [string * string],
+                ?host : string, ?icy_metadata : [string],
+                ?icy_song : (([string * string]) -> string?),
+                ?method : string, mount : string, ?name : string?,
+                ?on_connect : (() -> unit), ?on_disconnect : (() -> unit),
+                ?on_error : ((string) -> float), ?on_start : (() -> unit),
+                ?on_stop : (() -> unit), ?password : string, ?port : int,
+                ?prefer_address : string?, ?public : bool,
+                ?register_telnet : bool, ?send_icy_metadata : bool?,
+                ?start : bool, ?timeout : float, ?transport : http_transport,
+                ?url : string?, ?user : string?, format('a), source('a)) -> 
+               {
+                 buffered : () -> [string * float],
+                 duration : () -> float,
+                 elapsed : () -> float,
+                 fallible : bool,
+                 id : () -> string,
+                 is_active : () -> bool,
+                 is_ready : () -> bool,
+                 is_started : () -> bool,
+                 is_up : () -> bool,
+                 last_metadata : () -> [string * string]?,
+                 log : 
+                 {level : (() -> int?).{set : (int) -> unit}
+                 },
+                 on_metadata : ((([string * string]) -> unit)) -> unit,
+                 on_shutdown : ((() -> unit)) -> unit,
+                 on_track : ((([string * string]) -> unit)) -> unit,
+                 on_wake_up : ((() -> unit)) -> unit,
+                 remaining : () -> float,
+                 seek : (float) -> float,
+                 self_sync : () -> bool,
+                 shutdown : () -> unit,
+                 skip : () -> unit,
+                 start : () -> unit,
+                 stop : () -> unit,
+                 time : () -> float},
+  jack : 'a.'b.(?id : string?, ?buffer_size : int, ?clock_safe : bool,
+                ?fallible : bool, ?on_start : (() -> unit),
+                ?on_stop : (() -> unit), ?register_telnet : bool,
+                ?server : string, ?start : bool, source(audio=pcm('a), 'b)) ->
+               
+               {
+                 buffered : () -> [string * float],
+                 duration : () -> float,
+                 elapsed : () -> float,
+                 fallible : bool,
+                 id : () -> string,
+                 is_active : () -> bool,
+                 is_ready : () -> bool,
+                 is_started : () -> bool,
+                 is_up : () -> bool,
+                 last_metadata : () -> [string * string]?,
+                 log : 
+                 {level : (() -> int?).{set : (int) -> unit}
+                 },
+                 on_metadata : ((([string * string]) -> unit)) -> unit,
+                 on_shutdown : ((() -> unit)) -> unit,
+                 on_track : ((([string * string]) -> unit)) -> unit,
+                 on_wake_up : ((() -> unit)) -> unit,
+                 remaining : () -> float,
+                 seek : (float) -> float,
+                 self_sync : () -> bool,
+                 shutdown : () -> unit,
+                 skip : () -> unit,
+                 start : () -> unit,
+                 stop : () -> unit,
+                 time : () -> float},
+  oss : 'a.'b.(?id : string?, ?clock_safe : bool, ?device : string,
+               ?fallible : bool, ?on_start : (() -> unit),
+               ?on_stop : (() -> unit), ?register_telnet : bool,
+               ?start : bool, source(audio=pcm('a), 'b)) -> 
+              {
+                buffered : () -> [string * float],
+                duration : () -> float,
+                elapsed : () -> float,
+                fallible : bool,
+                id : () -> string,
+                is_active : () -> bool,
+                is_ready : () -> bool,
+                is_started : () -> bool,
+                is_up : () -> bool,
+                last_metadata : () -> [string * string]?,
+                log : 
+                {level : (() -> int?).{set : (int) -> unit}
+                },
+                on_metadata : ((([string * string]) -> unit)) -> unit,
+                on_shutdown : ((() -> unit)) -> unit,
+                on_track : ((([string * string]) -> unit)) -> unit,
+                on_wake_up : ((() -> unit)) -> unit,
+                remaining : () -> float,
+                seek : (float) -> float,
+                self_sync : () -> bool,
+                shutdown : () -> unit,
+                skip : () -> unit,
+                start : () -> unit,
+                stop : () -> unit,
+                time : () -> float},
+  portaudio : 'a.'b.(?id : string?, ?buflen : int, ?clock_safe : bool,
+                     ?device_id : int?, ?fallible : bool, ?latency : float?,
+                     ?on_start : (() -> unit), ?on_stop : (() -> unit),
+                     ?register_telnet : bool, ?start : bool,
+                     source(audio=pcm('a), 'b)) -> 
+                    {
+                      buffered : () -> [string * float],
+                      duration : () -> float,
+                      elapsed : () -> float,
+                      fallible : bool,
+                      id : () -> string,
+                      is_active : () -> bool,
+                      is_ready : () -> bool,
+                      is_started : () -> bool,
+                      is_up : () -> bool,
+                      last_metadata : () -> [string * string]?,
+                      log : 
+                      {level : (() -> int?).{set : (int) -> unit}
+                      },
+                      on_metadata : ((([string * string]) -> unit)) -> unit,
+                      on_shutdown : ((() -> unit)) -> unit,
+                      on_track : ((([string * string]) -> unit)) -> unit,
+                      on_wake_up : ((() -> unit)) -> unit,
+                      remaining : () -> float,
+                      seek : (float) -> float,
+                      self_sync : () -> bool,
+                      shutdown : () -> unit,
+                      skip : () -> unit,
+                      start : () -> unit,
+                      stop : () -> unit,
+                      time : () -> float},
+  preferred : (?id : string?, ?fallible : bool, ?on_start : (() -> unit),
+               ?on_stop : (() -> unit), ?start : bool, source(audio=pcm('A))) ->
+              
+              {
+                buffered : () -> [string * float],
+                duration : () -> float,
+                elapsed : () -> float,
+                fallible : bool,
+                id : () -> string,
+                is_active : () -> bool,
+                is_ready : () -> bool,
+                is_started : () -> bool,
+                is_up : () -> bool,
+                last_metadata : () -> [string * string]?,
+                log : 
+                {level : (() -> int?).{set : (int) -> unit}
+                },
+                on_metadata : ((([string * string]) -> unit)) -> unit,
+                on_shutdown : ((() -> unit)) -> unit,
+                on_track : ((([string * string]) -> unit)) -> unit,
+                on_wake_up : ((() -> unit)) -> unit,
+                remaining : () -> float,
+                seek : (float) -> float,
+                self_sync : () -> bool,
+                shutdown : () -> unit,
+                skip : () -> unit,
+                start : () -> unit,
+                stop : () -> unit,
+                time : () -> float},
+  pulseaudio : 'a.'b.(?id : string?, ?client : string, ?clock_safe : bool,
+                      ?device : string, ?fallible : bool,
+                      ?on_start : (() -> unit), ?on_stop : (() -> unit),
+                      ?register_telnet : bool, ?start : bool,
+                      source(audio=pcm('a), 'b)) -> 
+                     {
+                       buffered : () -> [string * float],
+                       duration : () -> float,
+                       elapsed : () -> float,
+                       fallible : bool,
+                       id : () -> string,
+                       is_active : () -> bool,
+                       is_ready : () -> bool,
+                       is_started : () -> bool,
+                       is_up : () -> bool,
+                       last_metadata : () -> [string * string]?,
+                       log : 
+                       {level : (() -> int?).{set : (int) -> unit}
+                       },
+                       on_metadata : ((([string * string]) -> unit)) -> unit,
+                       on_shutdown : ((() -> unit)) -> unit,
+                       on_track : ((([string * string]) -> unit)) -> unit,
+                       on_wake_up : ((() -> unit)) -> unit,
+                       remaining : () -> float,
+                       seek : (float) -> float,
+                       self_sync : () -> bool,
+                       shutdown : () -> unit,
+                       skip : () -> unit,
+                       start : () -> unit,
+                       stop : () -> unit,
+                       time : () -> float},
+  shoutcast : 'a.(?id : string?, ?chunked : bool,
+                  ?connection_timeout : float, ?dumpfile : string?,
+                  ?encoding : string?, ?fallible : bool, ?format : string,
+                  ?genre : string?, ?headers : [string * string],
+                  ?host : string, ?icy_id : int, ?icy_metadata : [string],
+                  ?icy_song : (([string * string]) -> string?),
+                  ?name : string?, ?on_connect : (() -> unit),
+                  ?on_disconnect : (() -> unit),
+                  ?on_error : ((string) -> float), ?on_start : (() -> unit),
+                  ?on_stop : (() -> unit), ?password : string, ?port : int,
+                  ?prefer_address : string?, ?public : bool,
+                  ?register_telnet : bool, ?send_icy_metadata : bool?,
+                  ?start : bool, ?timeout : float,
+                  ?transport : http_transport, ?url : string?,
+                  ?user : string?, ?icy_reset : bool, ?dj : (() -> string),
+                  ?aim : string, ?icq : string, ?irc : string, format('a),
+                  source('a)) -> 
+                 {
+                   buffered : () -> [string * float],
+                   duration : () -> float,
+                   elapsed : () -> float,
+                   fallible : bool,
+                   id : () -> string,
+                   is_active : () -> bool,
+                   is_ready : () -> bool,
+                   is_started : () -> bool,
+                   is_up : () -> bool,
+                   last_metadata : () -> [string * string]?,
+                   log : 
+                   {level : (() -> int?).{set : (int) -> unit}
+                   },
+                   on_metadata : ((([string * string]) -> unit)) -> unit,
+                   on_shutdown : ((() -> unit)) -> unit,
+                   on_track : ((([string * string]) -> unit)) -> unit,
+                   on_wake_up : ((() -> unit)) -> unit,
+                   remaining : () -> float,
+                   seek : (float) -> float,
+                   self_sync : () -> bool,
+                   shutdown : () -> unit,
+                   skip : () -> unit,
+                   start : () -> unit,
+                   stop : () -> unit,
+                   time : () -> float},
+  udp : 'a.(?id : string?, ?fallible : bool, host : string,
+            ?on_start : (() -> unit), ?on_stop : (() -> unit), port : int,
+            ?register_telnet : bool, ?start : bool, format('a), source('a)) ->
+           
+           {
+             buffered : () -> [string * float],
+             duration : () -> float,
+             elapsed : () -> float,
+             fallible : bool,
+             id : () -> string,
+             is_active : () -> bool,
+             is_ready : () -> bool,
+             is_up : () -> bool,
+             last_metadata : () -> [string * string]?,
+             log : 
+             {level : (() -> int?).{set : (int) -> unit}
+             },
+             on_metadata : ((([string * string]) -> unit)) -> unit,
+             on_shutdown : ((() -> unit)) -> unit,
+             on_track : ((([string * string]) -> unit)) -> unit,
+             on_wake_up : ((() -> unit)) -> unit,
+             remaining : () -> float,
+             seek : (float) -> float,
+             self_sync : () -> bool,
+             skip : () -> unit,
+             time : () -> float},
+  url : 'a.(?id : string?, ?export_cover_metadata : bool, ?fallible : bool,
+            ?on_error : ((error
+                          .{
+                            kind : string,
+                            message : string,
+                            trace : [
+                                     {
+                                       position_end : 
+                                       {
+                                         character_offset : int,
+                                         filename : string,
+                                         line_number : int
+                                       },
+                                       position_start : 
+                                       {
+                                         character_offset : int,
+                                         filename : string,
+                                         line_number : int
+                                       },
+                                       to_string : (?prefix : string) ->
+                                                   string
+                                     }]
+                          }) -> unit),
+            ?on_start : (() -> unit), ?on_stop : (() -> unit),
+            ?register_telnet : bool, ?restart_delay : float?,
+            ?self_sync : bool, ?start : bool, url : string, format('a),
+            source('a)) -> 
+           {
+             buffered : () -> [string * float],
+             duration : () -> float,
+             elapsed : () -> float,
+             fallible : bool,
+             id : () -> string,
+             is_active : () -> bool,
+             is_ready : () -> bool,
+             is_started : () -> bool,
+             is_up : () -> bool,
+             last_metadata : () -> [string * string]?,
+             log : 
+             {level : (() -> int?).{set : (int) -> unit}
+             },
+             on_metadata : ((([string * string]) -> unit)) -> unit,
+             on_shutdown : ((() -> unit)) -> unit,
+             on_track : ((([string * string]) -> unit)) -> unit,
+             on_wake_up : ((() -> unit)) -> unit,
+             remaining : () -> float,
+             seek : (float) -> float,
+             self_sync : () -> bool,
+             shutdown : () -> unit,
+             skip : () -> unit,
+             start : () -> unit,
+             stop : () -> unit,
+             time : () -> float},
+  video : (?id : string?, ?fallible : bool, ?on_start : (() -> unit),
+           ?on_stop : (() -> unit), ?start : bool, source(video=canvas('C))) ->
+          
+          {
+            buffered : () -> [string * float],
+            duration : () -> float,
+            elapsed : () -> float,
+            fallible : bool,
+            id : () -> string,
+            is_active : () -> bool,
+            is_ready : () -> bool,
+            is_started : () -> bool,
+            is_up : () -> bool,
+            last_metadata : () -> [string * string]?,
+            log : 
+            {level : (() -> int?).{set : (int) -> unit}
+            },
+            on_metadata : ((([string * string]) -> unit)) -> unit,
+            on_shutdown : ((() -> unit)) -> unit,
+            on_track : ((([string * string]) -> unit)) -> unit,
+            on_wake_up : ((() -> unit)) -> unit,
+            remaining : () -> float,
+            seek : (float) -> float,
+            self_sync : () -> bool,
+            shutdown : () -> unit,
+            skip : () -> unit,
+            start : () -> unit,
+            stop : () -> unit,
+            time : () -> float},
+  youtube : 
+  {
+    live : 
+    {
+      hls : 'a.(?id : string?, ?fallible : bool, ?on_start : (() -> unit),
+                ?on_stop : (() -> unit), ?segment_duration : float,
+                ?segments : int, ?segments_overhead : int, ?start : bool,
+                ?url : string, key : string, encoder : format('a)
+                .{
+                  bandwidth? : int,
+                  codecs? : string,
+                  extname? : string,
+                  extra_tags? : [string],
+                  id3? : bool,
+                  id3_version? : int,
+                  replay_id3? : bool,
+                  video_size? : int * int
+                }, source('a)) -> 
+               {
+                 buffered : () -> [string * float],
+                 duration : () -> float,
+                 elapsed : () -> float,
+                 fallible : bool,
+                 id : () -> string,
+                 is_active : () -> bool,
+                 is_ready : () -> bool,
+                 is_started : () -> bool,
+                 is_up : () -> bool,
+                 last_metadata : () -> [string * string]?,
+                 log : 
+                 {level : (() -> int?).{set : (int) -> unit}
+                 },
+                 on_metadata : ((([string * string]) -> unit)) -> unit,
+                 on_shutdown : ((() -> unit)) -> unit,
+                 on_track : ((([string * string]) -> unit)) -> unit,
+                 on_wake_up : ((() -> unit)) -> unit,
+                 remaining : () -> float,
+                 seek : (float) -> float,
+                 self_sync : () -> bool,
+                 shutdown : () -> unit,
+                 skip : () -> unit,
+                 start : () -> unit,
+                 stop : () -> unit,
+                 streams : () ->
+                           [
+                            {
+                              bandwidth : int,
+                              codecs : string,
+                              discontinuity_count : int,
+                              encoder : format('a),
+                              extname : string,
+                              extra_tags : [string],
+                              id3_enabled : bool,
+                              insert_tag : (string) -> unit,
+                              name : string,
+                              replay_id3 : bool,
+                              video_size : 
+                              {height : int, width : int
+                              }?
+                            }],
+                 time : () -> float},
+      rtmp : 'a.(?id : string?, ?fallible : bool, ?on_start : (() -> unit),
+                 ?on_stop : (() -> unit), ?start : bool, ?url : string,
+                 key : string, encoder : format('a), source('a)) -> 
+                {
+                  buffered : () -> [string * float],
+                  duration : () -> float,
+                  elapsed : () -> float,
+                  fallible : bool,
+                  id : () -> string,
+                  is_active : () -> bool,
+                  is_ready : () -> bool,
+                  is_started : () -> bool,
+                  is_up : () -> bool,
+                  last_metadata : () -> [string * string]?,
+                  log : 
+                  {level : (() -> int?).{set : (int) -> unit}
+                  },
+                  on_metadata : ((([string * string]) -> unit)) -> unit,
+                  on_shutdown : ((() -> unit)) -> unit,
+                  on_track : ((([string * string]) -> unit)) -> unit,
+                  on_wake_up : ((() -> unit)) -> unit,
+                  remaining : () -> float,
+                  seek : (float) -> float,
+                  self_sync : () -> bool,
+                  shutdown : () -> unit,
+                  skip : () -> unit,
+                  start : () -> unit,
+                  stop : () -> unit,
+                  time : () -> float}
+    }
+  }
+} where 'a is a set of tracks to be muxed into a source.

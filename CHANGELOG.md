@@ -1,10 +1,15 @@
-# 0.2.2m3 (2026-04-24)
-- Sidebar audio monitor and patchpoint selector integrated; single player with dropdown for previewing unprocessed/processed feeds.
-- "Apply Settings" button added to sidebar (UI only, backend integration pending).
-- Improved error handling: backend now always returns JSON for unknown /api/* endpoints (prevents HTML parse errors in UI).
-- Installer and service files updated for flexible backend/public port configuration.
-- Nginx config and backend robust for Codespaces and bare metal.
-- Scrubbed defaults.var for public stream URLs.
+
+# 0.2.2m4 (2026-04-24)
+- Liquidsoap preview output fixed: output.http replaced with output.harbor for compatibility with Liquidsoap 2.x.
+- ompx-web-ui.py: Fixed UnboundLocalError (missing os import), improved static file serving, and robust error handling for preview endpoint.
+- VostokRadioLite C-based FM/MPX encoder added and buildable; integration plan and file-based workflow documented for Codespaces.
+- All recent fixes and integration steps committed for safe migration/testing on other systems.
+- (Previous) Sidebar audio monitor and patchpoint selector integrated; single player with dropdown for previewing unprocessed/processed feeds.
+- (Previous) "Apply Settings" button added to sidebar (UI only, backend integration pending).
+- (Previous) Improved error handling: backend now always returns JSON for unknown /api/* endpoints (prevents HTML parse errors in UI).
+- (Previous) Installer and service files updated for flexible backend/public port configuration.
+- (Previous) Nginx config and backend robust for Codespaces and bare metal.
+- (Previous) Scrubbed defaults.var for public stream URLs.
 
 # 0.2.2m2 (2026-04-23)
 - Redact all default stream URLs for public/hardware testing safety.
