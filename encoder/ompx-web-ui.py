@@ -259,8 +259,11 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"ok": True, "message": msg})
             return
 
-        # Unknown POST endpoint
-        self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+        # Unknown POST endpoint: always return JSON for /api/*
+        if self.path.startswith("/api/"):
+            self._send_json({"ok": False, "message": f"Unknown API endpoint: {self.path}"}, status=HTTPStatus.NOT_FOUND)
+        else:
+            self.send_error(HTTPStatus.NOT_FOUND, "Not found")
 
 
 
@@ -325,8 +328,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_error(HTTPStatus.SERVICE_UNAVAILABLE, f"WAV preview unavailable: {e}")
                 return
 
-        # Unknown GET endpoint
-        self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+        # Unknown GET endpoint: always return JSON for /api/*
+        if self.path.startswith("/api/"):
+            self._send_json({"ok": False, "message": f"Unknown API endpoint: {self.path}"}, status=HTTPStatus.NOT_FOUND)
+        else:
+            self.send_error(HTTPStatus.NOT_FOUND, "Not found")
 
     def _serve_static_file(self, filename):
         import mimetypes, os

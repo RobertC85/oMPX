@@ -2,11 +2,31 @@ console.log('[oMPX] main.js loaded');
 // --- Audio Processing Sliders: Double-click for numeric input ---
 
 document.addEventListener('DOMContentLoaded', function() {
-  // Set Program 1 audio player source
-  var audioPrg1 = document.getElementById('audio_prg1');
-  if (audioPrg1) {
-    // Hardcoded for now; ideally fetch from backend or config
-    audioPrg1.src = "http://waxradioindy.com:8010/transmitter";
+    // Apply button logic
+    var applyBtn = document.getElementById('apply_settings_btn');
+    if (applyBtn) {
+      applyBtn.addEventListener('click', function() {
+        applyBtn.disabled = true;
+        applyBtn.textContent = 'Applying...';
+        // TODO: Implement actual apply logic (API call)
+        setTimeout(function() {
+          applyBtn.disabled = false;
+          applyBtn.textContent = 'Apply Settings';
+          alert('Settings applied! (placeholder)');
+        }, 1200);
+      });
+    }
+  // Patchpoint selector for audio monitor
+  var patchSel = document.getElementById('patchpoint_select');
+  var audioMon = document.getElementById('audio_monitor');
+  if (patchSel && audioMon) {
+    function setAudioSrc() {
+      audioMon.src = patchSel.value;
+      audioMon.load();
+      audioMon.play().catch(()=>{});
+    }
+    patchSel.addEventListener('change', setAudioSrc);
+    setAudioSrc(); // Set initial
   }
   function showUiError(msg) {
     var alertDiv = document.getElementById('ui-error-alert');
@@ -94,9 +114,17 @@ document.addEventListener('DOMContentLoaded', function() {
            method: 'POST',
            headers: { 'Content-Type': 'application/json' },
            body: JSON.stringify({ program, param: id, value: slider.value })
-         }).then(r => r.json()).then(data => {
+         })
+         .then(async r => {
+           const ct = r.headers.get('content-type') || '';
+           if (ct.includes('application/json')) return r.json();
+           const text = await r.text();
+           throw new Error('Non-JSON response: ' + text.slice(0, 100));
+         })
+         .then(data => {
            if (!data.ok) showUiError(data.message || 'Failed to update parameter');
-         }).catch(e => showUiError('Network error: ' + e));
+         })
+         .catch(e => showUiError('Network error: ' + e));
        });
        if (valSpan) valSpan.textContent = slider.value;
        // Double-click value span to edit
@@ -374,7 +402,14 @@ document.addEventListener('DOMContentLoaded', function() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ program: parseInt(prog), category: cat, ...adv })
         });
-        const data = await res.json();
+        const ct = res.headers.get('content-type') || '';
+        let data;
+        if (ct.includes('application/json')) {
+          data = await res.json();
+        } else {
+          const text = await res.text();
+          throw new Error('Non-JSON response: ' + text.slice(0, 100));
+        }
         if (resultEl) resultEl.textContent = data.message || (data.ok ? 'Applied.' : 'Failed');
       } catch (e) {
         if (resultEl) resultEl.textContent = 'Error: ' + e;
@@ -397,7 +432,14 @@ document.addEventListener('DOMContentLoaded', function() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ program: parseInt(prog), category: cat, ...adv })
           });
-          const data = await res.json();
+          const ct = res.headers.get('content-type') || '';
+          let data;
+          if (ct.includes('application/json')) {
+            data = await res.json();
+          } else {
+            const text = await res.text();
+            throw new Error('Non-JSON response: ' + text.slice(0, 100));
+          }
           if (resultEl) resultEl.textContent = data.message || (data.ok ? 'Preview started.' : 'Failed');
           testActive = true;
         } catch (e) {

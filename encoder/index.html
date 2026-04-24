@@ -88,6 +88,15 @@
       <button class="menu-btn" data-section="global">Global Settings</button>
       <button class="menu-btn" data-section="about">About</button>
       <div style="margin-top:2em;">
+        <label for="patchpoint_select" style="color:var(--muted);font-size:0.95em;">Audio Monitor:</label>
+        <select id="patchpoint_select" style="width:100%;margin-top:4px;">
+          <option value="/studio/stream">Unprocessed Studio Feed</option>
+          <option value="/preview/stream">Processed Preview Output</option>
+        </select>
+        <audio id="audio_monitor" controls style="width:100%;margin-top:10px;"></audio>
+        <button id="apply_settings_btn" style="width:100%;margin-top:12px;padding:8px 0;background:var(--accent);color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;">Apply Settings</button>
+      </div>
+      <div style="margin-top:2em;">
         <label for="theme-select" style="color:var(--muted);font-size:0.95em;">Theme:</label>
         <select id="theme-select" style="width:100%;margin-top:4px;">
           <option value="modern" selected>Modern</option>
@@ -200,10 +209,6 @@
                 </div>
               </div>
               <!-- Program 1 Audio Player -->
-              <div style="margin-top:2em;">
-                <label>Program 1 Audio</label><br>
-                <audio id="audio_prg1" controls autoplay style="width:100%; margin-top:10px"></audio>
-              </div>
               </div>
               <!-- Band Meter Visualizer -->
               <div style="margin-top:2em;">

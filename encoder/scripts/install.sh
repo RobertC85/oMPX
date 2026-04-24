@@ -329,19 +329,31 @@ case "$PROCESSOR" in
     fi
     ;;
   ompx|*)
-    # Prompt for web interface port for oMPX
-    OMPX_WEB_PORT=$(whiptail --title "oMPX Web UI" --inputbox "Enter port for oMPX web interface (default: 8082):" 10 60 8082 3>&1 1>&2 2>&3)
-    if [ -z "$OMPX_WEB_PORT" ]; then
-      OMPX_WEB_PORT=8082
+    # Prompt for backend and public ports
+    OMPX_BACKEND_PORT=$(whiptail --title "oMPX Backend Port" --inputbox "Enter port for oMPX backend (default: 5000):" 10 60 5000 3>&1 1>&2 2>&3)
+    if [ -z "$OMPX_BACKEND_PORT" ]; then
+      OMPX_BACKEND_PORT=5000
     fi
-    whiptail --title "oMPX Processor" --msgbox "Using oMPX built-in processor (default).\nWeb interface will run on port $OMPX_WEB_PORT." 10 60
-    # Launch the oMPX profile editor backend (background)
+    OMPX_PUBLIC_PORT=$(whiptail --title "oMPX Public Port" --inputbox "Enter public port for oMPX web interface (default: 8082):" 10 60 8082 3>&1 1>&2 2>&3)
+    if [ -z "$OMPX_PUBLIC_PORT" ]; then
+      OMPX_PUBLIC_PORT=8082
+    fi
+    whiptail --title "oMPX Processor" --msgbox "Using oMPX built-in processor (default).\nWeb interface backend will run on port $OMPX_BACKEND_PORT and be proxied to public port $OMPX_PUBLIC_PORT." 10 60
+    # Update systemd service file for backend port
+    if [ -f "$SCRIPT_DIR/../ompx-web-ui.service" ]; then
+      sudo sed -i "s/Environment=OMPX_WEB_PORT=.*/Environment=OMPX_WEB_PORT=$OMPX_BACKEND_PORT/" "$SCRIPT_DIR/../ompx-web-ui.service"
+    fi
+    # Update nginx config for proxy port
+    if [ -f "$SCRIPT_DIR/../ompx-nginx.conf" ]; then
+      sudo sed -i "s/listen [0-9]\+/listen $OMPX_PUBLIC_PORT/" "$SCRIPT_DIR/../ompx-nginx.conf"
+      sudo sed -i "s|proxy_pass http://127.0.0.1:[0-9]\+/|proxy_pass http://127.0.0.1:$OMPX_BACKEND_PORT/|" "$SCRIPT_DIR/../ompx-nginx.conf"
+    fi
     if command -v python3 >/dev/null 2>&1; then
-      nohup env OMPX_WEB_PORT="$OMPX_WEB_PORT" python3 "$SCRIPT_DIR/ompx_profiles_api.py" &
+      nohup env OMPX_WEB_PORT=$OMPX_BACKEND_PORT python3 "$SCRIPT_DIR/ompx_profiles_api.py" &
       sleep 2
       # Remove nohup.out for commit safety
       rm -f nohup.out
-      whiptail --title "oMPX Web UI" --msgbox "oMPX Profile Editor started on port $OMPX_WEB_PORT.\nOpen http://localhost:$OMPX_WEB_PORT in your browser." 10 70
+      whiptail --title "oMPX Web UI" --msgbox "oMPX Profile Editor started on port $OMPX_BACKEND_PORT (proxied to $OMPX_PUBLIC_PORT).\nOpen http://localhost:$OMPX_PUBLIC_PORT in your browser." 10 70
     else
       whiptail --title "oMPX Web UI" --msgbox "Python3 not found. Cannot start oMPX Profile Editor." 8 60
     fi
