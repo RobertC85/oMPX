@@ -14,13 +14,25 @@ input = sine()
 # --- Post-Gain Only ---
 post_gain = amplify(2.0, input)
 
+# --- Generate a random password for HTTP harbor output ---
+def gen_password(len) =
+  base = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+  pw = ""
+  for i = 1 to len do
+    pw := pw ^ string.extract(base, random.int(0, string.length(base)-1), 1)
+  done
+  pw
+end
+
+harbor_password = gen_password(16)
+log("[oMPX] Liquidsoap HTTP harbor password for /preview.wav: " ^ harbor_password)
+
 # --- Output Section ---
-# HTTP WAV preview for web UI
 output.harbor(
-	id="preview",
-	port=8088,
-	password="hackme", # change this if exposed
-	format="wav",
-	mount="/preview.wav",
-	post_gain
+    id="preview",
+    port=8088,
+    password=harbor_password,
+    format=%wav,
+    mount="/preview.wav",
+    post_gain
 )

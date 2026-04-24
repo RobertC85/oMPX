@@ -1,0 +1,12 @@
+[Unit]
+Description=oMPX Watchdog
+After=network.target
+
+[Service]
+User=ompx
+Group=ompx
+ExecStart=/opt/mpx-radio/mpx-watchdog.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

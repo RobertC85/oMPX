@@ -1,0 +1,12 @@
+[Unit]
+Description=oMPX Stream Pull
+After=network.target
+
+[Service]
+User=ompx
+Group=ompx
+ExecStart=/opt/mpx-radio/mpx-stream-pull.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

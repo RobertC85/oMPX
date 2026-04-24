@@ -1,6 +1,6 @@
 
-
 # oMPX Web UI backend (Python HTTP server)
+import os
 # -------------------------------------------------------------
 # This script implements the backend HTTP API and static file server
 # for the oMPX web UI. It is designed to be run as a service,
@@ -118,7 +118,8 @@ class Handler(BaseHTTPRequestHandler):
         # Real-time param update
         if self.path == "/api/update_param":
             return self._handle_update_param(payload)
-        # If UI auth is enabled but this is not a local kiosk, require password
+        # Authentication is disabled by default for MVP. To enable, set OMPX_WEB_AUTH_ENABLE=true in the environment.
+        # Future: Enforce HTTPS and authentication for production deployments.
         if os.environ.get("OMPX_WEB_AUTH_ENABLE", "false").lower() == "true" and not self._is_local_kiosk():
             # Simple password check (Bearer token)
             auth = self.headers.get("Authorization")

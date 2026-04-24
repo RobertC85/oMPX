@@ -1,0 +1,12 @@
+[Unit]
+Description=oMPX Mix Pipeline
+After=network.target
+
+[Service]
+User=ompx
+Group=ompx
+ExecStart=/opt/mpx-radio/mpx-mix.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

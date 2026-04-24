@@ -1,0 +1,14 @@
+[Unit]
+Description=oMPX Direct Mode FM Composite Encoder
+After=network.target
+
+[Service]
+User=ompx
+Group=ompx
+WorkingDirectory=/workspaces/oMPX/encoder
+ExecStart=/workspaces/oMPX/encoder/ompx-composite < /workspaces/oMPX/encoder/input.pcm > /workspaces/oMPX/encoder/composite.pcm
+Restart=on-failure
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=oMPX Web UI
+After=network.target
+
+[Service]
+User=ompx
+Group=ompx
+ExecStart=/usr/bin/python3 /opt/mpx-radio/ompx-web-ui.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

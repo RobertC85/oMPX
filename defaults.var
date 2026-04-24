@@ -3,7 +3,7 @@
 # Edit these values to set default audio sources for unattended or repeatable installs.
 
 # Program 1 audio source (Icecast URL, ALSA device, file, etc.)
-PROGRAM1_SOURCE=""
+PROGRAM1_SOURCE="http://waxradioindy.com:8010/transmitter"
 # Program 2 audio source
-PROGRAM2_SOURCE=""
+PROGRAM2_SOURCE="http://waxradioindy.com:8060/transmitter2"
 # Add more defaults as needed
