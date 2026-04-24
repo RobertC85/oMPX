@@ -258,9 +258,13 @@ fi
 
 # Step 4: Prompt for Program 1 and 2 stream URLs
 DEFAULTS_VAR="/workspaces/oMPX/defaults.var"
+
+# Load defaults, but guard against unset variables
 if [ -f "$DEFAULTS_VAR" ]; then
   source "$DEFAULTS_VAR"
 fi
+PROGRAM1_SOURCE="${PROGRAM1_SOURCE:-http://127.0.0.1:8000/stream1}"
+PROGRAM2_SOURCE="${PROGRAM2_SOURCE:-http://127.0.0.1:8000/stream2}"
 
 PROMPT1="Enter Program 1 audio source URL (leave blank for default: $PROGRAM1_SOURCE):"
 PROMPT2="Enter Program 2 audio source URL (leave blank for default: $PROGRAM2_SOURCE):"
